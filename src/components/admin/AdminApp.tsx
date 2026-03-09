@@ -169,13 +169,13 @@ function AdminDashboard() {
 }
 
 function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
+  const topics = getTopics({ activeOnly: true });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    grade: '7EF', subject: 'math', difficulty: 'easy', topicId: '', status: 'published',
+    grade: '7EF', subject: 'math', difficulty: 'easy', topicId: topics[0]?.id ?? '', status: 'published',
     statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '',
   });
   const [feedback, setFeedback] = useState('');
-  const topics = getTopics({ activeOnly: true });
   const questions = loadQuestionBank();
 
   const resetForm = () => {
