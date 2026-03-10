@@ -595,9 +595,10 @@ function AdminSubjects({ onRefresh }: { onRefresh: () => void }) {
 function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [subjects, setSubjectsLocal] = useState<SubjectItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    grade: '7EF', subject: 'math', difficulty: 'easy', topicId: '', status: 'published',
+    grade: '7EF', subject: '', difficulty: 'easy', topicId: '', status: 'published',
     statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '',
   });
   const [feedback, setFeedback] = useState('');
@@ -605,10 +606,12 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [t, q] = await Promise.all([getTopics({ activeOnly: true }), loadQuestionBank()]);
+    const [t, q, s] = await Promise.all([getTopics({ activeOnly: true }), loadQuestionBank(), getSubjects({ activeOnly: true })]);
     setTopics(t);
     setQuestions(q);
+    setSubjectsLocal(s);
     if (t.length && !form.topicId) setForm(f => ({ ...f, topicId: t[0].id }));
+    if (s.length && !form.subject) setForm(f => ({ ...f, subject: s[0].slug }));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
