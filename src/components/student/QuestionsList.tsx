@@ -10,11 +10,11 @@ interface AnswerState {
   isCorrect: boolean;
 }
 
-export function QuestionsList({ initialQuestionId }: { initialQuestionId?: string | null }) {
+export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQuestionId?: string | null; initialTopicId?: string | null }) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
 
-  const [filters, setFilters] = useState<QuestionFilters>({ grade: '', subject: '', difficulty: '', topicId: '', search: '' });
+  const [filters, setFilters] = useState<QuestionFilters>({ grade: '', subject: '', difficulty: '', topicId: initialTopicId ?? '', search: '' });
   const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
   const [activeTab, setActiveTab] = useState<Record<string, string>>({});
   const [, setRefresh] = useState(0);
@@ -120,6 +120,11 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
 
   const [page, setPage] = useState(0);
   const [perPage, setPerPage] = useState(5);
+
+  // Update topic filter when navigating from study plan
+  useEffect(() => {
+    if (initialTopicId) setFilters(f => ({ ...f, topicId: initialTopicId }));
+  }, [initialTopicId]);
 
   // Reset page when filters change
   useEffect(() => { setPage(0); }, [filters]);

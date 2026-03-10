@@ -15,6 +15,7 @@ export function StudentApp() {
   const { user, loading: authLoading, error: authError, logout } = useAuth();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
+  const [topicFilter, setTopicFilter] = useState<string | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [diagChecked, setDiagChecked] = useState(false);
 
@@ -39,10 +40,17 @@ export function StudentApp() {
 
   const handleRefazer = (questionId: string) => {
     setTargetQuestion(questionId);
+    setTopicFilter(null);
     setTab('questions');
     setTimeout(() => {
       document.getElementById(`question-${questionId}`)?.scrollIntoView({ behavior: 'auto', block: 'start' });
     }, 100);
+  };
+
+  const handleStartTopic = (topicId: string) => {
+    setTargetQuestion(null);
+    setTopicFilter(topicId);
+    setTab('questions');
   };
 
   return (
@@ -84,7 +92,6 @@ export function StudentApp() {
             )}
             <LoginForm />
           </>
-
         ) : !diagChecked ? (
           <p className="font-body text-muted-foreground">Carregando...</p>
         ) : showDiagnostic ? (
@@ -95,7 +102,7 @@ export function StudentApp() {
               {([['dashboard', 'Painel'], ['questions', 'Questões'], ['notebook', 'Caderno de erros'], ['ranking', '🏆 Ranking']] as [Tab, string][]).map(([key, label]) => (
                 <button
                   key={key}
-                  onClick={() => setTab(key)}
+                  onClick={() => { setTab(key); setTopicFilter(null); }}
                   className={`font-heading text-xs px-3 py-1.5 border-b-2 ${tab === key ? 'border-primary text-foreground font-bold' : 'border-transparent text-muted-foreground'}`}
                 >
                   {label}
@@ -103,8 +110,8 @@ export function StudentApp() {
               ))}
             </nav>
 
-            {tab === 'dashboard' && <StudentDashboard onNavigateQuestions={() => setTab('questions')} onRefazer={handleRefazer} />}
-            {tab === 'questions' && <QuestionsList initialQuestionId={targetQuestion} />}
+            {tab === 'dashboard' && <StudentDashboard onNavigateQuestions={() => setTab('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
+            {tab === 'questions' && <QuestionsList initialQuestionId={targetQuestion} initialTopicId={topicFilter} />}
             {tab === 'notebook' && <StudentNotebook onRefazer={handleRefazer} />}
             {tab === 'ranking' && <StudentRanking />}
           </>
