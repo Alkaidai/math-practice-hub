@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "./contexts/AuthContext";
 import { StudentApp } from "./components/student/StudentApp";
 import { AdminApp } from "./components/admin/AdminApp";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<StudentApp />} />
             <Route path="/admin" element={<AdminApp />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

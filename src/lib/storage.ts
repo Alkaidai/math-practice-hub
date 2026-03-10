@@ -13,36 +13,45 @@ function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ---- Users / Profiles ----
-
-export async function loadUsers(): Promise<User[]> {
-  const { data } = await supabase.from('profiles').select('*');
-  if (!data) return [];
-  return data.map((row: any) => ({
+// ---- Helper to map profile row -> User ----
+function rowToUser(row: any): User {
+  return {
     id: row.id,
     username: row.username,
-    password: row.password,
+    name: row.name ?? '',
+    email: row.email ?? '',
+    password: row.password ?? '',
     role: row.role,
     status: row.status,
     gradeLevel: row.grade_level,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
     loginCount: row.login_count ?? 0,
-  }));
+    authUserId: row.auth_user_id ?? null,
+  };
+}
+
+// ---- Users / Profiles ----
+
+export async function loadUsers(): Promise<User[]> {
+  const { data } = await supabase.from('profiles').select('*');
+  if (!data) return [];
+  return data.map(rowToUser);
 }
 
 export async function saveUsers(users: User[]): Promise<User[]> {
-  // Not typically needed with DB, but kept for compatibility
   return users;
 }
 
 export async function upsertUser(userPatch: Partial<User>): Promise<User> {
   const row: any = {
     username: userPatch.username,
-    password: userPatch.password,
+    password: userPatch.password ?? '',
     role: userPatch.role ?? 'student',
     status: userPatch.status ?? 'active',
     grade_level: userPatch.gradeLevel ?? null,
+    name: userPatch.name ?? '',
+    email: userPatch.email ?? '',
   };
   if (userPatch.id) row.id = userPatch.id;
   else row.id = newId('usr');
@@ -53,42 +62,50 @@ export async function upsertUser(userPatch: Partial<User>): Promise<User> {
     .select()
     .single();
 
-  const d = data as any;
-  return {
-    id: d.id, username: d.username, password: d.password,
-    role: d.role, status: d.status, gradeLevel: d.grade_level,
-    createdAt: d.created_at, lastLoginAt: d.last_login_at,
-    loginCount: d.login_count ?? 0,
-  };
+  return rowToUser(data ?? row);
 }
 
 export async function getUsersByRole(role: string): Promise<User[]> {
   const { data } = await supabase.from('profiles').select('*').eq('role', role);
   if (!data) return [];
-  return data.map((row: any) => ({
-    id: row.id, username: row.username, password: row.password,
-    role: row.role, status: row.status, gradeLevel: row.grade_level,
-    createdAt: row.created_at, lastLoginAt: row.last_login_at,
-    loginCount: row.login_count ?? 0,
-  }));
+  return data.map(rowToUser);
 }
 
-export async function authenticate(username: string, password: string): Promise<AuthUser | null> {
-  const { data } = await supabase
+export async function authenticate(email: string, password: string): Promise<AuthUser | null> {
+  // Use Supabase Auth
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data.user) return null;
+
+  // Get profile
+  const { data: profile } = await supabase
     .from('profiles')
     .select('*')
-    .eq('username', username)
-    .eq('password', password)
+    .eq('auth_user_id', data.user.id)
     .single();
 
-  if (!data) return null;
-  const row = data as any;
-  if (row.status === 'blocked') return null;
+  if (!profile) return null;
+  const row = profile as any;
+  if (row.status === 'blocked') {
+    await supabase.auth.signOut();
+    return null;
+  }
 
+  // Update login count
   const newCount = (row.login_count ?? 0) + 1;
   await supabase.from('profiles').update({ last_login_at: nowIso(), login_count: newCount } as any).eq('id', row.id);
 
-  return { id: row.id, username: row.username, role: row.role, gradeLevel: row.grade_level };
+  return { id: row.id, username: row.username, email: row.email ?? email, role: row.role, gradeLevel: row.grade_level };
+}
+
+export async function getProfileByAuthId(authUserId: string): Promise<AuthUser | null> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('auth_user_id', authUserId)
+    .single();
+  if (!data) return null;
+  const row = data as any;
+  return { id: row.id, username: row.username, email: row.email ?? '', role: row.role, gradeLevel: row.grade_level };
 }
 
 export async function resetDiagnostic(userId: string): Promise<void> {
@@ -115,6 +132,7 @@ export function setCurrentUser(user: AuthUser): void {
 
 export function logout(): void {
   localStorage.removeItem('qb_currentUser');
+  supabase.auth.signOut();
 }
 
 // ---- Questions ----
@@ -184,7 +202,6 @@ export async function loadQuestionBank(): Promise<Question[]> {
 }
 
 export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
-  // For saving the full bank, upsert all questions
   const rows = bank.map(q => ({
     id: q.id,
     grade: q.grade,
@@ -337,7 +354,6 @@ export async function addReply(questionId: string, commentId: string, reply: Par
   await supabase.from('replies').insert(row);
   await supabase.from('comments').update({ status: 'answered' }).eq('id', commentId);
 
-  // Return updated comment
   const { data: c } = await supabase.from('comments').select('*').eq('id', commentId).single();
   if (!c) return null;
   const cd = c as any;
@@ -383,7 +399,6 @@ export async function addAttempt(attempt: Partial<Attempt> & { topicId?: string 
   const { data } = await supabase.from('attempts').insert(row).select().single();
   const d = (data ?? row) as any;
 
-  // Update streak
   await updateUserStreak(attempt.userId ?? '', attempt.answeredAt);
 
   return {
@@ -408,7 +423,6 @@ export async function getNotebook(userId?: string): Promise<NotebookItem[]> {
 }
 
 export async function upsertNotebookItem(userId: string, questionId: string, patch: Partial<NotebookItem> = {}): Promise<NotebookItem> {
-  // Get question metadata
   const { data: q } = await supabase.from('questions').select('grade, subject, difficulty, topic_id').eq('id', questionId).single();
   const qMeta = q ? { grade: (q as any).grade, subject: (q as any).subject, difficulty: (q as any).difficulty, topic_id: (q as any).topic_id } : {};
 
@@ -757,6 +771,5 @@ export async function initStorageFromSeeds(): Promise<void> {
 }
 
 export async function resetToSeed(): Promise<void> {
-  // Could re-seed from JSON files, but for now just a no-op
-  // The seed data is already in the database
+  // no-op
 }
