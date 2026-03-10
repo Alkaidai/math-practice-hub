@@ -278,6 +278,8 @@ export async function loadQuestionBank(): Promise<Question[]> {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     comments: commentsMap.get(row.id) ?? [],
+    imageUrl: row.image_url ?? null,
+    imageAlt: row.image_alt ?? null,
   }));
 }
 
