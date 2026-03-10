@@ -591,7 +591,7 @@ function dayDiff(from: string | null, to: string | null): number | null {
 
 async function updateUserStreak(userId: string, answeredAt?: string): Promise<void> {
   if (!userId) return;
-  const { data: existing } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).single();
+  const { data: existing } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).maybeSingle();
 
   const current = existing
     ? { streak: (existing as any).streak ?? 0, lastAttemptDate: (existing as any).last_attempt_date }
