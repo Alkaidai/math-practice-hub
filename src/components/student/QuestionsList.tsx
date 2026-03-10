@@ -121,6 +121,11 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const [page, setPage] = useState(0);
   const [perPage, setPerPage] = useState(5);
 
+  // Update topic filter when navigating from study plan
+  useEffect(() => {
+    if (initialTopicId) setFilters(f => ({ ...f, topicId: initialTopicId }));
+  }, [initialTopicId]);
+
   // Reset page when filters change
   useEffect(() => { setPage(0); }, [filters]);
 
