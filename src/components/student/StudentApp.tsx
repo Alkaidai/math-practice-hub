@@ -76,6 +76,12 @@ export function StudentApp() {
         {authLoading ? (
           <p className="font-body text-muted-foreground">Carregando...</p>
         ) : !user ? (
+          <>
+            {authError && (
+              <div className="mb-4 border border-destructive bg-destructive/10 p-3">
+                <p className="font-heading text-sm text-destructive">{authError}</p>
+              </div>
+            )}
           <LoginForm />
         ) : !diagChecked ? (
           <p className="font-body text-muted-foreground">Carregando...</p>
