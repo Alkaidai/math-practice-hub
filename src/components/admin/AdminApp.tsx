@@ -850,6 +850,30 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
           </select>
           <textarea value={form.explanation} onChange={e => setForm(f => ({ ...f, explanation: e.target.value }))} placeholder="Explicação" className="flex-1 border border-border bg-background p-2 font-body text-sm min-h-[40px]" required />
         </div>
+        {/* Image upload */}
+        <div className="border border-dashed border-border rounded-lg p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="font-heading text-xs font-bold">Imagem da questão (opcional)</span>
+          </div>
+          {form.imageUrl ? (
+            <div className="flex items-start gap-3">
+              <img src={form.imageUrl} alt={form.imageAlt || 'Preview'} className="max-h-32 rounded-lg border border-border object-contain" />
+              <div className="flex-1 space-y-1">
+                <input value={form.imageAlt} onChange={e => setForm(f => ({ ...f, imageAlt: e.target.value }))} placeholder="Texto alternativo (acessibilidade)" className="w-full border border-border bg-background px-2 py-1 font-body text-xs" />
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Substituir</button>
+                  <button type="button" onClick={handleRemoveImage} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5 flex items-center gap-1"><Trash2 className="h-3 w-3" />Remover</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="font-heading text-xs border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50">
+              {uploading ? 'Carregando...' : '+ Adicionar imagem'}
+            </button>
+          )}
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+        </div>
         <button type="submit" className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary">Salvar questão</button>
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
