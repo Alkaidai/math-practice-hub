@@ -711,7 +711,7 @@ export async function getRanking(): Promise<{ userId: string; username: string; 
 // ---- Diagnostic ----
 
 export async function getDiagnosticResult(userId: string): Promise<any | null> {
-  const { data } = await supabase.from('diagnostic_results').select('*').eq('user_id', userId).single();
+  const { data } = await supabase.from('diagnostic_results').select('*').eq('user_id', userId).maybeSingle();
   if (!data) return null;
   return data;
 }
