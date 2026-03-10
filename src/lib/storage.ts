@@ -84,9 +84,21 @@ export async function authenticate(username: string, password: string): Promise<
   const row = data as any;
   if (row.status === 'blocked') return null;
 
-  await supabase.from('profiles').update({ last_login_at: nowIso() }).eq('id', row.id);
+  const newCount = (row.login_count ?? 0) + 1;
+  await supabase.from('profiles').update({ last_login_at: nowIso(), login_count: newCount } as any).eq('id', row.id);
 
   return { id: row.id, username: row.username, role: row.role, gradeLevel: row.grade_level };
+}
+
+export async function resetDiagnostic(userId: string): Promise<void> {
+  await supabase.from('diagnostic_results').delete().eq('user_id', userId);
+}
+
+export async function toggleUserStatus(userId: string): Promise<void> {
+  const { data } = await supabase.from('profiles').select('status').eq('id', userId).single();
+  if (!data) return;
+  const newStatus = (data as any).status === 'active' ? 'blocked' : 'active';
+  await supabase.from('profiles').update({ status: newStatus }).eq('id', userId);
 }
 
 export function getCurrentUser(): AuthUser | null {

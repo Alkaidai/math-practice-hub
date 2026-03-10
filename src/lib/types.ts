@@ -18,6 +18,7 @@ export interface User {
   gradeLevel: Grade | null;
   createdAt: string;
   lastLoginAt: string | null;
+  loginCount: number;
 }
 
 export interface AuthUser {
