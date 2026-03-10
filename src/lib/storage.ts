@@ -377,6 +377,7 @@ export async function getQuestionById(id: string): Promise<Question | null> {
 
 export async function deleteQuestion(id: string): Promise<void> {
   await supabase.from('questions').delete().eq('id', id);
+  invalidateQuestionCache();
 }
 
 // ---- Topics ----
