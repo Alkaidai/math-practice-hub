@@ -25,6 +25,16 @@ export interface User {
   loginCount: number;
   authUserId: string | null;
   rankingVisible: boolean;
+  planType: PlanType;
+  paymentSource: PaymentSource;
+}
+
+export interface SubjectItem {
+  id: string;
+  name: string;
+  slug: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
 }
 
 export interface AuthUser {

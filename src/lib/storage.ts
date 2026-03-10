@@ -29,7 +29,52 @@ function rowToUser(row: any): User {
     loginCount: row.login_count ?? 0,
     authUserId: row.auth_user_id ?? null,
     rankingVisible: row.ranking_visible !== false,
+    planType: row.plan_type ?? 'free',
+    paymentSource: row.payment_source ?? null,
   };
+}
+
+// ---- Subjects ----
+
+export async function getSubjects(options: { activeOnly?: boolean } = {}): Promise<SubjectItem[]> {
+  let query = supabase.from('subjects').select('*').order('created_at', { ascending: true });
+  if (options.activeOnly) query = query.eq('status', 'active');
+  const { data } = await query;
+  if (!data) return [];
+  return (data as any[]).map(row => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    status: row.status,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function createSubject(subject: Partial<SubjectItem>): Promise<SubjectItem> {
+  const slug = subject.slug || subject.name?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || '';
+  const row = {
+    id: subject.id || `subj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name: subject.name ?? '',
+    slug,
+    status: subject.status ?? 'active',
+  };
+  await supabase.from('subjects').insert(row);
+  return { ...row, createdAt: new Date().toISOString() } as SubjectItem;
+}
+
+export async function updateSubject(id: string, patch: Partial<SubjectItem>): Promise<SubjectItem | null> {
+  const update: any = {};
+  if (patch.name !== undefined) update.name = patch.name;
+  if (patch.slug !== undefined) update.slug = patch.slug;
+  if (patch.status !== undefined) update.status = patch.status;
+  const { data } = await supabase.from('subjects').update(update).eq('id', id).select().single();
+  if (!data) return null;
+  const r = data as any;
+  return { id: r.id, name: r.name, slug: r.slug, status: r.status, createdAt: r.created_at };
+}
+
+export async function deleteSubject(id: string): Promise<void> {
+  await supabase.from('subjects').delete().eq('id', id);
 }
 
 // ---- Users / Profiles ----
