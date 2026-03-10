@@ -2065,7 +2065,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
     }
   };
 
-  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação\n"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4"\n"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3"`;
+  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação,image_url,image_alt\n"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4","",""\n"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3","https://exemplo.com/raiz.png","Diagrama de raiz quadrada"`;
 
   return (
     <div className="space-y-4">
@@ -2076,7 +2076,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
           <h3 className="font-heading text-xs font-bold mb-1">Formato esperado do CSV</h3>
           <p className="font-body text-xs text-muted-foreground mb-2">
             Colunas obrigatórias: <strong>pergunta, a, b, c, d, e, correta</strong>.
-            Opcionais: <strong>tópico, explicação, série, disciplina, dificuldade</strong>.
+            Opcionais: <strong>tópico, explicação, série, disciplina, dificuldade, image_url, image_alt</strong>.
           </p>
           <details className="text-xs">
             <summary className="font-heading cursor-pointer text-primary">Ver exemplo de CSV</summary>
