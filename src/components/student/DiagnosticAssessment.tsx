@@ -14,11 +14,12 @@ export function DiagnosticAssessment({ onComplete }: { onComplete: () => void })
   const [state, setState] = useState<DiagnosticState>({ status: 'checking' });
   const [questions, setQuestions] = useState<Question[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [currentBlock, setCurrentBlock] = useState(0);
+  const [selections, setSelections] = useState<Record<number, number>>({}); // questionIdx -> selectedOption
   const [answers, setAnswers] = useState<{ questionId: string; topicId: string; isCorrect: boolean }[]>([]);
   const [result, setResult] = useState<any>(null);
   const [showResults, setShowResults] = useState(false);
+  const BLOCK_SIZE = 5;
 
   useEffect(() => {
     async function check() {
