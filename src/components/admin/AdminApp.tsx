@@ -900,13 +900,17 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
 
 function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', subject: 'math', grade: 'all', status: 'active' });
+  const [form, setForm] = useState({ name: '', subject: '', grade: 'all', status: 'active' });
   const [feedback, setFeedback] = useState('');
   const [filter, setFilter] = useState({ subject: 'all', status: 'all', search: '' });
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
+  const [subjectsList, setSubjectsList] = useState<SubjectItem[]>([]);
 
   const loadData = useCallback(async () => {
-    setAllTopics(await getTopics());
+    const [t, s] = await Promise.all([getTopics(), getSubjects({ activeOnly: true })]);
+    setAllTopics(t);
+    setSubjectsList(s);
+    if (s.length && !form.subject) setForm(f => ({ ...f, subject: s[0].slug }));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
