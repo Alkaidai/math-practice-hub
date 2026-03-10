@@ -297,6 +297,8 @@ export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
     status: q.status,
     created_at: q.createdAt,
     updated_at: q.updatedAt,
+    image_url: q.imageUrl ?? null,
+    image_alt: q.imageAlt ?? null,
   }));
 
   await supabase.from('questions').upsert(rows);
