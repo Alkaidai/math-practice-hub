@@ -2,7 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type {
   Question, Topic, Lesson, Attempt, NotebookItem,
   Report, TrainingPlan, User, AuthUser, Comment, Reply,
-  DashboardMeta, QuestionFilters, CommentStatusType
+  DashboardMeta, QuestionFilters, CommentStatusType, SubjectItem
 } from './types';
 
 function nowIso(): string {
