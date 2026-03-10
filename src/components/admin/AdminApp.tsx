@@ -2049,6 +2049,8 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         comments: [],
+        imageUrl: p.imageUrl ?? null,
+        imageAlt: p.imageAlt ?? null,
       }));
 
       await saveQuestionsBulk(questions);
