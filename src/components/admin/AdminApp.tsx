@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
 import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess } from '../../lib/storage';
