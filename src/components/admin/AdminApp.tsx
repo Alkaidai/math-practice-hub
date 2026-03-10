@@ -1036,7 +1036,7 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
     setUsers(u.sort((a, b) => (a.name || a.username).localeCompare(b.name || b.username)));
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); getSubjects().then(setAllSubjects); }, [loadData]);
 
   const loadStudentDetail = useCallback(async (userId: string) => {
     const [attempts, notebook, diagnostic, topics, questions] = await Promise.all([
