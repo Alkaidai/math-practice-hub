@@ -42,7 +42,7 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
       // Build attempt stats per topic
       const attemptsByTopic = new Map<string, { answered: number; correct: number }>();
       attempts.forEach(a => {
-        const q = questions.find(qq => qq.id === a.questionId);
+        const q = filteredQuestions.find(qq => qq.id === a.questionId);
         if (!q?.topicId) return;
         const prev = attemptsByTopic.get(q.topicId) ?? { answered: 0, correct: 0 };
         prev.answered += 1;
