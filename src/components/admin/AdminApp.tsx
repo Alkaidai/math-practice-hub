@@ -231,10 +231,10 @@ function AdminRanking() {
       {diagnostics.length > 0 && (
         <div>
           <h3 className="font-heading text-sm font-bold uppercase mt-4 mb-2">📊 Diagnósticos Realizados</h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
             <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-muted">
+              <thead className="sticky top-0 bg-muted z-10">
+                <tr>
                   {['Aluno', 'Data', 'Questões', 'Acertos', '% Acerto', 'Nível', 'Fraquezas'].map(h => (
                     <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
                   ))}
