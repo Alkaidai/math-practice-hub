@@ -151,7 +151,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
           </select>
           <select value={filters.subject} onChange={e => handleFilter('subject', e.target.value)} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
             <option value="">Todas as disciplinas</option>
-            {Object.entries(SUBJECTS_MAP).map(([code, label]) => <option key={code} value={label}>{label}</option>)}
+            {Object.entries(SUBJECTS_MAP).filter(([code]) => allowedSlugs.includes(code)).map(([code, label]) => <option key={code} value={label}>{label}</option>)}
           </select>
           <select value={filters.difficulty} onChange={e => handleFilter('difficulty', e.target.value)} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
             <option value="">Todas as dificuldades</option>
