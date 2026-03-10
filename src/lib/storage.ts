@@ -615,7 +615,7 @@ async function updateUserStreak(userId: string, answeredAt?: string): Promise<vo
     streak: newStreak,
     last_attempt_date: today,
     last_filters: existing ? (existing as any).last_filters : { grade: '', subject: '', difficulty: '', topicId: '', search: '' },
-  });
+  } as any);
 }
 
 export async function getStudentDashboardMeta(userId: string): Promise<DashboardMeta> {
