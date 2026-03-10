@@ -420,6 +420,176 @@ function AdminSettings() {
   );
 }
 
+// ============ ADMIN SUBJECTS ============
+
+function AdminSubjects({ onRefresh }: { onRefresh: () => void }) {
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: '', status: 'active' });
+  const [feedback, setFeedback] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    const [s, t, q] = await Promise.all([getSubjects(), getTopics(), loadQuestionBank()]);
+    setSubjects(s);
+    setTopics(t);
+    setQuestions(q);
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { setFeedback('Nome é obrigatório.'); return; }
+
+    if (editingId) {
+      await updateSubject(editingId, { name: form.name.trim(), status: form.status as any });
+      setFeedback('Disciplina atualizada.');
+    } else {
+      await createSubject({ name: form.name.trim(), status: form.status as any });
+      setFeedback('Disciplina criada.');
+    }
+    setEditingId(null);
+    setForm({ name: '', status: 'active' });
+    await loadData();
+    onRefresh();
+  };
+
+  const handleToggleStatus = async (id: string) => {
+    const s = subjects.find(x => x.id === id);
+    if (!s) return;
+    await updateSubject(id, { status: s.status === 'active' ? 'inactive' : 'active' });
+    await loadData();
+    onRefresh();
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteSubject(id);
+    setConfirmDeleteId(null);
+    setFeedback('Disciplina excluída.');
+    await loadData();
+    onRefresh();
+  };
+
+  const getTopicCount = (subjectSlug: string) => topics.filter(t => t.subject === subjectSlug).length;
+  const getQuestionCount = (subjectSlug: string) => questions.filter(q => q.subject === subjectSlug).length;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-heading text-sm font-bold uppercase">Disciplinas</h2>
+
+      <form onSubmit={handleSubmit} className="border border-border bg-card p-3 space-y-2">
+        <h3 className="font-heading text-xs font-bold">{editingId ? 'Editar disciplina' : '+ Nova disciplina'}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <input
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Nome da disciplina"
+            className="border border-border bg-background px-2 py-1 font-body text-sm md:col-span-2"
+            required
+          />
+          <select
+            value={form.status}
+            onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+            className="border border-border bg-background px-2 py-1 font-heading text-xs"
+          >
+            <option value="active">Ativa</option>
+            <option value="inactive">Inativa</option>
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <button type="submit" className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary">
+            {editingId ? 'Salvar alterações' : 'Criar disciplina'}
+          </button>
+          {editingId && (
+            <button type="button" onClick={() => { setEditingId(null); setForm({ name: '', status: 'active' }); }} className="font-heading text-xs border border-border px-4 py-1.5 text-muted-foreground">
+              Cancelar
+            </button>
+          )}
+        </div>
+        {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
+      </form>
+
+      {confirmDeleteId && (() => {
+        const s = subjects.find(x => x.id === confirmDeleteId);
+        if (!s) return null;
+        const tc = getTopicCount(s.slug);
+        const qc = getQuestionCount(s.slug);
+        return (
+          <div className="border border-destructive bg-destructive/5 p-4 space-y-2">
+            <p className="font-heading text-sm text-destructive font-bold">
+              ⚠️ Excluir disciplina "{s.name}"?
+            </p>
+            <p className="font-body text-xs text-muted-foreground">
+              Esta disciplina possui <strong>{tc}</strong> tópico(s) e <strong>{qc}</strong> questão(ões) associadas.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => handleDelete(confirmDeleteId)} className="font-heading text-xs bg-destructive text-destructive-foreground px-4 py-1.5 border border-destructive">
+                Sim, excluir
+              </button>
+              <button onClick={() => setConfirmDeleteId(null)} className="font-heading text-xs border border-border px-4 py-1.5">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {subjects.length === 0 ? (
+        <p className="font-body text-sm text-muted-foreground">Nenhuma disciplina cadastrada. Crie a primeira acima.</p>
+      ) : (
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-muted">
+              {['Nome', 'Slug', 'Status', 'Tópicos', 'Questões', 'Criação', 'Ações'].map(h => (
+                <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {subjects.map(s => (
+              <tr key={s.id} className="hover:bg-muted/50">
+                <td className="p-2 border border-border font-heading text-xs font-bold">{s.name}</td>
+                <td className="p-2 border border-border font-heading text-xs text-muted-foreground">{s.slug}</td>
+                <td className="p-2 border border-border font-heading text-xs">
+                  <span className={s.status === 'active' ? 'text-primary' : 'text-muted-foreground'}>{statusLabel(s.status)}</span>
+                </td>
+                <td className="p-2 border border-border font-heading text-xs">{getTopicCount(s.slug)}</td>
+                <td className="p-2 border border-border font-heading text-xs">{getQuestionCount(s.slug)}</td>
+                <td className="p-2 border border-border font-heading text-xs">{formatDate(s.createdAt)}</td>
+                <td className="p-2 border border-border">
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => { setEditingId(s.id); setForm({ name: s.name, status: s.status }); }}
+                      className="font-heading text-[10px] border border-border px-2 py-0.5"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => handleToggleStatus(s.id)}
+                      className="font-heading text-[10px] border border-border px-2 py-0.5"
+                    >
+                      {s.status === 'active' ? 'Desativar' : 'Reativar'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(s.id)}
+                      className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ============ ADMIN QUESTIONS (with bulk delete) ============
 
 function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
