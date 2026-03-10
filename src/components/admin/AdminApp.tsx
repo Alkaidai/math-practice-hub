@@ -43,7 +43,7 @@ export function AdminApp() {
 
   const menuGroups = [
     { label: null, items: [{ id: 'dashboard' as Panel, label: 'Painel' }] },
-    { label: 'Conteúdo', items: [{ id: 'questions' as Panel, label: 'Questões' }, { id: 'lessons' as Panel, label: 'Aulas' }, { id: 'cadastros' as Panel, label: 'Tópicos' }, { id: 'import' as Panel, label: 'Importar' }, { id: 'export' as Panel, label: 'Exportar' }] },
+    { label: 'Conteúdo', items: [{ id: 'questions' as Panel, label: 'Questões' }, { id: 'subjects' as Panel, label: 'Disciplinas' }, { id: 'lessons' as Panel, label: 'Aulas' }, { id: 'cadastros' as Panel, label: 'Tópicos' }, { id: 'import' as Panel, label: 'Importar' }, { id: 'export' as Panel, label: 'Exportar' }] },
     { label: 'Análise', items: [{ id: 'ranking' as Panel, label: '🏆 Ranking' }, { id: 'topic-stats' as Panel, label: '📊 Tópicos' }] },
     { label: 'Pessoas', items: [{ id: 'users' as Panel, label: 'Usuários' }, { id: 'comments' as Panel, label: 'Comentários' }, { id: 'notebook' as Panel, label: 'Caderno' }] },
     { label: 'Sistema', items: [{ id: 'reports' as Panel, label: 'Erros' }, { id: 'settings' as Panel, label: '⚙️ Config' }] },
