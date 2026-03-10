@@ -257,14 +257,28 @@ async function loadCommentsForQuestions(questionIds: string[]): Promise<Map<stri
   return map;
 }
 
-export async function loadQuestionBank(): Promise<Question[]> {
+// Simple in-memory cache for question bank
+let _questionCache: { data: Question[]; ts: number } | null = null;
+const CACHE_TTL = 30_000; // 30 seconds
+
+export async function loadQuestionBank(options: { withComments?: boolean; forceRefresh?: boolean } = {}): Promise<Question[]> {
+  const { withComments = false, forceRefresh = false } = options;
+
+  // Use cache for reads without comments
+  if (!withComments && !forceRefresh && _questionCache && Date.now() - _questionCache.ts < CACHE_TTL) {
+    return _questionCache.data;
+  }
+
   const { data } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
   if (!data) return [];
 
-  const questionIds = data.map((q: any) => q.id);
-  const commentsMap = await loadCommentsForQuestions(questionIds);
+  let commentsMap = new Map<string, Comment[]>();
+  if (withComments) {
+    const questionIds = data.map((q: any) => q.id);
+    commentsMap = await loadCommentsForQuestions(questionIds);
+  }
 
-  return data.map((row: any) => ({
+  const result = data.map((row: any) => ({
     id: row.id,
     grade: row.grade,
     subject: row.subject,
@@ -281,6 +295,16 @@ export async function loadQuestionBank(): Promise<Question[]> {
     imageUrl: row.image_url ?? null,
     imageAlt: row.image_alt ?? null,
   }));
+
+  if (!withComments) {
+    _questionCache = { data: result, ts: Date.now() };
+  }
+
+  return result;
+}
+
+export function invalidateQuestionCache() {
+  _questionCache = null;
 }
 
 export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
@@ -302,6 +326,7 @@ export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
   }));
 
   await supabase.from('questions').upsert(rows);
+  invalidateQuestionCache();
   return bank;
 }
 
@@ -324,6 +349,7 @@ export async function saveQuestionsBulk(questions: Partial<Question>[]): Promise
   }));
 
   const { data } = await supabase.from('questions').upsert(rows).select();
+  invalidateQuestionCache();
   return (data ?? []).map((row: any) => ({
     id: row.id, grade: row.grade, subject: row.subject, difficulty: row.difficulty,
     topicId: row.topic_id ?? '', statement: row.statement,
@@ -352,6 +378,7 @@ export async function getQuestionById(id: string): Promise<Question | null> {
 
 export async function deleteQuestion(id: string): Promise<void> {
   await supabase.from('questions').delete().eq('id', id);
+  invalidateQuestionCache();
 }
 
 // ---- Topics ----
@@ -791,38 +818,46 @@ export async function getAllAppSettings(): Promise<Record<string, string>> {
   return result;
 }
 
-// ---- Ranking ----
+// ---- Ranking (optimized with RPC) ----
 
 export async function getRanking(): Promise<{ userId: string; username: string; total: number; correct: number; rate: number; streak: number }[]> {
-  const [attempts, users, metas] = await Promise.all([
-    getAttempts(),
-    loadUsers(),
-    supabase.from('dashboard_meta').select('*'),
-  ]);
+  const { data, error } = await supabase.rpc('get_ranking');
+  if (error || !data) {
+    // Fallback to old method if RPC fails
+    const [attempts, users, metas] = await Promise.all([
+      getAttempts(),
+      loadUsers(),
+      supabase.from('dashboard_meta').select('*'),
+    ]);
+    const userMap = new Map(users.map(u => [u.username, u]));
+    const streakMap = new Map<string, number>();
+    ((metas.data ?? []) as any[]).forEach(m => streakMap.set(m.user_id, m.streak ?? 0));
+    const agg = new Map<string, { total: number; correct: number }>();
+    attempts.forEach(a => {
+      const prev = agg.get(a.userId) ?? { total: 0, correct: 0 };
+      prev.total += 1;
+      if (a.isCorrect) prev.correct += 1;
+      agg.set(a.userId, prev);
+    });
+    return [...agg.entries()]
+      .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student' && userMap.get(uid)!.rankingVisible !== false)
+      .map(([uid, stats]) => ({
+        userId: uid, username: uid,
+        total: stats.total, correct: stats.correct,
+        rate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
+        streak: streakMap.get(uid) ?? 0,
+      }))
+      .sort((a, b) => b.correct - a.correct || b.rate - a.rate || b.streak - a.streak);
+  }
 
-  const userMap = new Map(users.map(u => [u.username, u]));
-  const streakMap = new Map<string, number>();
-  ((metas.data ?? []) as any[]).forEach(m => streakMap.set(m.user_id, m.streak ?? 0));
-
-  const agg = new Map<string, { total: number; correct: number }>();
-  attempts.forEach(a => {
-    const prev = agg.get(a.userId) ?? { total: 0, correct: 0 };
-    prev.total += 1;
-    if (a.isCorrect) prev.correct += 1;
-    agg.set(a.userId, prev);
-  });
-
-  return [...agg.entries()]
-    .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student' && userMap.get(uid)!.rankingVisible !== false)
-    .map(([uid, stats]) => ({
-      userId: uid,
-      username: uid,
-      total: stats.total,
-      correct: stats.correct,
-      rate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
-      streak: streakMap.get(uid) ?? 0,
-    }))
-    .sort((a, b) => b.correct - a.correct || b.rate - a.rate || b.streak - a.streak);
+  return (data as any[]).map(r => ({
+    userId: r.user_id,
+    username: r.username,
+    total: Number(r.total),
+    correct: Number(r.correct),
+    rate: r.rate,
+    streak: r.streak,
+  }));
 }
 
 // ---- Diagnostic ----

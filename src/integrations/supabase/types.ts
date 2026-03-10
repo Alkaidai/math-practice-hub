@@ -539,7 +539,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_ranking: {
+        Args: never
+        Returns: {
+          correct: number
+          rate: number
+          streak: number
+          total: number
+          user_id: string
+          username: string
+        }[]
+      }
+      get_student_stats: {
+        Args: { p_user_id: string }
+        Returns: {
+          accuracy_rate: number
+          last_attempt_date: string
+          streak: number
+          total_answered: number
+          total_correct: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -99,7 +99,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const handleComment = async (questionId: string, text: string) => {
     if (!user || !text.trim()) return;
     await addComment(questionId, { author: { username: user.username, role: user.role }, text: text.trim(), status: 'open', replies: [] });
-    const updated = await loadQuestionBank();
+    const updated = await loadQuestionBank({ forceRefresh: true });
     setAllQuestions(updated);
   };
 

@@ -54,10 +54,11 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
 
       const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
+      const questionMap = new Map(questions.map(q => [q.id, q]));
 
       const statsByTopic = new Map<string, { total: number; correct: number }>();
       attempts.forEach(a => {
-        const q = questions.find(qq => qq.id === a.questionId);
+        const q = questionMap.get(a.questionId);
         if (!q?.topicId) return;
         const prev = statsByTopic.get(q.topicId) ?? { total: 0, correct: 0 };
         prev.total += 1;
