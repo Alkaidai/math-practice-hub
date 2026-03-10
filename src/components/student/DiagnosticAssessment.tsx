@@ -14,11 +14,12 @@ export function DiagnosticAssessment({ onComplete }: { onComplete: () => void })
   const [state, setState] = useState<DiagnosticState>({ status: 'checking' });
   const [questions, setQuestions] = useState<Question[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [currentBlock, setCurrentBlock] = useState(0);
+  const [selections, setSelections] = useState<Record<number, number>>({}); // questionIdx -> selectedOption
   const [answers, setAnswers] = useState<{ questionId: string; topicId: string; isCorrect: boolean }[]>([]);
   const [result, setResult] = useState<any>(null);
   const [showResults, setShowResults] = useState(false);
+  const BLOCK_SIZE = 5;
 
   useEffect(() => {
     async function check() {
@@ -77,19 +78,33 @@ export function DiagnosticAssessment({ onComplete }: { onComplete: () => void })
 
   const topicMap = useMemo(() => new Map(topics.map(t => [t.id, t.name])), [topics]);
 
-  const handleConfirm = async () => {
-    if (selected === null) return;
-    const q = questions[currentIdx];
-    const isCorrect = selected === q.correctIndex;
+  const totalBlocks = Math.ceil(questions.length / BLOCK_SIZE);
+  const blockStart = currentBlock * BLOCK_SIZE;
+  const blockEnd = Math.min(blockStart + BLOCK_SIZE, questions.length);
+  const blockQuestions = questions.slice(blockStart, blockEnd);
+  const isLastBlock = currentBlock === totalBlocks - 1;
 
-    await addAttempt({ userId, questionId: q.id, selectedIndex: selected, isCorrect, answeredAt: new Date().toISOString(), topicId: q.topicId });
+  const allBlockAnswered = blockQuestions.every((_, i) => selections[blockStart + i] !== undefined);
 
-    const newAnswers = [...answers, { questionId: q.id, topicId: q.topicId, isCorrect }];
+  const handleSubmitBlock = async () => {
+    // Save attempts for current block
+    const newAnswers = [...answers];
+    for (let i = blockStart; i < blockEnd; i++) {
+      const q = questions[i];
+      const sel = selections[i];
+      if (sel === undefined) return;
+      // Only save if not already saved
+      if (!answers.find(a => a.questionId === q.id)) {
+        const isCorrect = sel === q.correctIndex;
+        await addAttempt({ userId, questionId: q.id, selectedIndex: sel, isCorrect, answeredAt: new Date().toISOString(), topicId: q.topicId });
+        newAnswers.push({ questionId: q.id, topicId: q.topicId, isCorrect });
+      }
+    }
     setAnswers(newAnswers);
-    setSelected(null);
 
-    if (currentIdx + 1 < questions.length) {
-      setCurrentIdx(currentIdx + 1);
+    if (!isLastBlock) {
+      setCurrentBlock(currentBlock + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       // Compute results
       const total = newAnswers.length;
@@ -220,39 +235,63 @@ export function DiagnosticAssessment({ onComplete }: { onComplete: () => void })
     );
   }
 
-  // In progress
-  const q = questions[currentIdx];
-  const progress = Math.round(((currentIdx) / questions.length) * 100);
+  // In progress — block view
+  const progress = Math.round((blockEnd / questions.length) * 100);
 
   return (
     <div className="space-y-4">
       <div className="border border-border bg-card p-4">
         <div className="flex justify-between items-center mb-3">
           <h2 className="font-heading text-sm font-bold uppercase">Diagnóstico</h2>
-          <span className="font-heading text-xs text-muted-foreground">{currentIdx + 1}/{questions.length}</span>
+          <span className="font-heading text-xs text-muted-foreground">
+            Questões {blockStart + 1}–{blockEnd} de {questions.length}
+          </span>
         </div>
         <div className="w-full bg-muted h-2 mb-4">
           <div className="bg-primary h-2 transition-all" style={{ width: `${progress}%` }} />
         </div>
 
-        <h3 className="font-body text-base font-semibold text-foreground mb-2">{q.statement}</h3>
-        <p className="font-heading text-xs text-muted-foreground mb-3">
-          {q.grade} · {subjectLabel(q.subject)} · {difficultyLabel(q.difficulty)} · {topicMap.get(q.topicId) ?? '—'}
-        </p>
-
-        <div className="space-y-2 mb-3">
-          {q.options.map((opt, i) => (
-            <label key={i} className={`border p-2 flex items-center gap-2 cursor-pointer ${selected === i ? 'border-primary bg-primary/5' : 'border-border'}`}>
-              <input type="radio" checked={selected === i} onChange={() => setSelected(i)} className="accent-primary" />
-              <span className="font-heading text-xs font-bold text-primary min-w-[24px]">({optionLetter(i)})</span>
-              <span className="font-body text-sm">{opt}</span>
-            </label>
-          ))}
+        <div className="space-y-6">
+          {blockQuestions.map((q, bi) => {
+            const globalIdx = blockStart + bi;
+            const sel = selections[globalIdx];
+            return (
+              <div key={q.id} className="border border-border p-3 bg-background">
+                <h3 className="font-body text-base font-semibold text-foreground mb-2">{globalIdx + 1}. {q.statement}</h3>
+                <p className="font-heading text-xs text-muted-foreground mb-3">
+                  {q.grade} · {subjectLabel(q.subject)} · {difficultyLabel(q.difficulty)} · {topicMap.get(q.topicId) ?? '—'}
+                </p>
+                <div className="space-y-2">
+                  {q.options.map((opt, i) => (
+                    <label key={i} className={`border p-2 flex items-center gap-2 cursor-pointer ${sel === i ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                      <input type="radio" name={`diag_${globalIdx}`} checked={sel === i} onChange={() => setSelections(prev => ({ ...prev, [globalIdx]: i }))} className="accent-primary" />
+                      <span className="font-heading text-xs font-bold text-primary min-w-[24px]">({optionLetter(i)})</span>
+                      <span className="font-body text-sm">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        <button disabled={selected === null} onClick={handleConfirm} className="font-heading text-sm bg-primary text-primary-foreground px-4 py-1.5 border border-primary disabled:opacity-40">
-          {currentIdx + 1 < questions.length ? 'Próxima' : 'Finalizar'}
-        </button>
+        <div className="flex items-center justify-between mt-4">
+          <button
+            disabled={currentBlock === 0}
+            onClick={() => { setCurrentBlock(currentBlock - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className="font-heading text-sm text-muted-foreground border border-border px-4 py-1.5 disabled:opacity-40"
+          >
+            ← Bloco anterior
+          </button>
+          <span className="font-heading text-xs text-muted-foreground">Bloco {currentBlock + 1} de {totalBlocks}</span>
+          <button
+            disabled={!allBlockAnswered}
+            onClick={handleSubmitBlock}
+            className="font-heading text-sm bg-primary text-primary-foreground px-4 py-1.5 border border-primary disabled:opacity-40"
+          >
+            {isLastBlock ? 'Finalizar diagnóstico' : 'Próximo bloco →'}
+          </button>
+        </div>
       </div>
     </div>
   );
