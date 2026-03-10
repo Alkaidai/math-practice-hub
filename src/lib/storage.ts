@@ -349,6 +349,7 @@ export async function saveQuestionsBulk(questions: Partial<Question>[]): Promise
   }));
 
   const { data } = await supabase.from('questions').upsert(rows).select();
+  invalidateQuestionCache();
   return (data ?? []).map((row: any) => ({
     id: row.id, grade: row.grade, subject: row.subject, difficulty: row.difficulty,
     topicId: row.topic_id ?? '', statement: row.statement,
