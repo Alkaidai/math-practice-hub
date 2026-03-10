@@ -58,6 +58,7 @@ export async function upsertUser(userPatch: Partial<User>): Promise<User> {
     id: d.id, username: d.username, password: d.password,
     role: d.role, status: d.status, gradeLevel: d.grade_level,
     createdAt: d.created_at, lastLoginAt: d.last_login_at,
+    loginCount: d.login_count ?? 0,
   };
 }
 

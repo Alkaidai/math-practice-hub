@@ -40,6 +40,7 @@ export const SEED_USERS: User[] = [
     gradeLevel: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     lastLoginAt: null,
+    loginCount: 0,
   },
 ];
 
