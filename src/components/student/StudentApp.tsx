@@ -12,7 +12,7 @@ import { getDiagnosticResult, getAppSetting } from '../../lib/storage';
 type Tab = 'dashboard' | 'questions' | 'notebook' | 'ranking';
 
 export function StudentApp() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, error: authError, logout } = useAuth();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
@@ -76,7 +76,15 @@ export function StudentApp() {
         {authLoading ? (
           <p className="font-body text-muted-foreground">Carregando...</p>
         ) : !user ? (
-          <LoginForm />
+          <>
+            {authError && (
+              <div className="mb-4 border border-destructive bg-destructive/10 p-3">
+                <p className="font-heading text-sm text-destructive">{authError}</p>
+              </div>
+            )}
+            <LoginForm />
+          </>
+
         ) : !diagChecked ? (
           <p className="font-body text-muted-foreground">Carregando...</p>
         ) : showDiagnostic ? (
