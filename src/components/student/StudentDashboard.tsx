@@ -45,16 +45,21 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [attempts, notebook, meta, allQuestions, topics, diag] = await Promise.all([
+      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
         getStudentDashboardMeta(userId),
         loadQuestionBank(),
         getTopics({ activeOnly: true }),
         getDiagnosticResult(userId),
+        getAllowedSubjectSlugs(userId),
       ]);
 
       if (cancelled) return;
+
+      // Filter by allowed subjects
+      const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
+      const filteredQuestions = allQuestions.filter(q => allowedSlugs.includes(q.subject));
 
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;

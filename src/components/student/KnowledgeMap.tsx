@@ -95,7 +95,7 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
       });
 
       // Build domain list
-      const domains: TopicDomain[] = topics.map(t => {
+      const domains: TopicDomain[] = filteredTopics.map(t => {
         const stats = statsByTopic.get(t.id) ?? { total: 0, correct: 0 };
         const rate = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
         return {
