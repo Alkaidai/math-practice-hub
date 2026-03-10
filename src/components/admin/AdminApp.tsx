@@ -715,6 +715,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
       grade: form.grade, subject: form.subject, difficulty: form.difficulty, topicId: form.topicId,
       statement: form.statement, options: form.options, correctIndex,
       explanation: form.explanation, status: form.status,
+      imageUrl: form.imageUrl || null, imageAlt: form.imageAlt || null,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: [],
     };
 
@@ -740,6 +741,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
       options: [...q.options, '', '', '', '', ''].slice(0, 5),
       correctLetter: ['A','B','C','D','E'][q.correctIndex] ?? '',
       explanation: q.explanation,
+      imageUrl: q.imageUrl ?? null, imageAlt: q.imageAlt ?? '',
     });
   };
 
