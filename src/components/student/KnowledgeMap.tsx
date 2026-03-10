@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getTopics, getSubjects, loadQuestionBank } from '../../lib/storage';
+import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
