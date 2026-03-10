@@ -1247,6 +1247,58 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
                 </div>
               </section>
 
+              {/* 1.5 Acesso a Disciplinas */}
+              {selected.role === 'student' && (
+                <section>
+                  <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">📚 Acesso a Disciplinas</h3>
+                  <p className="font-body text-[10px] text-muted-foreground mb-2">
+                    {userSubjectSlugs.length === 0 ? 'Acesso liberado a todas as disciplinas ativas.' : `Acesso restrito a ${userSubjectSlugs.length} disciplina(s).`}
+                  </p>
+                  <div className="flex flex-wrap gap-3 mb-2">
+                    {allSubjects.map(s => {
+                      const isChecked = userSubjectSlugs.length === 0 || userSubjectSlugs.includes(s.slug);
+                      const isRestricted = userSubjectSlugs.length > 0;
+                      return (
+                        <label key={s.id} className="flex items-center gap-1.5 cursor-pointer">
+                          <Checkbox
+                            checked={isRestricted ? isChecked : true}
+                            disabled={subjectAccessLoading}
+                            onCheckedChange={(checked) => {
+                              if (!isRestricted && checked) return;
+                              if (!isRestricted && !checked) {
+                                // First unchecked = restrict to all except this one
+                                const others = allSubjects.filter(x => x.slug !== s.slug).map(x => x.slug);
+                                setSubjectAccessLoading(true);
+                                setUserSubjectAccess(selectedId!, others).then(() => {
+                                  setUserSubjectSlugs(others);
+                                  setSubjectAccessLoading(false);
+                                  setFeedback('Acesso restrito.');
+                                });
+                                return;
+                              }
+                              handleToggleSubjectAccess(s.slug, !!checked);
+                            }}
+                          />
+                          <span className={`font-heading text-xs ${s.status === 'active' ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
+                            {s.name}
+                          </span>
+                          {s.status === 'inactive' && <span className="font-heading text-[10px] text-muted-foreground">(inativa)</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {userSubjectSlugs.length > 0 && (
+                    <button
+                      onClick={handleClearSubjectAccess}
+                      disabled={subjectAccessLoading}
+                      className="font-heading text-[10px] text-primary border border-primary/30 px-2 py-0.5 hover:bg-primary/10 disabled:opacity-50"
+                    >
+                      Liberar todas as disciplinas
+                    </button>
+                  )}
+                </section>
+              )}
+
               {/* 2. Engajamento */}
               <section>
                 <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">🔥 Engajamento</h3>
