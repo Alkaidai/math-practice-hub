@@ -12,6 +12,8 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 export interface User {
   id: string;
   username: string;
+  name: string;
+  email: string;
   password: string;
   role: UserRole;
   status: UserStatus;
@@ -19,11 +21,13 @@ export interface User {
   createdAt: string;
   lastLoginAt: string | null;
   loginCount: number;
+  authUserId: string | null;
 }
 
 export interface AuthUser {
   id: string;
   username: string;
+  email: string;
   role: UserRole;
   gradeLevel: Grade | null;
 }
