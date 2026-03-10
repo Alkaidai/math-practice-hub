@@ -68,6 +68,7 @@ export async function getUsersByRole(role: string): Promise<User[]> {
     id: row.id, username: row.username, password: row.password,
     role: row.role, status: row.status, gradeLevel: row.grade_level,
     createdAt: row.created_at, lastLoginAt: row.last_login_at,
+    loginCount: row.login_count ?? 0,
   }));
 }
 
