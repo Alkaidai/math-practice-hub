@@ -23,6 +23,8 @@ export const SEED_USERS: User[] = [
   {
     id: 'u_aluno',
     username: 'aluno',
+    name: 'Aluno',
+    email: '',
     password: 'aluno123',
     role: 'student',
     status: 'active',
@@ -30,10 +32,13 @@ export const SEED_USERS: User[] = [
     createdAt: '2024-01-01T00:00:00.000Z',
     lastLoginAt: null,
     loginCount: 0,
+    authUserId: null,
   },
   {
     id: 'u_admin',
     username: 'admin',
+    name: 'Admin',
+    email: '',
     password: 'admin123',
     role: 'admin',
     status: 'active',
@@ -41,6 +46,7 @@ export const SEED_USERS: User[] = [
     createdAt: '2024-01-01T00:00:00.000Z',
     lastLoginAt: null,
     loginCount: 0,
+    authUserId: null,
   },
 ];
 

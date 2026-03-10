@@ -247,33 +247,42 @@ export type Database = {
       }
       profiles: {
         Row: {
+          auth_user_id: string | null
           created_at: string
+          email: string | null
           grade_level: string | null
           id: string
           last_login_at: string | null
           login_count: number
+          name: string
           password: string
           role: string
           status: string
           username: string
         }
         Insert: {
+          auth_user_id?: string | null
           created_at?: string
+          email?: string | null
           grade_level?: string | null
           id: string
           last_login_at?: string | null
           login_count?: number
+          name?: string
           password: string
           role?: string
           status?: string
           username: string
         }
         Update: {
+          auth_user_id?: string | null
           created_at?: string
+          email?: string | null
           grade_level?: string | null
           id?: string
           last_login_at?: string | null
           login_count?: number
+          name?: string
           password?: string
           role?: string
           status?: string
