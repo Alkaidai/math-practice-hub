@@ -1138,6 +1138,27 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
     setFeedback('Status alterado.');
   };
 
+  const handleToggleSubjectAccess = async (slug: string, checked: boolean) => {
+    if (!selectedId) return;
+    setSubjectAccessLoading(true);
+    const newSlugs = checked
+      ? [...userSubjectSlugs, slug]
+      : userSubjectSlugs.filter(s => s !== slug);
+    await setUserSubjectAccess(selectedId, newSlugs);
+    setUserSubjectSlugs(newSlugs);
+    setSubjectAccessLoading(false);
+    setFeedback('Acesso a disciplinas atualizado.');
+  };
+
+  const handleClearSubjectAccess = async () => {
+    if (!selectedId) return;
+    setSubjectAccessLoading(true);
+    await setUserSubjectAccess(selectedId, []);
+    setUserSubjectSlugs([]);
+    setSubjectAccessLoading(false);
+    setFeedback('Acesso liberado para todas as disciplinas ativas.');
+  };
+
   // Compute detail stats
   const attempts = detailData?.attempts ?? [];
   const notebook = detailData?.notebook ?? [];
