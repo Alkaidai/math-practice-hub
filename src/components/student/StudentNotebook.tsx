@@ -16,13 +16,14 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
-    const [questions, topics, notebook] = await Promise.all([
+    const [questions, topics, notebook, allowedSlugs] = await Promise.all([
       loadQuestionBank(),
       getTopics({ activeOnly: true }),
       getNotebook(userId),
+      getAllowedSubjectSlugs(userId),
     ]);
-    setAllQuestions(questions);
-    setAllTopics(topics);
+    setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
+    setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
     setNotebookItems(notebook);
     setLoading(false);
   }, [userId]);
