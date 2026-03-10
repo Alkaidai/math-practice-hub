@@ -2128,7 +2128,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-muted sticky top-0">
-                  {['#', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dific.', 'Status'].map(h => (
+                  {['#', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dific.', '🖼️', 'Status'].map(h => (
                     <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
                   ))}
                 </tr>
@@ -2143,6 +2143,9 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
                     <td className="p-2 border border-border font-heading text-xs">{p.grade}</td>
                     <td className="p-2 border border-border font-heading text-xs">{subjectLabel(p.subject)}</td>
                     <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(p.difficulty)}</td>
+                    <td className="p-2 border border-border font-heading text-xs text-center" title={p.imageUrl || ''}>
+                      {p.imageUrl ? (p.imageValid !== false ? '🖼️' : '⚠️') : '—'}
+                    </td>
                     <td className="p-2 border border-border font-heading text-xs">{p.valid ? '✅' : '❌'}</td>
                   </tr>
                 ))}
