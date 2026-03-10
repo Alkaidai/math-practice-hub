@@ -28,6 +28,7 @@ function rowToUser(row: any): User {
     lastLoginAt: row.last_login_at,
     loginCount: row.login_count ?? 0,
     authUserId: row.auth_user_id ?? null,
+    rankingVisible: row.ranking_visible !== false,
   };
 }
 
