@@ -38,16 +38,16 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
 
   if (resetSent) {
     return (
-      <div className="max-w-sm space-y-3">
-        <div className="border border-primary bg-primary/5 p-4">
-          <p className="font-heading text-sm text-primary font-bold">📧 Email enviado!</p>
-          <p className="font-body text-sm text-muted-foreground mt-1">
+      <div className="bg-card rounded-xl shadow-lg p-8 space-y-4">
+        <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
+          <p className="text-sm text-primary font-semibold">📧 Email enviado!</p>
+          <p className="text-sm text-muted-foreground mt-1">
             Verifique sua caixa de entrada para redefinir sua senha.
           </p>
         </div>
         <button
           onClick={() => { setMode('login'); setResetSent(false); setError(''); }}
-          className="font-heading text-xs text-primary"
+          className="text-sm text-primary hover:underline"
         >
           ← Voltar ao login
         </button>
@@ -56,48 +56,65 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 max-w-sm">
-      <h2 className="font-heading text-lg font-bold text-foreground">
-        {mode === 'login' ? 'Login' : '🔒 Recuperar Senha'}
-      </h2>
-      {mode === 'forgot' && (
-        <p className="font-body text-sm text-muted-foreground">
-          Digite seu email para receber o link de recuperação.
+    <div className="bg-card rounded-xl shadow-lg p-8">
+      <div className="text-center mb-8">
+        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+          CADÊ <span className="text-primary">o</span> XIS
+        </h1>
+        <p className="text-sm text-muted-foreground mt-2">
+          {mode === 'login' ? 'Entre na sua conta para continuar' : 'Recupere sua senha'}
         </p>
-      )}
-      <input
-        type="email"
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-        placeholder="Email"
-        required
-        className="border border-border bg-card px-3 py-2 font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
-      />
-      {mode === 'login' && (
-        <input
-          type="password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          placeholder="Senha"
-          required
-          className="border border-border bg-card px-3 py-2 font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
-        />
-      )}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="bg-primary text-primary-foreground font-heading text-sm font-semibold px-4 py-2 border border-primary hover:opacity-90 disabled:opacity-50"
-      >
-        {submitting ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Enviar link'}
-      </button>
-      {error && <p className="text-destructive font-heading text-sm font-semibold">{error}</p>}
-      <button
-        type="button"
-        onClick={() => { setMode(mode === 'login' ? 'forgot' : 'login'); setError(''); }}
-        className="font-heading text-xs text-primary self-start"
-      >
-        {mode === 'login' ? 'Esqueci minha senha' : '← Voltar ao login'}
-      </button>
-    </form>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="seu@email.com"
+            required
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+          />
+        </div>
+
+        {mode === 'login' && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Senha</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+            />
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-lg bg-gold text-gold-foreground font-semibold text-sm px-4 py-2.5 hover:brightness-110 transition-all disabled:opacity-50"
+        >
+          {submitting ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Enviar link de recuperação'}
+        </button>
+
+        {error && (
+          <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
+            <p className="text-sm text-destructive font-medium">{error}</p>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => { setMode(mode === 'login' ? 'forgot' : 'login'); setError(''); }}
+          className="text-sm text-primary hover:underline block mx-auto"
+        >
+          {mode === 'login' ? 'Esqueci minha senha' : '← Voltar ao login'}
+        </button>
+      </form>
+    </div>
   );
 }

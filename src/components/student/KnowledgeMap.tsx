@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
@@ -17,6 +17,7 @@ interface TopicDomain {
 interface SubjectGroup {
   subjectName: string;
   topics: TopicDomain[];
+  averageRate: number;
 }
 
 function getDomainStatus(total: number, rate: number): TopicDomain['status'] {
@@ -26,39 +27,12 @@ function getDomainStatus(total: number, rate: number): TopicDomain['status'] {
   return 'mastered';
 }
 
-function statusLabel(status: TopicDomain['status']): string {
+function statusConfig(status: TopicDomain['status']) {
   switch (status) {
-    case 'not_started': return 'Não iniciado';
-    case 'needs_study': return 'Precisa estudar';
-    case 'developing': return 'Em desenvolvimento';
-    case 'mastered': return 'Dominado';
-  }
-}
-
-function statusColor(status: TopicDomain['status']): string {
-  switch (status) {
-    case 'not_started': return 'text-muted-foreground';
-    case 'needs_study': return 'text-destructive';
-    case 'developing': return 'text-yellow-600';
-    case 'mastered': return 'text-green-600';
-  }
-}
-
-function statusIcon(status: TopicDomain['status']): string {
-  switch (status) {
-    case 'not_started': return '⬜';
-    case 'needs_study': return '🔴';
-    case 'developing': return '🟡';
-    case 'mastered': return '🟢';
-  }
-}
-
-function statusBorder(status: TopicDomain['status']): string {
-  switch (status) {
-    case 'not_started': return 'border-border';
-    case 'needs_study': return 'border-destructive/50';
-    case 'developing': return 'border-yellow-500/50';
-    case 'mastered': return 'border-green-500/50';
+    case 'not_started': return { label: 'Não iniciado', color: 'text-muted-foreground', bg: 'bg-muted', bar: 'bg-muted-foreground/20', border: '' };
+    case 'needs_study': return { label: 'Precisa estudar', color: 'text-destructive', bg: 'bg-destructive/5', bar: 'bg-destructive', border: 'border-l-destructive' };
+    case 'developing': return { label: 'Em desenvolvimento', color: 'text-gold', bg: 'bg-gold/5', bar: 'bg-gold', border: 'border-l-gold' };
+    case 'mastered': return { label: 'Dominado', color: 'text-success', bg: 'bg-success/5', bar: 'bg-success', border: 'border-l-success' };
   }
 }
 
@@ -78,12 +52,9 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
         externalUserId ? Promise.resolve([]) : getAllowedSubjectSlugs(userId),
       ]);
 
-      // Filter topics by allowed subjects (skip for admin viewing)
       const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
-      const topicMap = new Map(filteredTopics.map(t => [t.id, t]));
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
 
-      // Compute stats per topic from attempts
       const statsByTopic = new Map<string, { total: number; correct: number }>();
       attempts.forEach(a => {
         const q = questions.find(qq => qq.id === a.questionId);
@@ -94,22 +65,16 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
         statsByTopic.set(q.topicId, prev);
       });
 
-      // Build domain list
       const domains: TopicDomain[] = filteredTopics.map(t => {
         const stats = statsByTopic.get(t.id) ?? { total: 0, correct: 0 };
         const rate = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
         return {
-          topicId: t.id,
-          topicName: t.name,
-          subjectSlug: t.subject,
-          total: stats.total,
-          correct: stats.correct,
-          rate,
+          topicId: t.id, topicName: t.name, subjectSlug: t.subject,
+          total: stats.total, correct: stats.correct, rate,
           status: getDomainStatus(stats.total, rate),
         };
       });
 
-      // Group by subject
       const groupMap = new Map<string, TopicDomain[]>();
       domains.forEach(d => {
         const arr = groupMap.get(d.subjectSlug) ?? [];
@@ -118,10 +83,15 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
       });
 
       const result: SubjectGroup[] = [...groupMap.entries()]
-        .map(([slug, topics]) => ({
-          subjectName: subjectMap.get(slug) ?? slug,
-          topics: topics.sort((a, b) => a.rate - b.rate),
-        }))
+        .map(([slug, topics]) => {
+          const withData = topics.filter(t => t.total > 0);
+          const avg = withData.length > 0 ? Math.round(withData.reduce((s, t) => s + t.rate, 0) / withData.length) : 0;
+          return {
+            subjectName: subjectMap.get(slug) ?? slug,
+            topics: topics.sort((a, b) => b.rate - a.rate),
+            averageRate: avg,
+          };
+        })
         .filter(g => g.topics.length > 0);
 
       setGroups(result);
@@ -130,7 +100,7 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
     load();
   }, [userId]);
 
-  if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
+  if (loading) return <p className="text-muted-foreground">Carregando...</p>;
   if (groups.length === 0) return null;
 
   const allTopics = groups.flatMap(g => g.topics);
@@ -140,57 +110,56 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
   const notStarted = allTopics.filter(t => t.status === 'not_started').length;
 
   return (
-    <div className="border border-border bg-card p-4">
-      <h3 className="font-heading text-sm font-bold uppercase mb-3">🗺️ Mapa de Conhecimento</h3>
-
+    <div className="space-y-6">
       {/* Summary */}
-      <div className="grid grid-cols-4 gap-2 mb-4">
-        <div className="border border-green-500/30 bg-green-500/5 p-2 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Dominados</p>
-          <p className="font-heading text-lg font-bold text-green-600">{mastered}</p>
-        </div>
-        <div className="border border-yellow-500/30 bg-yellow-500/5 p-2 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Em desenv.</p>
-          <p className="font-heading text-lg font-bold text-yellow-600">{developing}</p>
-        </div>
-        <div className="border border-destructive/30 bg-destructive/5 p-2 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Estudar</p>
-          <p className="font-heading text-lg font-bold text-destructive">{needsStudy}</p>
-        </div>
-        <div className="border border-border p-2 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Não iniciados</p>
-          <p className="font-heading text-lg font-bold text-muted-foreground">{notStarted}</p>
-        </div>
-      </div>
-
-      {/* By subject */}
-      <div className="space-y-4">
-        {groups.map(group => (
-          <div key={group.subjectName}>
-            <p className="font-heading text-xs font-bold text-foreground uppercase mb-2">{group.subjectName}</p>
-            <div className="space-y-1">
-              {group.topics.map(t => (
-                <div key={t.topicId} className={`flex items-center gap-3 border ${statusBorder(t.status)} p-2`}>
-                  <span className="text-sm">{statusIcon(t.status)}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body text-sm text-foreground truncate">{t.topicName}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {t.total > 0 && (
-                      <div className="w-16">
-                        <Progress value={t.rate} className="h-1.5" />
-                      </div>
-                    )}
-                    <span className={`font-heading text-xs font-bold whitespace-nowrap ${statusColor(t.status)}`}>
-                      {t.total > 0 ? `${t.rate}%` : ''} {statusLabel(t.status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Dominados', value: mastered, color: 'text-success', bg: 'bg-success/10' },
+          { label: 'Em desenv.', value: developing, color: 'text-gold', bg: 'bg-gold/10' },
+          { label: 'Estudar', value: needsStudy, color: 'text-destructive', bg: 'bg-destructive/10' },
+          { label: 'Não iniciados', value: notStarted, color: 'text-muted-foreground', bg: 'bg-muted' },
+        ].map(s => (
+          <div key={s.label} className={`${s.bg} rounded-xl p-4 text-center`}>
+            <p className="text-xs text-muted-foreground">{s.label}</p>
+            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>
+
+      {/* By subject */}
+      {groups.map(group => (
+        <div key={group.subjectName} className="bg-card rounded-xl shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold text-foreground">{group.subjectName}</h3>
+            <div className="flex items-center gap-2">
+              <div className="w-24">
+                <Progress value={group.averageRate} className="h-2" />
+              </div>
+              <span className="text-sm font-semibold text-primary">{group.averageRate}%</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {group.topics.map(t => {
+              const config = statusConfig(t.status);
+              return (
+                <div key={t.topicId} className={`rounded-lg border-l-4 ${config.border || 'border-l-transparent'} ${config.bg} px-4 py-3`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-foreground">{t.topicName}</p>
+                    <span className={`text-xs font-semibold ${config.color}`}>
+                      {t.total > 0 ? `${t.rate}%` : ''} {config.label}
+                    </span>
+                  </div>
+                  {t.total > 0 && (
+                    <div className="w-full bg-border/50 rounded-full h-1.5">
+                      <div className={`h-1.5 rounded-full ${config.bar} transition-all`} style={{ width: `${t.rate}%` }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

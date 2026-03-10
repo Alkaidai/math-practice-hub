@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDiagnosticResult, getAttempts, getNotebook } from '../../lib/storage';
+import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
 
 interface TrailStep {
   icon: string;
@@ -63,28 +64,30 @@ export function StudyTrail() {
   if (loading) return null;
 
   return (
-    <div className="border border-border bg-card p-4">
-      <h3 className="font-heading text-sm font-bold uppercase mb-3">🗺️ Trilha de Estudo</h3>
+    <div className="bg-card rounded-xl shadow-sm p-5">
+      <h3 className="text-sm font-semibold text-foreground mb-4">🗺️ Trilha de Estudo</h3>
       <div className="space-y-0">
         {steps.map((step, i) => (
           <div key={i} className="flex items-start gap-3">
             <div className="flex flex-col items-center">
-              <div className={`w-8 h-8 flex items-center justify-center text-lg border-2 ${
-                step.status === 'done' ? 'border-green-500 bg-green-500/10' :
-                step.status === 'current' ? 'border-primary bg-primary/10' :
-                'border-border bg-muted'
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg ${
+                step.status === 'done' ? 'bg-success/10 text-success' :
+                step.status === 'current' ? 'bg-primary/10 text-primary' :
+                'bg-muted text-muted-foreground'
               }`}>
-                {step.icon}
+                {step.status === 'done' ? <CheckCircle2 className="h-5 w-5" /> :
+                 step.status === 'current' ? <Loader2 className="h-5 w-5 animate-spin" /> :
+                 <Circle className="h-5 w-5" />}
               </div>
               {i < steps.length - 1 && (
-                <div className={`w-0.5 h-6 ${step.status === 'done' ? 'bg-green-500' : 'bg-border'}`} />
+                <div className={`w-0.5 h-8 ${step.status === 'done' ? 'bg-success/30' : 'bg-border'}`} />
               )}
             </div>
-            <div className="pb-3">
-              <p className={`font-heading text-xs font-bold ${step.status === 'done' ? 'text-green-600' : step.status === 'current' ? 'text-primary' : 'text-muted-foreground'}`}>
-                {step.label}
+            <div className="pb-4 pt-1.5">
+              <p className={`text-sm font-medium ${step.status === 'done' ? 'text-success' : step.status === 'current' ? 'text-primary' : 'text-muted-foreground'}`}>
+                {step.icon} {step.label}
               </p>
-              <p className="font-heading text-xs text-muted-foreground">{step.detail}</p>
+              <p className="text-xs text-muted-foreground">{step.detail}</p>
             </div>
           </div>
         ))}

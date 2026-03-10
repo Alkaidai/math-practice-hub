@@ -7,16 +7,16 @@ export default {
   theme: {
     container: {
       center: true,
-      padding: "1rem",
+      padding: "1.5rem",
       screens: {
-        "2xl": "1160px",
+        "2xl": "1280px",
       },
     },
     extend: {
       fontFamily: {
-        heading: ['Roboto Mono', 'monospace'],
-        body: ['Source Serif 4', 'Georgia', 'serif'],
-        mono: ['Roboto Mono', 'monospace'],
+        heading: ['Inter', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
+        mono: ['Inter', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -51,6 +51,10 @@ export default {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+        },
+        gold: {
+          DEFAULT: "hsl(var(--gold))",
+          foreground: "hsl(var(--gold-foreground))",
         },
         success: {
           DEFAULT: "hsl(var(--success))",

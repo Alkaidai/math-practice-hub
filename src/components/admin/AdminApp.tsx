@@ -7,8 +7,101 @@ import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem, SubjectItem } from '../../lib/types';
 import { supabase } from '@/integrations/supabase/client';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  SidebarProvider, SidebarTrigger, Sidebar, SidebarContent,
+  SidebarGroup, SidebarGroupLabel, SidebarGroupContent,
+  SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, useSidebar,
+} from '@/components/ui/sidebar';
+import {
+  LayoutDashboard, FileText, BookOpen, GraduationCap, Folder, Upload, Download,
+  Trophy, BarChart3, Users, MessageSquare, Notebook, AlertTriangle, Settings,
+  ArrowLeft, LogOut,
+} from 'lucide-react';
 
 type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
+
+const ADMIN_NAV = [
+  { id: 'dashboard' as Panel, label: 'Painel', icon: LayoutDashboard, group: null },
+  { id: 'questions' as Panel, label: 'Questões', icon: FileText, group: 'Conteúdo' },
+  { id: 'subjects' as Panel, label: 'Disciplinas', icon: BookOpen, group: 'Conteúdo' },
+  { id: 'lessons' as Panel, label: 'Aulas', icon: GraduationCap, group: 'Conteúdo' },
+  { id: 'cadastros' as Panel, label: 'Tópicos', icon: Folder, group: 'Conteúdo' },
+  { id: 'import' as Panel, label: 'Importar', icon: Upload, group: 'Conteúdo' },
+  { id: 'export' as Panel, label: 'Exportar', icon: Download, group: 'Conteúdo' },
+  { id: 'ranking' as Panel, label: 'Ranking', icon: Trophy, group: 'Análise' },
+  { id: 'topic-stats' as Panel, label: 'Estatísticas', icon: BarChart3, group: 'Análise' },
+  { id: 'users' as Panel, label: 'Usuários', icon: Users, group: 'Pessoas' },
+  { id: 'comments' as Panel, label: 'Comentários', icon: MessageSquare, group: 'Pessoas' },
+  { id: 'notebook' as Panel, label: 'Caderno', icon: Notebook, group: 'Pessoas' },
+  { id: 'reports' as Panel, label: 'Erros', icon: AlertTriangle, group: 'Sistema' },
+  { id: 'settings' as Panel, label: 'Configurações', icon: Settings, group: 'Sistema' },
+];
+
+function AdminSidebar({ panel, onNavigate, user, onLogout }: {
+  panel: Panel; onNavigate: (p: Panel) => void; user: any; onLogout: () => void;
+}) {
+  const { state } = useSidebar();
+  const collapsed = state === 'collapsed';
+
+  const groups = ADMIN_NAV.reduce<{ group: string | null; items: typeof ADMIN_NAV }[]>((acc, item) => {
+    const existing = acc.find(g => g.group === item.group);
+    if (existing) existing.items.push(item);
+    else acc.push({ group: item.group, items: [item] });
+    return acc;
+  }, []);
+
+  return (
+    <Sidebar collapsible="icon" className="border-r-0">
+      <div className="p-4 flex items-center gap-2">
+        {!collapsed && (
+          <h1 className="text-lg font-extrabold tracking-tight text-sidebar-foreground">
+            CADÊ <span className="text-sidebar-primary">o</span> XIS
+            <span className="text-xs font-normal text-sidebar-foreground/60 ml-2">Admin</span>
+          </h1>
+        )}
+        {collapsed && <span className="text-sidebar-primary font-extrabold text-lg">X</span>}
+      </div>
+      <SidebarContent>
+        {groups.map((group, gi) => (
+          <SidebarGroup key={gi}>
+            {group.group && <SidebarGroupLabel>{group.group}</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map(item => (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton onClick={() => onNavigate(item.id)} isActive={panel === item.id} tooltip={item.label}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter>
+        <div className={`p-3 space-y-2 ${collapsed ? 'text-center' : ''}`}>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <a href="/">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Área do Aluno</span>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          {!collapsed && <p className="text-xs text-sidebar-foreground/60 truncate px-2">{user?.username}</p>}
+          <button onClick={onLogout} className="flex items-center gap-2 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors px-2">
+            <LogOut className="h-3.5 w-3.5" />
+            {!collapsed && <span>Sair</span>}
+          </button>
+        </div>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
 
 export function AdminApp() {
   const { user, logout } = useAuth();
@@ -18,102 +111,63 @@ export function AdminApp() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background">
-        <AdminHeader user={null} onLogout={() => {}} />
-        <main className="max-w-[1160px] mx-auto px-4 py-5">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
           <LoginForm onSuccess={() => window.location.reload()} />
-        </main>
+        </div>
       </div>
     );
   }
 
   if (user.role !== 'admin') {
     return (
-      <div className="min-h-screen bg-background">
-        <AdminHeader user={user} onLogout={logout} />
-        <main className="max-w-[1160px] mx-auto px-4 py-5">
-          <div className="border border-destructive bg-destructive/5 p-4">
-            <p className="font-heading text-sm text-destructive font-bold">Acesso negado.</p>
-            <a href="/" className="font-heading text-xs text-primary">Voltar para área do aluno</a>
-          </div>
-        </main>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="bg-card rounded-xl shadow-sm p-8 max-w-md text-center">
+          <p className="text-destructive font-semibold mb-2">Acesso negado.</p>
+          <a href="/" className="text-sm text-primary hover:underline">Voltar para área do aluno</a>
+        </div>
       </div>
     );
   }
 
-  const menuGroups = [
-    { label: null, items: [{ id: 'dashboard' as Panel, label: 'Painel' }] },
-    { label: 'Conteúdo', items: [{ id: 'questions' as Panel, label: 'Questões' }, { id: 'subjects' as Panel, label: 'Disciplinas' }, { id: 'lessons' as Panel, label: 'Aulas' }, { id: 'cadastros' as Panel, label: 'Tópicos' }, { id: 'import' as Panel, label: 'Importar' }, { id: 'export' as Panel, label: 'Exportar' }] },
-    { label: 'Análise', items: [{ id: 'ranking' as Panel, label: '🏆 Ranking' }, { id: 'topic-stats' as Panel, label: '📊 Tópicos' }] },
-    { label: 'Pessoas', items: [{ id: 'users' as Panel, label: 'Usuários' }, { id: 'comments' as Panel, label: 'Comentários' }, { id: 'notebook' as Panel, label: 'Caderno' }] },
-    { label: 'Sistema', items: [{ id: 'reports' as Panel, label: 'Erros' }, { id: 'settings' as Panel, label: '⚙️ Config' }] },
-  ];
-
   return (
-    <div className="min-h-screen bg-background">
-      <AdminHeader user={user} onLogout={logout} />
-
-      <main className="max-w-[1160px] mx-auto px-4 py-5">
-        <nav className="flex flex-wrap items-center gap-2 mb-4">
-          {menuGroups.map((group, gi) => (
-            <div key={gi} className="inline-flex items-center gap-1 border border-border px-2 py-1 bg-card">
-              {group.label && <span className="font-heading text-[10px] text-muted-foreground font-bold uppercase tracking-wider mr-1">{group.label}:</span>}
-              {group.items.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => { setPanel(item.id); forceRefresh(); }}
-                  className={`font-heading text-xs px-2 py-0.5 ${panel === item.id ? 'text-foreground font-bold border-b-2 border-primary' : 'text-muted-foreground'}`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        {panel === 'dashboard' && <AdminDashboard key={refreshKey} />}
-        {panel === 'questions' && <AdminQuestions key={refreshKey} onRefresh={forceRefresh} />}
-        {panel === 'subjects' && <AdminSubjects key={refreshKey} onRefresh={forceRefresh} />}
-        {panel === 'lessons' && <AdminLessons key={refreshKey} onRefresh={forceRefresh} />}
-        {panel === 'cadastros' && <AdminTopics key={refreshKey} onRefresh={forceRefresh} />}
-        {panel === 'users' && <AdminUsers key={refreshKey} onRefresh={forceRefresh} />}
-        {panel === 'comments' && <AdminComments key={refreshKey} onRefresh={forceRefresh} />}
-        {panel === 'notebook' && <AdminNotebook key={refreshKey} />}
-        {panel === 'reports' && <AdminReports key={refreshKey} onRefresh={forceRefresh} />}
-        {panel === 'import' && <AdminImport onRefresh={forceRefresh} />}
-        {panel === 'export' && <AdminExport />}
-        {panel === 'ranking' && <AdminRanking key={refreshKey} />}
-        {panel === 'topic-stats' && <AdminTopicStats key={refreshKey} />}
-        {panel === 'settings' && <AdminSettings key={refreshKey} />}
-      </main>
-    </div>
-  );
-}
-
-function AdminHeader({ user, onLogout }: { user: any; onLogout: () => void }) {
-  return (
-    <header className="sticky top-0 z-20 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
-      <h1 className="font-heading text-sm font-bold text-foreground tracking-tight">
-        <span className="text-primary">CX</span> Admin
-      </h1>
-      <div className="flex items-center gap-3">
-        <a href="/" className="font-heading text-xs text-muted-foreground border border-border px-2 py-0.5 hover:text-foreground">Área do Aluno</a>
-        {user && (
-          <>
-            <span className="font-heading text-xs text-muted-foreground">{user.username} (admin)</span>
-            <button onClick={onLogout} className="font-heading text-xs text-destructive border border-destructive px-2 py-0.5 hover:bg-destructive hover:text-destructive-foreground">Sair</button>
-          </>
-        )}
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        <AdminSidebar panel={panel} onNavigate={(p) => { setPanel(p); forceRefresh(); }} user={user} onLogout={logout} />
+        <div className="flex-1 flex flex-col min-h-screen">
+          <header className="h-14 flex items-center gap-4 border-b border-border bg-card px-4 sticky top-0 z-20">
+            <SidebarTrigger />
+            <h2 className="text-sm font-semibold text-foreground">
+              {ADMIN_NAV.find(n => n.id === panel)?.label ?? 'Admin'}
+            </h2>
+          </header>
+          <main className="flex-1 p-4 md:p-6 overflow-auto">
+            {panel === 'dashboard' && <AdminDashboard key={refreshKey} />}
+            {panel === 'questions' && <AdminQuestions key={refreshKey} onRefresh={forceRefresh} />}
+            {panel === 'subjects' && <AdminSubjects key={refreshKey} onRefresh={forceRefresh} />}
+            {panel === 'lessons' && <AdminLessons key={refreshKey} onRefresh={forceRefresh} />}
+            {panel === 'cadastros' && <AdminTopics key={refreshKey} onRefresh={forceRefresh} />}
+            {panel === 'users' && <AdminUsers key={refreshKey} onRefresh={forceRefresh} />}
+            {panel === 'comments' && <AdminComments key={refreshKey} onRefresh={forceRefresh} />}
+            {panel === 'notebook' && <AdminNotebook key={refreshKey} />}
+            {panel === 'reports' && <AdminReports key={refreshKey} onRefresh={forceRefresh} />}
+            {panel === 'import' && <AdminImport onRefresh={forceRefresh} />}
+            {panel === 'export' && <AdminExport />}
+            {panel === 'ranking' && <AdminRanking key={refreshKey} />}
+            {panel === 'topic-stats' && <AdminTopicStats key={refreshKey} />}
+            {panel === 'settings' && <AdminSettings key={refreshKey} />}
+          </main>
+        </div>
       </div>
-    </header>
+    </SidebarProvider>
   );
 }
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="border border-border bg-card p-3">
-      <p className="font-heading text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className="font-heading text-xl font-bold text-foreground mt-1">{value}</p>
+    <div className="bg-card rounded-xl shadow-sm p-4">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="text-xl font-bold text-foreground mt-1">{value}</p>
     </div>
   );
 }

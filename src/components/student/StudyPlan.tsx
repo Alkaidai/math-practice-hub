@@ -39,7 +39,6 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
         if (q.topicId) publishedByTopic.set(q.topicId, (publishedByTopic.get(q.topicId) ?? 0) + 1);
       });
 
-      // Build attempt stats per topic
       const attemptsByTopic = new Map<string, { answered: number; correct: number }>();
       attempts.forEach(a => {
         const q = filteredQuestions.find(qq => qq.id === a.questionId);
@@ -50,7 +49,6 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
         attemptsByTopic.set(q.topicId, prev);
       });
 
-      // Get weak topics from diagnostic or from attempt data
       let weakTopicIds: string[] = [];
       if (diag) {
         const d = diag as any;
@@ -62,7 +60,6 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
           .filter(Boolean);
       }
 
-      // If no diagnostic, use topics with worst performance
       if (weakTopicIds.length === 0) {
         weakTopicIds = [...attemptsByTopic.entries()]
           .filter(([, s]) => s.answered > 0)
@@ -72,7 +69,6 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
           .map(x => x.tid);
       }
 
-      // If still nothing, show all topics with questions
       if (weakTopicIds.length === 0) {
         weakTopicIds = filteredTopics.filter(t => (publishedByTopic.get(t.id) ?? 0) > 0).map(t => t.id).slice(0, 5);
       }
@@ -83,13 +79,9 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
         const recommended = Math.max(5, totalQ);
         const prog = totalQ > 0 ? Math.min(100, Math.round((stats.correct / totalQ) * 100)) : 0;
         return {
-          topicId: tid,
-          topicName: topicMap.get(tid) ?? tid,
-          totalQuestions: totalQ,
-          answered: stats.answered,
-          correct: stats.correct,
-          progress: prog,
-          recommended,
+          topicId: tid, topicName: topicMap.get(tid) ?? tid,
+          totalQuestions: totalQ, answered: stats.answered, correct: stats.correct,
+          progress: prog, recommended,
         };
       });
 
@@ -103,27 +95,27 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
   if (topicProgress.length === 0) return null;
 
   return (
-    <div className="border border-border bg-card p-4">
-      <h3 className="font-heading text-sm font-bold uppercase mb-3">📚 Plano de Estudo Recomendado</h3>
+    <div className="bg-card rounded-xl shadow-sm p-5">
+      <h3 className="text-sm font-semibold text-foreground mb-4">📚 Plano de Estudo Recomendado</h3>
       <div className="space-y-3">
         {topicProgress.map((tp, i) => (
-          <div key={tp.topicId} className="border border-border p-3">
-            <div className="flex items-center justify-between mb-1">
-              <p className="font-heading text-xs font-bold text-foreground">
+          <div key={tp.topicId} className="rounded-lg bg-muted/50 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-foreground">
                 {i + 1}. {tp.topicName}
               </p>
-              <span className="font-heading text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {tp.correct}/{tp.totalQuestions} acertos
               </span>
             </div>
             <Progress value={tp.progress} className="h-2 mb-2" />
             <div className="flex items-center justify-between">
-              <span className="font-heading text-xs text-muted-foreground">
-                Progresso: {tp.progress}% · {tp.totalQuestions} exercícios disponíveis
+              <span className="text-xs text-muted-foreground">
+                {tp.progress}% · {tp.totalQuestions} exercícios
               </span>
               <button
                 onClick={() => onStartTopic(tp.topicId)}
-                className="font-heading text-xs text-primary border border-primary px-2 py-0.5 hover:bg-primary hover:text-primary-foreground"
+                className="rounded-lg text-xs font-medium bg-primary text-primary-foreground px-4 py-1.5 hover:brightness-110 transition-all"
               >
                 Treinar →
               </button>
