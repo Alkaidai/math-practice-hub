@@ -326,6 +326,7 @@ export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
   }));
 
   await supabase.from('questions').upsert(rows);
+  invalidateQuestionCache();
   return bank;
 }
 
