@@ -34,6 +34,8 @@ export const SEED_USERS: User[] = [
     loginCount: 0,
     authUserId: null,
     rankingVisible: true,
+    planType: 'free',
+    paymentSource: null,
   },
   {
     id: 'u_admin',
@@ -49,6 +51,8 @@ export const SEED_USERS: User[] = [
     loginCount: 0,
     authUserId: null,
     rankingVisible: true,
+    planType: 'free',
+    paymentSource: null,
   },
 ];
 

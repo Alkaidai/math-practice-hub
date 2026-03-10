@@ -256,6 +256,8 @@ export type Database = {
           login_count: number
           name: string
           password: string
+          payment_source: string | null
+          plan_type: string
           ranking_visible: boolean
           role: string
           status: string
@@ -271,6 +273,8 @@ export type Database = {
           login_count?: number
           name?: string
           password: string
+          payment_source?: string | null
+          plan_type?: string
           ranking_visible?: boolean
           role?: string
           status?: string
@@ -286,6 +290,8 @@ export type Database = {
           login_count?: number
           name?: string
           password?: string
+          payment_source?: string | null
+          plan_type?: string
           ranking_visible?: boolean
           role?: string
           status?: string
@@ -420,6 +426,30 @@ export type Database = {
           resolved_by?: Json | null
           status?: string
           type?: string
+        }
+        Relationships: []
+      }
+      subjects: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          name?: string
+          slug?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          status?: string
         }
         Relationships: []
       }
