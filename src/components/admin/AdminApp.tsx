@@ -1061,6 +1061,64 @@ function AdminReports({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
+function AdminExport() {
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState('');
+
+  const exportCSV = async () => {
+    setLoading(true);
+    setFeedback('');
+    try {
+      const [questions, topics] = await Promise.all([loadQuestionBank(), getTopics({})]);
+      const topicMap = new Map(topics.map(t => [t.id, t.name]));
+
+      const headers = ['pergunta', 'a', 'b', 'c', 'd', 'e', 'correta', 'topico', 'explicacao', 'serie', 'disciplina', 'dificuldade', 'status'];
+      const escapeCSV = (val: string) => {
+        if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`;
+        return val;
+      };
+
+      const rows = questions.map(q => {
+        const opts = q.options as string[];
+        const correctLetter = ['a', 'b', 'c', 'd', 'e'][q.correctIndex] ?? '';
+        return [
+          q.statement, opts[0] ?? '', opts[1] ?? '', opts[2] ?? '', opts[3] ?? '', opts[4] ?? '',
+          correctLetter, topicMap.get(q.topicId) ?? q.topicId, q.explanation,
+          q.grade, q.subject, q.difficulty, q.status,
+        ].map(v => escapeCSV(String(v)));
+      });
+
+      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `questoes_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setFeedback(`✅ ${questions.length} questões exportadas com sucesso.`);
+    } catch (err: any) {
+      setFeedback(`❌ Erro: ${err.message}`);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="border border-border bg-card p-4">
+        <h2 className="font-heading text-sm font-bold uppercase mb-3">📤 Exportar Questões (CSV)</h2>
+        <p className="font-body text-sm text-muted-foreground mb-4">
+          Exporte todas as questões do banco em formato CSV compatível com a importação.
+        </p>
+        <button onClick={exportCSV} disabled={loading} className="font-heading text-sm bg-primary text-primary-foreground px-4 py-1.5 border border-primary disabled:opacity-40">
+          {loading ? 'Exportando...' : 'Baixar CSV'}
+        </button>
+        {feedback && <p className="font-heading text-xs mt-2">{feedback}</p>}
+      </div>
+    </div>
+  );
+}
+
 function AdminImport({ onRefresh }: { onRefresh: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<any[]>([]);
