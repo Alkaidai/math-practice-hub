@@ -1,22 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getDiagnosticResult, getTopics, getAttempts } from '../../lib/storage';
+import { getDiagnosticResult, getAttempts } from '../../lib/storage';
 import { Progress } from '../ui/progress';
-import type { Topic } from '../../lib/types';
-
-interface TopicBreakdown {
-  topicId: string;
-  topicName: string;
-  total: number;
-  correct: number;
-  rate: number;
-}
 
 interface DiagResult {
   totalQuestions: number;
   correctAnswers: number;
   accuracyRate: number;
-  topicBreakdown: TopicBreakdown[];
+  topicBreakdown: { topicId: string; topicName: string; total: number; correct: number; rate: number }[];
   strengths: string[];
   weaknesses: string[];
   recommendedPlan: { focusTopics: string[]; level: string };
@@ -41,7 +32,7 @@ export function DiagnosticReport() {
           totalQuestions: r.total_questions ?? r.totalQuestions ?? 0,
           correctAnswers: r.correct_answers ?? r.correctAnswers ?? 0,
           accuracyRate: r.accuracy_rate ?? r.accuracyRate ?? 0,
-          topicBreakdown: (r.topic_breakdown ?? r.topicBreakdown ?? []) as TopicBreakdown[],
+          topicBreakdown: (r.topic_breakdown ?? r.topicBreakdown ?? []) as any[],
           strengths: (r.strengths ?? []) as string[],
           weaknesses: (r.weaknesses ?? []) as string[],
           recommendedPlan: (r.recommended_plan ?? r.recommendedPlan ?? { focusTopics: [], level: 'iniciante' }),
@@ -59,62 +50,62 @@ export function DiagnosticReport() {
   if (loading) return null;
   if (!result) return null;
 
-  const levelColor = result.recommendedPlan.level === 'avançado' ? 'text-green-600' : result.recommendedPlan.level === 'intermediário' ? 'text-yellow-600' : 'text-destructive';
+  const levelColor = result.recommendedPlan.level === 'avançado' ? 'text-success' : result.recommendedPlan.level === 'intermediário' ? 'text-gold' : 'text-destructive';
 
   return (
-    <div className="border border-border bg-card p-4">
-      <h3 className="font-heading text-sm font-bold uppercase mb-3">📊 Relatório do Diagnóstico</h3>
-      
+    <div className="bg-card rounded-xl shadow-sm p-5">
+      <h3 className="text-sm font-semibold text-foreground mb-4">📊 Relatório do Diagnóstico</h3>
+
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="border border-border p-3 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Questões</p>
-          <p className="font-heading text-xl font-bold text-foreground">{result.totalQuestions}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-xs text-muted-foreground">Questões</p>
+          <p className="text-xl font-bold text-foreground">{result.totalQuestions}</p>
         </div>
-        <div className="border border-border p-3 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Acertos</p>
-          <p className="font-heading text-xl font-bold text-foreground">{result.correctAnswers}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-xs text-muted-foreground">Acertos</p>
+          <p className="text-xl font-bold text-foreground">{result.correctAnswers}</p>
         </div>
-        <div className="border border-border p-3 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Aproveitamento</p>
-          <p className="font-heading text-xl font-bold text-foreground">{result.accuracyRate}%</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-xs text-muted-foreground">Aproveitamento</p>
+          <p className="text-xl font-bold text-foreground">{result.accuracyRate}%</p>
         </div>
       </div>
 
-      <p className="font-heading text-xs font-bold mb-3">
-        Nível identificado: <span className={`uppercase ${levelColor}`}>{result.recommendedPlan.level}</span>
+      <p className="text-sm font-medium mb-4">
+        Nível identificado: <span className={`font-bold uppercase ${levelColor}`}>{result.recommendedPlan.level}</span>
       </p>
 
       {currentRate !== null && (
-        <div className="border border-border p-3 mb-4">
-          <p className="font-heading text-xs text-muted-foreground mb-1">Evolução desde o diagnóstico</p>
-          <div className="flex items-center gap-3">
-            <span className="font-heading text-sm text-muted-foreground">Diagnóstico: {result.accuracyRate}%</span>
-            <span className="font-heading text-sm text-foreground">→</span>
-            <span className={`font-heading text-sm font-bold ${currentRate > result.accuracyRate ? 'text-green-600' : 'text-foreground'}`}>
+        <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 mb-4">
+          <p className="text-xs text-muted-foreground mb-2">Evolução desde o diagnóstico</p>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-sm text-muted-foreground">Diagnóstico: {result.accuracyRate}%</span>
+            <span className="text-sm text-foreground">→</span>
+            <span className={`text-sm font-bold ${currentRate > result.accuracyRate ? 'text-success' : 'text-foreground'}`}>
               Atual: {currentRate}%
             </span>
           </div>
-          <Progress value={currentRate} className="h-2 mt-2" />
+          <Progress value={currentRate} className="h-2" />
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {result.strengths.length > 0 && (
-          <div className="border border-border p-3">
-            <p className="font-heading text-xs font-bold text-green-600 mb-2">✅ Pontos fortes</p>
+          <div className="rounded-lg bg-success/5 border border-success/20 p-4">
+            <p className="text-xs font-semibold text-success mb-2">✅ Pontos fortes</p>
             <ul className="space-y-1">
               {result.strengths.slice(0, 5).map((s, i) => (
-                <li key={i} className="font-body text-sm text-foreground">• {s}</li>
+                <li key={i} className="text-sm text-foreground">• {s}</li>
               ))}
             </ul>
           </div>
         )}
         {result.weaknesses.length > 0 && (
-          <div className="border border-border p-3">
-            <p className="font-heading text-xs font-bold text-destructive mb-2">⚠️ Pontos a melhorar</p>
+          <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-4">
+            <p className="text-xs font-semibold text-destructive mb-2">⚠️ Pontos a melhorar</p>
             <ul className="space-y-1">
               {result.weaknesses.slice(0, 5).map((w, i) => (
-                <li key={i} className="font-body text-sm text-foreground">• {w}</li>
+                <li key={i} className="text-sm text-foreground">• {w}</li>
               ))}
             </ul>
           </div>

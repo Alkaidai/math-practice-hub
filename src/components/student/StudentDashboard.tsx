@@ -8,8 +8,8 @@ import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
 import { StudyTrail } from './StudyTrail';
-import { KnowledgeMap } from './KnowledgeMap';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
+import { Target, TrendingUp, Flame, AlertCircle } from 'lucide-react';
 
 interface WeakTopic {
   topicId: string;
@@ -31,6 +31,20 @@ interface DashboardData {
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
   nextTopic: { topicId: string; topicName: string; count: number } | null;
+}
+
+function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
+  return (
+    <div className="bg-card rounded-xl shadow-sm p-5 flex items-start gap-4">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+        <Icon className="h-5 w-5 text-white" />
+      </div>
+      <div>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-xl font-bold text-foreground mt-0.5">{value}</p>
+      </div>
+    </div>
+  );
 }
 
 export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic }: {
@@ -57,7 +71,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
       if (cancelled) return;
 
-      // Filter by allowed subjects
       const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
       const filteredQuestions = allQuestions.filter(q => allowedSlugs.includes(q.subject));
 
@@ -91,7 +104,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
         .slice(0, 5);
 
-      // Next recommended topic
       let nextTopic: DashboardData['nextTopic'] = null;
       if (weakTopics.length > 0) {
         const top = weakTopics[0];
@@ -105,50 +117,43 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     return () => { cancelled = true; };
   }, [userId]);
 
-  if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
+  if (!data) return <p className="text-muted-foreground">Carregando...</p>;
 
   const hasData = data.answered > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          ['Respondidas', String(data.answered)],
-          ['Acertos', `${data.rate}%`],
-          ['Sequência', `${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`],
-          ['Pendências', String(data.pendingCount)],
-        ].map(([label, value]) => (
-          <div key={label} className="border border-border bg-card p-3">
-            <p className="font-heading text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
-            <p className="font-heading text-xl font-bold text-foreground mt-1">{value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Target} label="Respondidas" value={String(data.answered)} color="bg-primary" />
+        <StatCard icon={TrendingUp} label="Acertos" value={`${data.rate}%`} color="bg-success" />
+        <StatCard icon={Flame} label="Sequência" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
+        <StatCard icon={AlertCircle} label="Pendências" value={String(data.pendingCount)} color="bg-destructive" />
       </div>
 
       {/* Next Step */}
       {data.nextTopic && (
-        <div className="border-2 border-primary bg-primary/5 p-4">
-          <p className="font-heading text-xs text-muted-foreground uppercase tracking-wide mb-1">Seu próximo passo</p>
-          <p className="font-heading text-sm font-bold text-foreground">
+        <div className="bg-card rounded-xl shadow-sm border-l-4 border-l-gold p-5">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Seu próximo passo</p>
+          <p className="text-base font-bold text-foreground">
             Treinar {data.nextTopic.topicName}
           </p>
-          <p className="font-heading text-xs text-muted-foreground mb-2">
+          <p className="text-xs text-muted-foreground mb-3">
             {data.nextTopic.count} exercícios disponíveis
           </p>
           <button
             onClick={() => onStartTopic(data.nextTopic!.topicId)}
-            className="font-heading text-sm font-semibold bg-primary text-primary-foreground px-4 py-1.5 border border-primary"
+            className="rounded-lg bg-gold text-gold-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all"
           >
-            Começar exercícios →
+            Treinar agora →
           </button>
         </div>
       )}
 
       {!hasData && !data.nextTopic && (
-        <div className="border border-border bg-card p-4">
-          <p className="font-body text-muted-foreground">Comece respondendo questões.</p>
-          <button onClick={onNavigateQuestions} className="mt-2 font-heading text-sm font-semibold text-primary border border-primary px-3 py-1 hover:bg-primary hover:text-primary-foreground">
+        <div className="bg-card rounded-xl shadow-sm p-6 text-center">
+          <p className="text-muted-foreground mb-3">Comece respondendo questões para ver seu progresso!</p>
+          <button onClick={onNavigateQuestions} className="rounded-lg bg-primary text-primary-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all">
             Ir para questões
           </button>
         </div>
@@ -167,72 +172,75 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       <EvolutionChart />
 
       {hasData && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Notebook Summary */}
-          <div className="border border-border bg-card p-4">
-            <h3 className="font-heading text-sm font-bold text-foreground mb-2">📓 CADERNO DE ERROS</h3>
-            <div className="grid grid-cols-3 gap-2 mb-2">
-              <div className="border border-border p-2 text-center">
-                <p className="font-heading text-xs text-muted-foreground">Pendentes</p>
-                <p className="font-heading text-lg font-bold text-destructive">{data.pendingCount}</p>
+          <div className="bg-card rounded-xl shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">📓 Caderno de Erros</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg bg-destructive/5 p-3 text-center">
+                <p className="text-xs text-muted-foreground">Pendentes</p>
+                <p className="text-xl font-bold text-destructive">{data.pendingCount}</p>
               </div>
-              <div className="border border-border p-2 text-center">
-                <p className="font-heading text-xs text-muted-foreground">Dominados</p>
-                <p className="font-heading text-lg font-bold text-green-600">{data.masteredCount}</p>
+              <div className="rounded-lg bg-success/10 p-3 text-center">
+                <p className="text-xs text-muted-foreground">Dominados</p>
+                <p className="text-xl font-bold text-success">{data.masteredCount}</p>
               </div>
-              <div className="border border-border p-2 text-center">
-                <p className="font-heading text-xs text-muted-foreground">Total</p>
-                <p className="font-heading text-lg font-bold text-foreground">{data.totalReviewed}</p>
+              <div className="rounded-lg bg-muted p-3 text-center">
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-xl font-bold text-foreground">{data.totalReviewed}</p>
               </div>
             </div>
           </div>
 
           {/* Weak Topics */}
-          <div className="border border-border bg-card p-4">
-            <h3 className="font-heading text-sm font-bold text-foreground mb-2">TÓPICOS FRACOS (TOP 5)</h3>
+          <div className="bg-card rounded-xl shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Tópicos Fracos (Top 5)</h3>
             {data.weakTopics.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {data.weakTopics.map((t, i) => (
-                  <div key={t.topicId} className="border-b border-border pb-2 last:border-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-body text-sm"><span className="font-heading text-xs text-muted-foreground">{i + 1}.</span> {t.label}</p>
-                      <button onClick={() => onStartTopic(t.topicId)} className="font-heading text-xs text-primary hover:underline">Treinar</button>
+                  <div key={t.topicId} className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground truncate">
+                        <span className="text-xs text-muted-foreground mr-1">{i + 1}.</span> {t.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Erro {t.errorRate}% ({t.errors}/{t.total})</p>
                     </div>
-                    <p className="font-heading text-xs text-muted-foreground">Erro {t.errorRate}% ({t.errors}/{t.total})</p>
+                    <button onClick={() => onStartTopic(t.topicId)} className="text-xs text-primary font-medium hover:underline ml-2">
+                      Treinar
+                    </button>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="font-body text-sm text-muted-foreground">Sem dados suficientes.</p>
+              <p className="text-sm text-muted-foreground">Sem dados suficientes.</p>
             )}
           </div>
 
           {/* Recent Errors */}
-          <div className="border border-border bg-card p-4 md:col-span-2">
-            <h3 className="font-heading text-sm font-bold text-foreground mb-2">REVISAR ERROS (ÚLTIMAS 5)</h3>
-            <div className="space-y-2">
+          <div className="bg-card rounded-xl shadow-sm p-5 lg:col-span-2">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Revisar Erros (Últimas 5)</h3>
+            <div className="space-y-3">
               {data.wrongLatest.length > 0 ? data.wrongLatest.map(a => {
                 const q = data.questions.get(a.questionId);
                 if (!q) return null;
                 return (
-                  <div key={a.id} className="border-b border-border pb-2 last:border-0">
-                    <p className="font-body text-sm">{q.statement.slice(0, 95)}{q.statement.length > 95 ? '...' : ''}</p>
-                    <p className="font-heading text-xs text-muted-foreground">{formatDate(a.answeredAt)} · {q.grade} · {subjectLabel(q.subject)}</p>
-                    <button onClick={() => onRefazer(q.id)} className="font-heading text-xs text-primary border border-primary px-2 py-0.5 mt-1 hover:bg-primary hover:text-primary-foreground">
+                  <div key={a.id} className="flex items-start justify-between gap-3 pb-3 border-b border-border last:border-0">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground">{q.statement.slice(0, 95)}{q.statement.length > 95 ? '...' : ''}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{formatDate(a.answeredAt)} · {q.grade} · {subjectLabel(q.subject)}</p>
+                    </div>
+                    <button onClick={() => onRefazer(q.id)} className="shrink-0 rounded-lg text-xs text-primary border border-primary/30 px-3 py-1 hover:bg-primary hover:text-primary-foreground transition-colors">
                       Refazer
                     </button>
                   </div>
                 );
               }) : (
-                <p className="font-body text-sm text-muted-foreground">Nenhuma questão errada até agora.</p>
+                <p className="text-sm text-muted-foreground">Nenhuma questão errada até agora. 🎉</p>
               )}
             </div>
           </div>
         </div>
       )}
-
-      {/* Knowledge Map */}
-      <KnowledgeMap />
 
       {/* Achievements */}
       <Achievements />

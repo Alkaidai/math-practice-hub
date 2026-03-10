@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts } from '../../lib/storage';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import type { Attempt } from '../../lib/types';
 
 interface WeekData {
   label: string;
@@ -21,7 +20,6 @@ export function EvolutionChart() {
       const attempts = await getAttempts(userId);
       if (attempts.length === 0) { setLoading(false); return; }
 
-      // Group by week
       const sorted = [...attempts].sort((a, b) => new Date(a.answeredAt).getTime() - new Date(b.answeredAt).getTime());
       const weeks = new Map<string, { total: number; correct: number }>();
 
@@ -52,19 +50,25 @@ export function EvolutionChart() {
   if (data.length < 2) return null;
 
   return (
-    <div className="border border-border bg-card p-4">
-      <h3 className="font-heading text-sm font-bold uppercase mb-3">📈 Evolução ao Longo do Tempo</h3>
-      <div className="h-48">
+    <div className="bg-card rounded-xl shadow-sm p-5">
+      <h3 className="text-sm font-semibold text-foreground mb-4">📈 Evolução ao Longo do Tempo</h3>
+      <div className="h-52">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fontFamily: 'var(--font-heading)' }} stroke="hsl(var(--muted-foreground))" />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontFamily: 'var(--font-heading)' }} stroke="hsl(var(--muted-foreground))" />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
             <Tooltip
-              contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', fontFamily: 'var(--font-heading)', fontSize: 12 }}
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: 12,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              }}
               formatter={(value: number) => [`${value}%`, 'Acerto']}
             />
-            <Line type="monotone" dataKey="rate" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))', r: 3 }} />
+            <Line type="monotone" dataKey="rate" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ fill: 'hsl(var(--primary))', r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

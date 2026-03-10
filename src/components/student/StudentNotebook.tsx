@@ -51,58 +51,60 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
     });
   }, [notebookItems, filters, questionsMap]);
 
-  if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
+  if (loading) return <p className="text-muted-foreground">Carregando...</p>;
 
   const pending = items.filter(i => i.status === 'pending');
   const mastered = items.filter(i => i.status === 'mastered');
 
   return (
-    <div className="space-y-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="border border-border bg-card p-3 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Pendentes</p>
-          <p className="font-heading text-xl font-bold text-destructive">{pending.length}</p>
+    <div className="space-y-5">
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-card rounded-xl shadow-sm p-4 text-center">
+          <p className="text-xs text-muted-foreground">Pendentes</p>
+          <p className="text-2xl font-bold text-destructive">{pending.length}</p>
         </div>
-        <div className="border border-border bg-card p-3 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Dominados</p>
-          <p className="font-heading text-xl font-bold text-green-600">{mastered.length}</p>
+        <div className="bg-card rounded-xl shadow-sm p-4 text-center">
+          <p className="text-xs text-muted-foreground">Dominados</p>
+          <p className="text-2xl font-bold text-success">{mastered.length}</p>
         </div>
-        <div className="border border-border bg-card p-3 text-center">
-          <p className="font-heading text-xs text-muted-foreground">Total revisados</p>
-          <p className="font-heading text-xl font-bold text-foreground">{notebookItems.length}</p>
+        <div className="bg-card rounded-xl shadow-sm p-4 text-center">
+          <p className="text-xs text-muted-foreground">Total</p>
+          <p className="text-2xl font-bold text-foreground">{notebookItems.length}</p>
         </div>
       </div>
 
-      <div className="border border-border bg-card p-3">
-        <h3 className="font-heading text-xs font-bold text-foreground uppercase tracking-wide mb-2">CADERNO DE ERROS</h3>
+      {/* Filters */}
+      <div className="bg-card rounded-xl shadow-sm p-4">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Filtros</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          <select value={filters.grade} onChange={e => setFilters(f => ({ ...f, grade: e.target.value }))} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
-            <option value="">Todas as séries</option>
+          <select value={filters.grade} onChange={e => setFilters(f => ({ ...f, grade: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+            <option value="">Todas séries</option>
             {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
-          <select value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
+          <select value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
             <option value="">Todas disciplinas</option>
             {Object.entries(SUBJECTS_MAP).map(([code, label]) => <option key={code} value={label}>{label}</option>)}
           </select>
-          <select value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
+          <select value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
             <option value="">Todas dificuldades</option>
             {Object.entries(DIFFICULTIES_MAP).map(([code, label]) => <option key={code} value={label}>{label}</option>)}
           </select>
-          <select value={filters.topicId} onChange={e => setFilters(f => ({ ...f, topicId: e.target.value }))} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
-            <option value="">Todos os tópicos</option>
+          <select value={filters.topicId} onChange={e => setFilters(f => ({ ...f, topicId: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+            <option value="">Todos tópicos</option>
             {allTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-          <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
-            <option value="">Todos os status</option>
+          <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+            <option value="">Todos status</option>
             <option value="pending">Pendente</option>
             <option value="mastered">Dominado</option>
           </select>
         </div>
       </div>
 
+      {/* Items */}
       {items.length === 0 ? (
-        <p className="font-body text-muted-foreground">Nenhum item com os filtros atuais.</p>
+        <p className="text-muted-foreground text-center py-8">Nenhum item com os filtros atuais.</p>
       ) : (
         <div className="space-y-3 max-h-[600px] overflow-y-auto">
           {items.map(item => {
@@ -137,19 +139,28 @@ function NotebookCard({ item, question: q, userId, onRefazer, onSave }: {
   };
 
   return (
-    <article className="border border-border bg-card p-4">
-      <h4 className="font-body text-sm font-semibold text-foreground">{q.statement}</h4>
-      <p className="font-heading text-xs text-muted-foreground mt-1">
+    <article className="bg-card rounded-xl shadow-sm p-5">
+      <h4 className="text-sm font-medium text-foreground">{q.statement}</h4>
+      <p className="text-xs text-muted-foreground mt-1">
         {q.grade} · {subjectLabel(q.subject)} · {difficultyLabel(q.difficulty)} · Status: {statusLabel(item.status)}
       </p>
-      <label className="font-heading text-xs text-muted-foreground block mt-2">O que eu errei?</label>
-      <textarea value={whatIErred} onChange={e => setWhatIErred(e.target.value)} className="w-full border border-border bg-background p-2 font-body text-sm min-h-[40px]" />
-      <label className="font-heading text-xs text-muted-foreground block mt-1">Regra / insight</label>
-      <textarea value={ruleInsight} onChange={e => setRuleInsight(e.target.value)} className="w-full border border-border bg-background p-2 font-body text-sm min-h-[40px]" />
-      <div className="flex gap-2 mt-2">
-        <button onClick={() => handleSave(false)} className="font-heading text-xs text-primary border border-primary px-3 py-1 hover:bg-primary hover:text-primary-foreground">Salvar</button>
-        <button onClick={onRefazer} className="font-heading text-xs text-primary border border-primary px-3 py-1 hover:bg-primary hover:text-primary-foreground">Refazer</button>
-        <button onClick={() => handleSave(true)} className="font-heading text-xs bg-primary text-primary-foreground px-3 py-1 border border-primary">Dominado</button>
+
+      <label className="text-xs text-muted-foreground block mt-3 mb-1">O que eu errei?</label>
+      <textarea value={whatIErred} onChange={e => setWhatIErred(e.target.value)} className="w-full rounded-lg border border-input bg-background p-3 text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-primary/30" />
+
+      <label className="text-xs text-muted-foreground block mt-2 mb-1">Regra / insight</label>
+      <textarea value={ruleInsight} onChange={e => setRuleInsight(e.target.value)} className="w-full rounded-lg border border-input bg-background p-3 text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-primary/30" />
+
+      <div className="flex gap-2 mt-3">
+        <button onClick={() => handleSave(false)} className="rounded-lg text-xs font-medium text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
+          Salvar
+        </button>
+        <button onClick={onRefazer} className="rounded-lg text-xs font-medium text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
+          Refazer
+        </button>
+        <button onClick={() => handleSave(true)} className="rounded-lg text-xs font-medium bg-success text-success-foreground px-4 py-1.5 hover:brightness-110 transition-all">
+          ✓ Dominado
+        </button>
       </div>
     </article>
   );
