@@ -643,8 +643,8 @@ export async function saveStudentDashboardMeta(userId: string, patch: Partial<Da
     user_id: userId,
     streak: next.streak,
     last_attempt_date: next.lastAttemptDate,
-    last_filters: next.lastFilters,
-  });
+    last_filters: next.lastFilters as any,
+  } as any);
 
   return next;
 }
