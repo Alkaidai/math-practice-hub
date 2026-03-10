@@ -52,8 +52,27 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
 
   if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
+  const pending = items.filter(i => i.status === 'pending');
+  const mastered = items.filter(i => i.status === 'mastered');
+
   return (
     <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="border border-border bg-card p-3 text-center">
+          <p className="font-heading text-xs text-muted-foreground">Pendentes</p>
+          <p className="font-heading text-xl font-bold text-destructive">{pending.length}</p>
+        </div>
+        <div className="border border-border bg-card p-3 text-center">
+          <p className="font-heading text-xs text-muted-foreground">Dominados</p>
+          <p className="font-heading text-xl font-bold text-green-600">{mastered.length}</p>
+        </div>
+        <div className="border border-border bg-card p-3 text-center">
+          <p className="font-heading text-xs text-muted-foreground">Total revisados</p>
+          <p className="font-heading text-xl font-bold text-foreground">{notebookItems.length}</p>
+        </div>
+      </div>
+
       <div className="border border-border bg-card p-3">
         <h3 className="font-heading text-xs font-bold text-foreground uppercase tracking-wide mb-2">CADERNO DE ERROS</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
