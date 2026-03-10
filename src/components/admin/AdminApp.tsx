@@ -15,7 +15,7 @@ import {
 import {
   LayoutDashboard, FileText, BookOpen, GraduationCap, Folder, Upload, Download,
   Trophy, BarChart3, Users, MessageSquare, Notebook, AlertTriangle, Settings,
-  ArrowLeft, LogOut,
+  ArrowLeft, LogOut, ImageIcon, X, Trash2,
 } from 'lucide-react';
 
 type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
