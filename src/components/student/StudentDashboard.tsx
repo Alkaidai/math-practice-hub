@@ -67,8 +67,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       const pendingCount = notebook.filter(i => i.status === 'pending').length;
       const masteredCount = notebook.filter(i => i.status === 'mastered').length;
       const totalReviewed = notebook.length;
-      const questions = new Map(allQuestions.map(q => [q.id, q]));
-      const topicMap = new Map(topics.map(t => [t.id, t.name]));
+      const questions = new Map(filteredQuestions.map(q => [q.id, q]));
+      const topicMap = new Map(filteredTopics.map(t => [t.id, t.name]));
 
       const agg = new Map<string, { topicId: string; label: string; total: number; errors: number }>();
       attempts.forEach(a => {
