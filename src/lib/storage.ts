@@ -346,6 +346,7 @@ export async function getQuestionById(id: string): Promise<Question | null> {
     correctIndex: row.correct_index, explanation: row.explanation, status: row.status,
     createdAt: row.created_at, updatedAt: row.updated_at,
     comments: commentsMap.get(row.id) ?? [],
+    imageUrl: row.image_url ?? null, imageAlt: row.image_alt ?? null,
   };
 }
 
