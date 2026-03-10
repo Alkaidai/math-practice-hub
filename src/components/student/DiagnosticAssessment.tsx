@@ -35,8 +35,11 @@ export function DiagnosticAssessment({ onComplete }: { onComplete: () => void })
       }
 
       // Load questions distributed by topic
-      const [allQ, allT] = await Promise.all([loadQuestionBank(), getTopics({ activeOnly: true })]);
-      setTopics(allT);
+      const [allQ, allT, allowedSlugs] = await Promise.all([loadQuestionBank(), getTopics({ activeOnly: true }), getAllowedSubjectSlugs(user!.username)]);
+      const filteredT = allT.filter(t => allowedSlugs.includes(t.subject));
+      setTopics(filteredT);
+
+      const published = allQ.filter(q => q.status !== 'draft' && allowedSlugs.includes(q.subject));
 
       const published = allQ.filter(q => q.status !== 'draft');
       if (published.length < 10) {
