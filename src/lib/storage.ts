@@ -791,38 +791,46 @@ export async function getAllAppSettings(): Promise<Record<string, string>> {
   return result;
 }
 
-// ---- Ranking ----
+// ---- Ranking (optimized with RPC) ----
 
 export async function getRanking(): Promise<{ userId: string; username: string; total: number; correct: number; rate: number; streak: number }[]> {
-  const [attempts, users, metas] = await Promise.all([
-    getAttempts(),
-    loadUsers(),
-    supabase.from('dashboard_meta').select('*'),
-  ]);
+  const { data, error } = await supabase.rpc('get_ranking');
+  if (error || !data) {
+    // Fallback to old method if RPC fails
+    const [attempts, users, metas] = await Promise.all([
+      getAttempts(),
+      loadUsers(),
+      supabase.from('dashboard_meta').select('*'),
+    ]);
+    const userMap = new Map(users.map(u => [u.username, u]));
+    const streakMap = new Map<string, number>();
+    ((metas.data ?? []) as any[]).forEach(m => streakMap.set(m.user_id, m.streak ?? 0));
+    const agg = new Map<string, { total: number; correct: number }>();
+    attempts.forEach(a => {
+      const prev = agg.get(a.userId) ?? { total: 0, correct: 0 };
+      prev.total += 1;
+      if (a.isCorrect) prev.correct += 1;
+      agg.set(a.userId, prev);
+    });
+    return [...agg.entries()]
+      .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student' && userMap.get(uid)!.rankingVisible !== false)
+      .map(([uid, stats]) => ({
+        userId: uid, username: uid,
+        total: stats.total, correct: stats.correct,
+        rate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
+        streak: streakMap.get(uid) ?? 0,
+      }))
+      .sort((a, b) => b.correct - a.correct || b.rate - a.rate || b.streak - a.streak);
+  }
 
-  const userMap = new Map(users.map(u => [u.username, u]));
-  const streakMap = new Map<string, number>();
-  ((metas.data ?? []) as any[]).forEach(m => streakMap.set(m.user_id, m.streak ?? 0));
-
-  const agg = new Map<string, { total: number; correct: number }>();
-  attempts.forEach(a => {
-    const prev = agg.get(a.userId) ?? { total: 0, correct: 0 };
-    prev.total += 1;
-    if (a.isCorrect) prev.correct += 1;
-    agg.set(a.userId, prev);
-  });
-
-  return [...agg.entries()]
-    .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student' && userMap.get(uid)!.rankingVisible !== false)
-    .map(([uid, stats]) => ({
-      userId: uid,
-      username: uid,
-      total: stats.total,
-      correct: stats.correct,
-      rate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
-      streak: streakMap.get(uid) ?? 0,
-    }))
-    .sort((a, b) => b.correct - a.correct || b.rate - a.rate || b.streak - a.streak);
+  return (data as any[]).map(r => ({
+    userId: r.user_id,
+    username: r.username,
+    total: Number(r.total),
+    correct: Number(r.correct),
+    rate: r.rate,
+    streak: r.streak,
+  }));
 }
 
 // ---- Diagnostic ----
