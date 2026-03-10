@@ -40,8 +40,6 @@ export function DiagnosticAssessment({ onComplete }: { onComplete: () => void })
       setTopics(filteredT);
 
       const published = allQ.filter(q => q.status !== 'draft' && allowedSlugs.includes(q.subject));
-
-      const published = allQ.filter(q => q.status !== 'draft');
       if (published.length < 10) {
         setState({ status: 'not_needed' });
         onComplete();
