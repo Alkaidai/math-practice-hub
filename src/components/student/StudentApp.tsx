@@ -19,7 +19,10 @@ export function StudentApp() {
   const [diagChecked, setDiagChecked] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || user.role === 'admin') {
+      setDiagChecked(true);
+      return;
+    }
     async function check() {
       const [enabled, mandatory, existing] = await Promise.all([
         getAppSetting('diagnostic_enabled'),

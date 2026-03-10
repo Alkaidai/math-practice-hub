@@ -591,7 +591,7 @@ function dayDiff(from: string | null, to: string | null): number | null {
 
 async function updateUserStreak(userId: string, answeredAt?: string): Promise<void> {
   if (!userId) return;
-  const { data: existing } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).single();
+  const { data: existing } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).maybeSingle();
 
   const current = existing
     ? { streak: (existing as any).streak ?? 0, lastAttemptDate: (existing as any).last_attempt_date }
@@ -622,7 +622,7 @@ async function updateUserStreak(userId: string, answeredAt?: string): Promise<vo
 export async function getStudentDashboardMeta(userId: string): Promise<DashboardMeta> {
   const empty: DashboardMeta = { streak: 0, lastAttemptDate: null, lastFilters: { grade: '', subject: '', difficulty: '', topicId: '', search: '' } };
   if (!userId) return empty;
-  const { data } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).single();
+  const { data } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).maybeSingle();
   if (!data) return empty;
   const row = data as any;
   return {
@@ -653,7 +653,7 @@ export async function saveStudentDashboardMeta(userId: string, patch: Partial<Da
 // ---- App Settings ----
 
 export async function getAppSetting(key: string): Promise<string> {
-  const { data } = await supabase.from('app_settings').select('value').eq('key', key).single();
+  const { data } = await supabase.from('app_settings').select('value').eq('key', key).maybeSingle();
   if (!data) return '';
   const val = (data as any).value;
   return typeof val === 'string' ? val : JSON.stringify(val);
@@ -711,7 +711,7 @@ export async function getRanking(): Promise<{ userId: string; username: string; 
 // ---- Diagnostic ----
 
 export async function getDiagnosticResult(userId: string): Promise<any | null> {
-  const { data } = await supabase.from('diagnostic_results').select('*').eq('user_id', userId).single();
+  const { data } = await supabase.from('diagnostic_results').select('*').eq('user_id', userId).maybeSingle();
   if (!data) return null;
   return data;
 }
