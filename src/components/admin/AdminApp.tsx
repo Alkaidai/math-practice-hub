@@ -201,10 +201,10 @@ function AdminRanking() {
       {ranking.length === 0 ? (
         <p className="font-body text-sm text-muted-foreground">Nenhum dado de ranking ainda.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
           <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-muted">
+            <thead className="sticky top-0 bg-muted z-10">
+              <tr>
                 {['#', 'Aluno', 'Respondidas', 'Acertos', '% Acerto', 'Sequência'].map(h => (
                   <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
                 ))}
