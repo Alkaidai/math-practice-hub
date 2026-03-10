@@ -78,6 +78,7 @@ export function AdminApp() {
         {panel === 'notebook' && <AdminNotebook key={refreshKey} />}
         {panel === 'reports' && <AdminReports key={refreshKey} onRefresh={forceRefresh} />}
         {panel === 'import' && <AdminImport onRefresh={forceRefresh} />}
+        {panel === 'export' && <AdminExport />}
         {panel === 'ranking' && <AdminRanking key={refreshKey} />}
         {panel === 'topic-stats' && <AdminTopicStats key={refreshKey} />}
         {panel === 'settings' && <AdminSettings key={refreshKey} />}
