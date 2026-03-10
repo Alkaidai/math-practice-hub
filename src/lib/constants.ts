@@ -48,6 +48,7 @@ export const SEED_USERS: User[] = [
     lastLoginAt: null,
     loginCount: 0,
     authUserId: null,
+    rankingVisible: true,
   },
 ];
 
