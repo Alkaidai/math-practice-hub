@@ -8,7 +8,7 @@ import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem, Subj
 import { supabase } from '@/integrations/supabase/client';
 import { Checkbox } from '@/components/ui/checkbox';
 
-type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
+type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
 
 export function AdminApp() {
   const { user, logout } = useAuth();
