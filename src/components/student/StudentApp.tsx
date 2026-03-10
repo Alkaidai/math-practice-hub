@@ -82,7 +82,9 @@ export function StudentApp() {
                 <p className="font-heading text-sm text-destructive">{authError}</p>
               </div>
             )}
-          <LoginForm />
+            <LoginForm />
+          </>
+
         ) : !diagChecked ? (
           <p className="font-body text-muted-foreground">Carregando...</p>
         ) : showDiagnostic ? (
