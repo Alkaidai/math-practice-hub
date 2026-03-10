@@ -622,7 +622,7 @@ async function updateUserStreak(userId: string, answeredAt?: string): Promise<vo
 export async function getStudentDashboardMeta(userId: string): Promise<DashboardMeta> {
   const empty: DashboardMeta = { streak: 0, lastAttemptDate: null, lastFilters: { grade: '', subject: '', difficulty: '', topicId: '', search: '' } };
   if (!userId) return empty;
-  const { data } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).single();
+  const { data } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).maybeSingle();
   if (!data) return empty;
   const row = data as any;
   return {
