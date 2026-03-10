@@ -78,19 +78,33 @@ export function DiagnosticAssessment({ onComplete }: { onComplete: () => void })
 
   const topicMap = useMemo(() => new Map(topics.map(t => [t.id, t.name])), [topics]);
 
-  const handleConfirm = async () => {
-    if (selected === null) return;
-    const q = questions[currentIdx];
-    const isCorrect = selected === q.correctIndex;
+  const totalBlocks = Math.ceil(questions.length / BLOCK_SIZE);
+  const blockStart = currentBlock * BLOCK_SIZE;
+  const blockEnd = Math.min(blockStart + BLOCK_SIZE, questions.length);
+  const blockQuestions = questions.slice(blockStart, blockEnd);
+  const isLastBlock = currentBlock === totalBlocks - 1;
 
-    await addAttempt({ userId, questionId: q.id, selectedIndex: selected, isCorrect, answeredAt: new Date().toISOString(), topicId: q.topicId });
+  const allBlockAnswered = blockQuestions.every((_, i) => selections[blockStart + i] !== undefined);
 
-    const newAnswers = [...answers, { questionId: q.id, topicId: q.topicId, isCorrect }];
+  const handleSubmitBlock = async () => {
+    // Save attempts for current block
+    const newAnswers = [...answers];
+    for (let i = blockStart; i < blockEnd; i++) {
+      const q = questions[i];
+      const sel = selections[i];
+      if (sel === undefined) return;
+      // Only save if not already saved
+      if (!answers.find(a => a.questionId === q.id)) {
+        const isCorrect = sel === q.correctIndex;
+        await addAttempt({ userId, questionId: q.id, selectedIndex: sel, isCorrect, answeredAt: new Date().toISOString(), topicId: q.topicId });
+        newAnswers.push({ questionId: q.id, topicId: q.topicId, isCorrect });
+      }
+    }
     setAnswers(newAnswers);
-    setSelected(null);
 
-    if (currentIdx + 1 < questions.length) {
-      setCurrentIdx(currentIdx + 1);
+    if (!isLastBlock) {
+      setCurrentBlock(currentBlock + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       // Compute results
       const total = newAnswers.length;
