@@ -25,22 +25,28 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
   const [allLessons, setAllLessons] = useState<Lesson[]>([]);
+  const [allowedSlugs, setAllowedSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [topics, questions, notebook, lessons] = await Promise.all([
+      const [topics, questions, notebook, lessons, slugs] = await Promise.all([
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
         userId ? getNotebook(userId) : Promise.resolve([]),
         getLessons(),
+        userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
       ]);
       if (cancelled) return;
-      setAllTopics(topics);
-      setAllQuestions(questions);
+      // Filter topics & questions by allowed subjects
+      const filteredTopics = topics.filter(t => slugs.includes(t.subject));
+      const filteredQuestions = questions.filter(q => slugs.includes(q.subject));
+      setAllTopics(filteredTopics);
+      setAllQuestions(filteredQuestions);
       setNotebookItems(notebook);
       setAllLessons(lessons);
+      setAllowedSlugs(slugs);
       setLoading(false);
     }
     load();
