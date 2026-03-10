@@ -1027,6 +1027,9 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   const [newPassword, setNewPassword] = useState('');
   const [resetFeedback, setResetFeedback] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [allSubjects, setAllSubjects] = useState<SubjectItem[]>([]);
+  const [userSubjectSlugs, setUserSubjectSlugs] = useState<string[]>([]);
+  const [subjectAccessLoading, setSubjectAccessLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     const u = await loadUsers();
