@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem } from '../../lib/storage';
+import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import type { Question, Topic, NotebookItem } from '../../lib/types';
@@ -16,13 +16,14 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
-    const [questions, topics, notebook] = await Promise.all([
+    const [questions, topics, notebook, allowedSlugs] = await Promise.all([
       loadQuestionBank(),
       getTopics({ activeOnly: true }),
       getNotebook(userId),
+      getAllowedSubjectSlugs(userId),
     ]);
-    setAllQuestions(questions);
-    setAllTopics(topics);
+    setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
+    setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
     setNotebookItems(notebook);
     setLoading(false);
   }, [userId]);

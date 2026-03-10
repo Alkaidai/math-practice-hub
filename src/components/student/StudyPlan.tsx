@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getDiagnosticResult, getAttempts, getTopics, loadQuestionBank } from '../../lib/storage';
+import { getDiagnosticResult, getAttempts, getTopics, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
@@ -22,23 +22,27 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
 
   useEffect(() => {
     async function load() {
-      const [diag, attempts, topics, questions] = await Promise.all([
+      const [diag, attempts, topics, questions, allowedSlugs] = await Promise.all([
         getDiagnosticResult(userId),
         getAttempts(userId),
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
+        getAllowedSubjectSlugs(userId),
       ]);
 
-      const topicMap = new Map(topics.map(t => [t.id, t.name]));
+      const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
+      const filteredQuestions = questions.filter(q => allowedSlugs.includes(q.subject));
+
+      const topicMap = new Map(filteredTopics.map(t => [t.id, t.name]));
       const publishedByTopic = new Map<string, number>();
-      questions.filter(q => q.status !== 'draft').forEach(q => {
+      filteredQuestions.filter(q => q.status !== 'draft').forEach(q => {
         if (q.topicId) publishedByTopic.set(q.topicId, (publishedByTopic.get(q.topicId) ?? 0) + 1);
       });
 
       // Build attempt stats per topic
       const attemptsByTopic = new Map<string, { answered: number; correct: number }>();
       attempts.forEach(a => {
-        const q = questions.find(qq => qq.id === a.questionId);
+        const q = filteredQuestions.find(qq => qq.id === a.questionId);
         if (!q?.topicId) return;
         const prev = attemptsByTopic.get(q.topicId) ?? { answered: 0, correct: 0 };
         prev.answered += 1;
@@ -70,7 +74,7 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
 
       // If still nothing, show all topics with questions
       if (weakTopicIds.length === 0) {
-        weakTopicIds = topics.filter(t => (publishedByTopic.get(t.id) ?? 0) > 0).map(t => t.id).slice(0, 5);
+        weakTopicIds = filteredTopics.filter(t => (publishedByTopic.get(t.id) ?? 0) > 0).map(t => t.id).slice(0, 5);
       }
 
       const progress: TopicProgress[] = weakTopicIds.map(tid => {

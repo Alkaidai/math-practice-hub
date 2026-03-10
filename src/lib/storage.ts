@@ -77,6 +77,40 @@ export async function deleteSubject(id: string): Promise<void> {
   await supabase.from('subjects').delete().eq('id', id);
 }
 
+// ---- User Subject Access ----
+
+export async function getUserSubjectAccess(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('user_subject_access')
+    .select('subject_slug')
+    .eq('user_id', userId);
+  if (!data) return [];
+  return (data as any[]).map(r => r.subject_slug);
+}
+
+export async function setUserSubjectAccess(userId: string, slugs: string[]): Promise<void> {
+  await supabase.from('user_subject_access').delete().eq('user_id', userId);
+  if (slugs.length > 0) {
+    const rows = slugs.map(slug => ({ user_id: userId, subject_slug: slug }));
+    await supabase.from('user_subject_access').insert(rows);
+  }
+}
+
+/**
+ * Returns subject slugs this student is allowed to see.
+ * If no entries in user_subject_access → all active subjects.
+ * Otherwise intersection of active subjects & access list.
+ */
+export async function getAllowedSubjectSlugs(userId: string): Promise<string[]> {
+  const [activeSubjects, accessList] = await Promise.all([
+    getSubjects({ activeOnly: true }),
+    getUserSubjectAccess(userId),
+  ]);
+  const activeSlugs = activeSubjects.map(s => s.slug);
+  if (accessList.length === 0) return activeSlugs;
+  return activeSlugs.filter(s => accessList.includes(s));
+}
+
 // ---- Users / Profiles ----
 
 export async function loadUsers(): Promise<User[]> {

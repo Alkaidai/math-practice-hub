@@ -510,6 +510,24 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subject_access: {
+        Row: {
+          id: number
+          subject_slug: string
+          user_id: string
+        }
+        Insert: {
+          id?: never
+          subject_slug: string
+          user_id: string
+        }
+        Update: {
+          id?: never
+          subject_slug?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

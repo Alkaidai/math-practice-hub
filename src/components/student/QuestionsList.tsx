@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { loadQuestionBank, getTopics, getNotebook, addAttempt, upsertNotebookItem, addComment, addReport, getAttempts, saveStudentDashboardMeta, getLessons } from '../../lib/storage';
+import { loadQuestionBank, getTopics, getNotebook, addAttempt, upsertNotebookItem, addComment, addReport, getAttempts, saveStudentDashboardMeta, getLessons, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, optionLetter, formatDate, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson } from '../../lib/types';
@@ -25,22 +25,28 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
   const [allLessons, setAllLessons] = useState<Lesson[]>([]);
+  const [allowedSlugs, setAllowedSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [topics, questions, notebook, lessons] = await Promise.all([
+      const [topics, questions, notebook, lessons, slugs] = await Promise.all([
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
         userId ? getNotebook(userId) : Promise.resolve([]),
         getLessons(),
+        userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
       ]);
       if (cancelled) return;
-      setAllTopics(topics);
-      setAllQuestions(questions);
+      // Filter topics & questions by allowed subjects
+      const filteredTopics = topics.filter(t => slugs.includes(t.subject));
+      const filteredQuestions = questions.filter(q => slugs.includes(q.subject));
+      setAllTopics(filteredTopics);
+      setAllQuestions(filteredQuestions);
       setNotebookItems(notebook);
       setAllLessons(lessons);
+      setAllowedSlugs(slugs);
       setLoading(false);
     }
     load();
@@ -145,7 +151,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
           </select>
           <select value={filters.subject} onChange={e => handleFilter('subject', e.target.value)} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
             <option value="">Todas as disciplinas</option>
-            {Object.entries(SUBJECTS_MAP).map(([code, label]) => <option key={code} value={label}>{label}</option>)}
+            {Object.entries(SUBJECTS_MAP).filter(([code]) => allowedSlugs.includes(code)).map(([code, label]) => <option key={code} value={label}>{label}</option>)}
           </select>
           <select value={filters.difficulty} onChange={e => handleFilter('difficulty', e.target.value)} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
             <option value="">Todas as dificuldades</option>

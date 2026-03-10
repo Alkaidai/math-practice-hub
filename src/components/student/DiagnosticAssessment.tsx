@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { loadQuestionBank, getTopics, addAttempt, saveDiagnosticResult, getDiagnosticResult, getAppSetting } from '../../lib/storage';
+import { loadQuestionBank, getTopics, addAttempt, saveDiagnosticResult, getDiagnosticResult, getAppSetting, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, optionLetter } from '../../lib/ui-utils';
 import type { Question, Topic } from '../../lib/types';
 
@@ -35,10 +35,11 @@ export function DiagnosticAssessment({ onComplete }: { onComplete: () => void })
       }
 
       // Load questions distributed by topic
-      const [allQ, allT] = await Promise.all([loadQuestionBank(), getTopics({ activeOnly: true })]);
-      setTopics(allT);
+      const [allQ, allT, allowedSlugs] = await Promise.all([loadQuestionBank(), getTopics({ activeOnly: true }), getAllowedSubjectSlugs(user!.username)]);
+      const filteredT = allT.filter(t => allowedSlugs.includes(t.subject));
+      setTopics(filteredT);
 
-      const published = allQ.filter(q => q.status !== 'draft');
+      const published = allQ.filter(q => q.status !== 'draft' && allowedSlugs.includes(q.subject));
       if (published.length < 10) {
         setState({ status: 'not_needed' });
         onComplete();

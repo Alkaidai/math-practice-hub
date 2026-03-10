@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult } from '../../lib/storage';
+import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, formatDate } from '../../lib/ui-utils';
 import { Progress } from '../ui/progress';
 import { DiagnosticReport } from './DiagnosticReport';
@@ -45,16 +45,21 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [attempts, notebook, meta, allQuestions, topics, diag] = await Promise.all([
+      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
         getStudentDashboardMeta(userId),
         loadQuestionBank(),
         getTopics({ activeOnly: true }),
         getDiagnosticResult(userId),
+        getAllowedSubjectSlugs(userId),
       ]);
 
       if (cancelled) return;
+
+      // Filter by allowed subjects
+      const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
+      const filteredQuestions = allQuestions.filter(q => allowedSlugs.includes(q.subject));
 
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;
@@ -62,8 +67,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       const pendingCount = notebook.filter(i => i.status === 'pending').length;
       const masteredCount = notebook.filter(i => i.status === 'mastered').length;
       const totalReviewed = notebook.length;
-      const questions = new Map(allQuestions.map(q => [q.id, q]));
-      const topicMap = new Map(topics.map(t => [t.id, t.name]));
+      const questions = new Map(filteredQuestions.map(q => [q.id, q]));
+      const topicMap = new Map(filteredTopics.map(t => [t.id, t.name]));
 
       const agg = new Map<string, { topicId: string; label: string; total: number; errors: number }>();
       attempts.forEach(a => {
@@ -90,7 +95,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       let nextTopic: DashboardData['nextTopic'] = null;
       if (weakTopics.length > 0) {
         const top = weakTopics[0];
-        const availableQ = allQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
+        const availableQ = filteredQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
         nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ };
       }
 

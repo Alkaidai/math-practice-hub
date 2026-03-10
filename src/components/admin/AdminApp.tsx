@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
-import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject } from '../../lib/storage';
+import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem, SubjectItem } from '../../lib/types';
@@ -1027,13 +1027,16 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   const [newPassword, setNewPassword] = useState('');
   const [resetFeedback, setResetFeedback] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [allSubjects, setAllSubjects] = useState<SubjectItem[]>([]);
+  const [userSubjectSlugs, setUserSubjectSlugs] = useState<string[]>([]);
+  const [subjectAccessLoading, setSubjectAccessLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     const u = await loadUsers();
     setUsers(u.sort((a, b) => (a.name || a.username).localeCompare(b.name || b.username)));
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); getSubjects().then(setAllSubjects); }, [loadData]);
 
   const loadStudentDetail = useCallback(async (userId: string) => {
     const [attempts, notebook, diagnostic, topics, questions] = await Promise.all([
@@ -1052,9 +1055,11 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   useEffect(() => {
     if (selectedId) {
       loadStudentDetail(selectedId);
+      getUserSubjectAccess(selectedId).then(setUserSubjectSlugs);
     } else {
       setDetailData(null);
       setShowPanel(false);
+      setUserSubjectSlugs([]);
     }
   }, [selectedId, loadStudentDetail]);
 
@@ -1131,6 +1136,27 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
     await loadData();
     if (selectedId) await loadStudentDetail(selectedId);
     setFeedback('Status alterado.');
+  };
+
+  const handleToggleSubjectAccess = async (slug: string, checked: boolean) => {
+    if (!selectedId) return;
+    setSubjectAccessLoading(true);
+    const newSlugs = checked
+      ? [...userSubjectSlugs, slug]
+      : userSubjectSlugs.filter(s => s !== slug);
+    await setUserSubjectAccess(selectedId, newSlugs);
+    setUserSubjectSlugs(newSlugs);
+    setSubjectAccessLoading(false);
+    setFeedback('Acesso a disciplinas atualizado.');
+  };
+
+  const handleClearSubjectAccess = async () => {
+    if (!selectedId) return;
+    setSubjectAccessLoading(true);
+    await setUserSubjectAccess(selectedId, []);
+    setUserSubjectSlugs([]);
+    setSubjectAccessLoading(false);
+    setFeedback('Acesso liberado para todas as disciplinas ativas.');
   };
 
   // Compute detail stats
@@ -1220,6 +1246,58 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
                   <MiniStat label="Ranking" value={(selected as any).rankingVisible !== false ? '✅ Participa' : '❌ Não participa'} />
                 </div>
               </section>
+
+              {/* 1.5 Acesso a Disciplinas */}
+              {selected.role === 'student' && (
+                <section>
+                  <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">📚 Acesso a Disciplinas</h3>
+                  <p className="font-body text-[10px] text-muted-foreground mb-2">
+                    {userSubjectSlugs.length === 0 ? 'Acesso liberado a todas as disciplinas ativas.' : `Acesso restrito a ${userSubjectSlugs.length} disciplina(s).`}
+                  </p>
+                  <div className="flex flex-wrap gap-3 mb-2">
+                    {allSubjects.map(s => {
+                      const isChecked = userSubjectSlugs.length === 0 || userSubjectSlugs.includes(s.slug);
+                      const isRestricted = userSubjectSlugs.length > 0;
+                      return (
+                        <label key={s.id} className="flex items-center gap-1.5 cursor-pointer">
+                          <Checkbox
+                            checked={isRestricted ? isChecked : true}
+                            disabled={subjectAccessLoading}
+                            onCheckedChange={(checked) => {
+                              if (!isRestricted && checked) return;
+                              if (!isRestricted && !checked) {
+                                // First unchecked = restrict to all except this one
+                                const others = allSubjects.filter(x => x.slug !== s.slug).map(x => x.slug);
+                                setSubjectAccessLoading(true);
+                                setUserSubjectAccess(selectedId!, others).then(() => {
+                                  setUserSubjectSlugs(others);
+                                  setSubjectAccessLoading(false);
+                                  setFeedback('Acesso restrito.');
+                                });
+                                return;
+                              }
+                              handleToggleSubjectAccess(s.slug, !!checked);
+                            }}
+                          />
+                          <span className={`font-heading text-xs ${s.status === 'active' ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
+                            {s.name}
+                          </span>
+                          {s.status === 'inactive' && <span className="font-heading text-[10px] text-muted-foreground">(inativa)</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {userSubjectSlugs.length > 0 && (
+                    <button
+                      onClick={handleClearSubjectAccess}
+                      disabled={subjectAccessLoading}
+                      className="font-heading text-[10px] text-primary border border-primary/30 px-2 py-0.5 hover:bg-primary/10 disabled:opacity-50"
+                    >
+                      Liberar todas as disciplinas
+                    </button>
+                  )}
+                </section>
+              )}
 
               {/* 2. Engajamento */}
               <section>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getTopics, getSubjects, loadQuestionBank } from '../../lib/storage';
+import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
@@ -70,14 +70,17 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
 
   useEffect(() => {
     async function load() {
-      const [attempts, topics, subjects, questions] = await Promise.all([
+      const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getTopics({ activeOnly: true }),
         getSubjects({ activeOnly: true }),
         loadQuestionBank(),
+        externalUserId ? Promise.resolve([]) : getAllowedSubjectSlugs(userId),
       ]);
 
-      const topicMap = new Map(topics.map(t => [t.id, t]));
+      // Filter topics by allowed subjects (skip for admin viewing)
+      const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
+      const topicMap = new Map(filteredTopics.map(t => [t.id, t]));
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
 
       // Compute stats per topic from attempts
@@ -92,7 +95,7 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
       });
 
       // Build domain list
-      const domains: TopicDomain[] = topics.map(t => {
+      const domains: TopicDomain[] = filteredTopics.map(t => {
         const stats = statsByTopic.get(t.id) ?? { total: 0, correct: 0 };
         const rate = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
         return {
