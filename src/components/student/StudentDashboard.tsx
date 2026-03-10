@@ -95,7 +95,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       let nextTopic: DashboardData['nextTopic'] = null;
       if (weakTopics.length > 0) {
         const top = weakTopics[0];
-        const availableQ = allQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
+        const availableQ = filteredQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
         nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ };
       }
 
