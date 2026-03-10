@@ -84,7 +84,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       {items.length === 0 ? (
         <p className="font-body text-muted-foreground">Nenhum item com os filtros atuais.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[600px] overflow-y-auto">
           {items.map(item => {
             const q = questionsMap.get(item.questionId);
             if (!q) return null;

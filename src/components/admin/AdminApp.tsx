@@ -315,7 +315,7 @@ function AdminTopicStats() {
             <StatCard label="Pior tópico" value={topicStats.filter(t => t.total > 0).sort((a, b) => a.rate - b.rate)[0]?.name ?? '-'} />
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-muted">
