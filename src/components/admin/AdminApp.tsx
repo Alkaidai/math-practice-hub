@@ -813,15 +813,268 @@ function AdminReports({ onRefresh }: { onRefresh: () => void }) {
 }
 
 function AdminImport({ onRefresh }: { onRefresh: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<any[]>([]);
+  const [feedback, setFeedback] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [defaultGrade, setDefaultGrade] = useState('7EF');
+  const [defaultSubject, setDefaultSubject] = useState('math');
+  const [defaultDifficulty, setDefaultDifficulty] = useState('easy');
+
+  useEffect(() => {
+    getTopics({ activeOnly: true }).then(setTopics);
+  }, []);
+
+  const parseCSV = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let current = '';
+    let inQuotes = false;
+    let row: string[] = [];
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') {
+        if (inQuotes && text[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === ',' && !inQuotes) {
+        row.push(current.trim());
+        current = '';
+      } else if ((ch === '\n' || (ch === '\r' && text[i + 1] === '\n')) && !inQuotes) {
+        if (ch === '\r') i++;
+        row.push(current.trim());
+        if (row.some(c => c !== '')) rows.push(row);
+        row = [];
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    row.push(current.trim());
+    if (row.some(c => c !== '')) rows.push(row);
+    return rows;
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setFeedback('');
+    setPreview([]);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const rows = parseCSV(text);
+      if (rows.length < 2) { setFeedback('CSV vazio ou sem dados.'); return; }
+
+      const header = rows[0].map(h => h.toLowerCase().trim());
+      const dataRows = rows.slice(1);
+
+      const colMap = {
+        pergunta: header.findIndex(h => ['pergunta', 'enunciado', 'statement', 'questão', 'questao'].includes(h)),
+        altA: header.findIndex(h => ['a', 'alternativa a', 'alt_a', 'opção a', 'opcao a', 'alternativa_a'].includes(h)),
+        altB: header.findIndex(h => ['b', 'alternativa b', 'alt_b', 'opção b', 'opcao b', 'alternativa_b'].includes(h)),
+        altC: header.findIndex(h => ['c', 'alternativa c', 'alt_c', 'opção c', 'opcao c', 'alternativa_c'].includes(h)),
+        altD: header.findIndex(h => ['d', 'alternativa d', 'alt_d', 'opção d', 'opcao d', 'alternativa_d'].includes(h)),
+        altE: header.findIndex(h => ['e', 'alternativa e', 'alt_e', 'opção e', 'opcao e', 'alternativa_e'].includes(h)),
+        correta: header.findIndex(h => ['correta', 'resposta', 'correct', 'alternativa correta', 'resposta_correta'].includes(h)),
+        topico: header.findIndex(h => ['tópico', 'topico', 'topic', 'tema'].includes(h)),
+        explicacao: header.findIndex(h => ['explicação', 'explicacao', 'explanation', 'resolução', 'resolucao'].includes(h)),
+        serie: header.findIndex(h => ['série', 'serie', 'grade', 'ano'].includes(h)),
+        disciplina: header.findIndex(h => ['disciplina', 'matéria', 'materia', 'subject'].includes(h)),
+        dificuldade: header.findIndex(h => ['dificuldade', 'difficulty', 'nivel', 'nível'].includes(h)),
+      };
+
+      if (colMap.pergunta === -1) {
+        setFeedback(`Coluna "pergunta" não encontrada. Colunas detectadas: ${header.join(', ')}`);
+        return;
+      }
+
+      const parsed = dataRows.map(row => {
+        const get = (idx: number) => idx >= 0 && idx < row.length ? row[idx] : '';
+        const correctRaw = get(colMap.correta).toUpperCase().trim();
+        const correctIndex = ['A', 'B', 'C', 'D', 'E'].indexOf(correctRaw);
+
+        // Resolve topic by name
+        const topicName = get(colMap.topico);
+        const matchedTopic = topics.find(t =>
+          t.name.toLowerCase() === topicName.toLowerCase() ||
+          t.label.toLowerCase() === topicName.toLowerCase()
+        );
+
+        // Resolve grade, subject, difficulty from CSV or defaults
+        const gradeRaw = get(colMap.serie);
+        const grade = GRADES.includes(gradeRaw as any) ? gradeRaw : defaultGrade;
+
+        const subjRaw = get(colMap.disciplina);
+        const subject = SUBJECTS_REVERSE[subjRaw] ?? (Object.keys(SUBJECTS_MAP).includes(subjRaw) ? subjRaw : defaultSubject);
+
+        const diffRaw = get(colMap.dificuldade);
+        const difficulty = DIFFICULTIES_REVERSE[diffRaw] ?? (Object.keys(DIFFICULTIES_MAP).includes(diffRaw) ? diffRaw : defaultDifficulty);
+
+        return {
+          statement: get(colMap.pergunta),
+          options: [get(colMap.altA), get(colMap.altB), get(colMap.altC), get(colMap.altD), get(colMap.altE)],
+          correctIndex,
+          correctLetter: correctRaw,
+          topicName,
+          topicId: matchedTopic?.id ?? '',
+          explanation: get(colMap.explicacao),
+          grade,
+          subject,
+          difficulty,
+          valid: !!get(colMap.pergunta) && correctIndex >= 0,
+        };
+      });
+
+      setPreview(parsed);
+      const valid = parsed.filter(p => p.valid).length;
+      const invalid = parsed.length - valid;
+      setFeedback(`${parsed.length} questões detectadas. ${valid} válidas, ${invalid} com problemas.`);
+    };
+    reader.readAsText(f, 'UTF-8');
+  };
+
+  const handleImport = async () => {
+    const valid = preview.filter(p => p.valid);
+    if (!valid.length) { setFeedback('Nenhuma questão válida para importar.'); return; }
+
+    setImporting(true);
+    try {
+      const questions = valid.map(p => ({
+        id: uid('q'),
+        grade: p.grade,
+        subject: p.subject,
+        difficulty: p.difficulty,
+        topicId: p.topicId,
+        statement: p.statement,
+        options: p.options,
+        correctIndex: p.correctIndex,
+        explanation: p.explanation,
+        status: 'published' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        comments: [],
+      }));
+
+      await saveQuestionsBulk(questions);
+      setFeedback(`✅ ${valid.length} questões importadas com sucesso!`);
+      setPreview([]);
+      setFile(null);
+      onRefresh();
+    } catch (err) {
+      setFeedback(`Erro ao importar: ${err}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação
+"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4"
+"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3"`;
+
   return (
     <div className="space-y-4">
-      <h2 className="font-heading text-sm font-bold uppercase">Importar</h2>
-      <div className="border border-border bg-card p-4">
-        <p className="font-body text-sm text-muted-foreground">
-          Funcionalidade de importação JSON/CSV/PDF será implementada em breve.
-          Para importar questões agora, use o painel de questões para cadastrar manualmente.
-        </p>
+      <h2 className="font-heading text-sm font-bold uppercase">Importar questões via CSV</h2>
+
+      <div className="border border-border bg-card p-3 space-y-3">
+        <div>
+          <h3 className="font-heading text-xs font-bold mb-1">Formato esperado do CSV</h3>
+          <p className="font-body text-xs text-muted-foreground mb-2">
+            Colunas obrigatórias: <strong>pergunta, a, b, c, d, e, correta</strong>.
+            Opcionais: <strong>tópico, explicação, série, disciplina, dificuldade</strong>.
+          </p>
+          <details className="text-xs">
+            <summary className="font-heading cursor-pointer text-primary">Ver exemplo de CSV</summary>
+            <pre className="mt-1 bg-muted p-2 font-mono text-[11px] overflow-x-auto whitespace-pre">{sampleCSV}</pre>
+            <button
+              onClick={() => {
+                const blob = new Blob([sampleCSV], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'modelo_questoes.csv'; a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="mt-1 font-heading text-[10px] border border-primary text-primary px-2 py-0.5"
+            >
+              Baixar modelo CSV
+            </button>
+          </details>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="font-heading text-[10px] text-muted-foreground uppercase">Série padrão</label>
+            <select value={defaultGrade} onChange={e => setDefaultGrade(e.target.value)} className="w-full border border-border bg-background px-2 py-1 font-heading text-xs">
+              {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="font-heading text-[10px] text-muted-foreground uppercase">Disciplina padrão</label>
+            <select value={defaultSubject} onChange={e => setDefaultSubject(e.target.value)} className="w-full border border-border bg-background px-2 py-1 font-heading text-xs">
+              {Object.entries(SUBJECTS_MAP).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="font-heading text-[10px] text-muted-foreground uppercase">Dificuldade padrão</label>
+            <select value={defaultDifficulty} onChange={e => setDefaultDifficulty(e.target.value)} className="w-full border border-border bg-background px-2 py-1 font-heading text-xs">
+              {Object.entries(DIFFICULTIES_MAP).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <input type="file" accept=".csv" onChange={handleFile} className="font-body text-sm" />
+        </div>
+
+        {feedback && <p className={`font-heading text-xs ${feedback.startsWith('✅') ? 'text-primary' : 'text-muted-foreground'}`}>{feedback}</p>}
       </div>
+
+      {preview.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-heading text-xs font-bold">Prévia ({preview.filter(p => p.valid).length} válidas de {preview.length})</h3>
+            <button
+              onClick={handleImport}
+              disabled={importing || !preview.some(p => p.valid)}
+              className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary disabled:opacity-50"
+            >
+              {importing ? 'Importando...' : `Importar ${preview.filter(p => p.valid).length} questões`}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="sticky top-0">
+                <tr className="bg-muted">
+                  {['#', 'Status', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dificuldade'].map(h => (
+                    <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {preview.map((p, i) => (
+                  <tr key={i} className={p.valid ? '' : 'bg-destructive/10'}>
+                    <td className="p-2 border border-border font-heading text-xs">{i + 1}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{p.valid ? '✅' : '❌'}</td>
+                    <td className="p-2 border border-border font-body text-xs max-w-[300px] truncate">{p.statement || '(vazio)'}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{p.correctLetter || '?'}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{p.topicId ? topics.find(t => t.id === p.topicId)?.name : p.topicName || '-'}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{p.grade}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{SUBJECTS_MAP[p.subject] ?? p.subject}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{DIFFICULTIES_MAP[p.difficulty] ?? p.difficulty}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
