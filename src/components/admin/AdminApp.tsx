@@ -20,6 +20,38 @@ import {
 
 type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
 
+// Reusable paginated table component for admin lists
+function AdminPaginatedTable<T>({ items, perPage, renderHeader, renderRow }: {
+  items: T[];
+  perPage: number;
+  renderHeader: () => React.ReactNode;
+  renderRow: (item: T, index: number) => React.ReactNode;
+}) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(items.length / perPage));
+  const paged = items.slice(page * perPage, (page + 1) * perPage);
+
+  useEffect(() => { setPage(0); }, [items.length]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">{items.length} item(ns) · Página {page + 1} de {totalPages}</p>
+        <div className="flex gap-1">
+          <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="text-xs px-3 py-1 border border-border rounded disabled:opacity-40">← Anterior</button>
+          <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="text-xs px-3 py-1 border border-border rounded disabled:opacity-40">Próxima →</button>
+        </div>
+      </div>
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead className="sticky top-0 bg-muted z-10">{renderHeader()}</thead>
+          <tbody>{paged.map((item, i) => renderRow(item, page * perPage + i))}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 const ADMIN_NAV = [
   { id: 'dashboard' as Panel, label: 'Painel', icon: LayoutDashboard, group: null },
   { id: 'questions' as Panel, label: 'Questões', icon: FileText, group: 'Conteúdo' },
