@@ -356,13 +356,14 @@ export async function getAttempts(userId?: string): Promise<Attempt[]> {
   }));
 }
 
-export async function addAttempt(attempt: Partial<Attempt>): Promise<Attempt> {
-  const row = {
+export async function addAttempt(attempt: Partial<Attempt> & { topicId?: string }): Promise<Attempt> {
+  const row: any = {
     user_id: attempt.userId ?? '',
     question_id: attempt.questionId ?? '',
     selected_index: attempt.selectedIndex ?? -1,
     is_correct: attempt.isCorrect ?? false,
     answered_at: attempt.answeredAt ?? nowIso(),
+    topic_id: attempt.topicId ?? null,
   };
   const { data } = await supabase.from('attempts').insert(row).select().single();
   const d = (data ?? row) as any;
@@ -647,6 +648,91 @@ export async function saveStudentDashboardMeta(userId: string, patch: Partial<Da
   } as any);
 
   return next;
+}
+
+// ---- App Settings ----
+
+export async function getAppSetting(key: string): Promise<string> {
+  const { data } = await supabase.from('app_settings').select('value').eq('key', key).single();
+  if (!data) return '';
+  const val = (data as any).value;
+  return typeof val === 'string' ? val : JSON.stringify(val);
+}
+
+export async function setAppSetting(key: string, value: string): Promise<void> {
+  await supabase.from('app_settings').upsert({ key, value: JSON.stringify(value) as any, updated_at: nowIso() } as any);
+}
+
+export async function getAllAppSettings(): Promise<Record<string, string>> {
+  const { data } = await supabase.from('app_settings').select('*');
+  if (!data) return {};
+  const result: Record<string, string> = {};
+  (data as any[]).forEach(row => {
+    const val = row.value;
+    result[row.key] = typeof val === 'string' ? val : JSON.stringify(val);
+  });
+  return result;
+}
+
+// ---- Ranking ----
+
+export async function getRanking(): Promise<{ userId: string; username: string; total: number; correct: number; rate: number; streak: number }[]> {
+  const [attempts, users, metas] = await Promise.all([
+    getAttempts(),
+    loadUsers(),
+    supabase.from('dashboard_meta').select('*'),
+  ]);
+
+  const userMap = new Map(users.map(u => [u.username, u]));
+  const streakMap = new Map<string, number>();
+  ((metas.data ?? []) as any[]).forEach(m => streakMap.set(m.user_id, m.streak ?? 0));
+
+  const agg = new Map<string, { total: number; correct: number }>();
+  attempts.forEach(a => {
+    const prev = agg.get(a.userId) ?? { total: 0, correct: 0 };
+    prev.total += 1;
+    if (a.isCorrect) prev.correct += 1;
+    agg.set(a.userId, prev);
+  });
+
+  return [...agg.entries()]
+    .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student')
+    .map(([uid, stats]) => ({
+      userId: uid,
+      username: uid,
+      total: stats.total,
+      correct: stats.correct,
+      rate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
+      streak: streakMap.get(uid) ?? 0,
+    }))
+    .sort((a, b) => b.correct - a.correct || b.rate - a.rate || b.streak - a.streak);
+}
+
+// ---- Diagnostic ----
+
+export async function getDiagnosticResult(userId: string): Promise<any | null> {
+  const { data } = await supabase.from('diagnostic_results').select('*').eq('user_id', userId).single();
+  if (!data) return null;
+  return data;
+}
+
+export async function saveDiagnosticResult(userId: string, result: any): Promise<void> {
+  await supabase.from('diagnostic_results').upsert({
+    user_id: userId,
+    completed_at: nowIso(),
+    total_questions: result.totalQuestions,
+    correct_answers: result.correctAnswers,
+    accuracy_rate: result.accuracyRate,
+    topic_breakdown: result.topicBreakdown,
+    strengths: result.strengths,
+    weaknesses: result.weaknesses,
+    recommended_plan: result.recommendedPlan,
+  } as any);
+}
+
+export async function getAllDiagnosticResults(): Promise<any[]> {
+  const { data } = await supabase.from('diagnostic_results').select('*').order('completed_at', { ascending: false });
+  return (data ?? []) as any[];
 }
 
 // ---- Init (no-op with DB) ----
