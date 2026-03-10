@@ -654,10 +654,13 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
   const [form, setForm] = useState({
     grade: '7EF', subject: '', difficulty: 'easy', topicId: '', status: 'published',
     statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '',
+    imageUrl: '' as string | null, imageAlt: '',
   });
   const [feedback, setFeedback] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
     const [t, q, s] = await Promise.all([getTopics({ activeOnly: true }), loadQuestionBank(), getSubjects({ activeOnly: true })]);
@@ -672,8 +675,32 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
 
   const resetForm = () => {
     setEditingId(null);
-    setForm({ grade: '7EF', subject: 'math', difficulty: 'easy', topicId: topics[0]?.id ?? '', status: 'published', statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '' });
+    setForm({ grade: '7EF', subject: 'math', difficulty: 'easy', topicId: topics[0]?.id ?? '', status: 'published', statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '', imageUrl: null, imageAlt: '' });
     setFeedback('');
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() ?? 'png';
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from('question-images').upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('question-images').getPublicUrl(path);
+      setForm(f => ({ ...f, imageUrl: urlData.publicUrl }));
+      setFeedback('Imagem carregada.');
+    } catch (err: any) {
+      setFeedback(`❌ Erro no upload: ${err.message}`);
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveImage = async () => {
+    setForm(f => ({ ...f, imageUrl: null, imageAlt: '' }));
+    setFeedback('Imagem removida.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
