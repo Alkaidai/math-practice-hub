@@ -257,14 +257,28 @@ async function loadCommentsForQuestions(questionIds: string[]): Promise<Map<stri
   return map;
 }
 
-export async function loadQuestionBank(): Promise<Question[]> {
+// Simple in-memory cache for question bank
+let _questionCache: { data: Question[]; ts: number } | null = null;
+const CACHE_TTL = 30_000; // 30 seconds
+
+export async function loadQuestionBank(options: { withComments?: boolean; forceRefresh?: boolean } = {}): Promise<Question[]> {
+  const { withComments = false, forceRefresh = false } = options;
+
+  // Use cache for reads without comments
+  if (!withComments && !forceRefresh && _questionCache && Date.now() - _questionCache.ts < CACHE_TTL) {
+    return _questionCache.data;
+  }
+
   const { data } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
   if (!data) return [];
 
-  const questionIds = data.map((q: any) => q.id);
-  const commentsMap = await loadCommentsForQuestions(questionIds);
+  let commentsMap = new Map<string, Comment[]>();
+  if (withComments) {
+    const questionIds = data.map((q: any) => q.id);
+    commentsMap = await loadCommentsForQuestions(questionIds);
+  }
 
-  return data.map((row: any) => ({
+  const result = data.map((row: any) => ({
     id: row.id,
     grade: row.grade,
     subject: row.subject,
@@ -281,6 +295,16 @@ export async function loadQuestionBank(): Promise<Question[]> {
     imageUrl: row.image_url ?? null,
     imageAlt: row.image_alt ?? null,
   }));
+
+  if (!withComments) {
+    _questionCache = { data: result, ts: Date.now() };
+  }
+
+  return result;
+}
+
+export function invalidateQuestionCache() {
+  _questionCache = null;
 }
 
 export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
