@@ -28,6 +28,7 @@ function rowToUser(row: any): User {
     lastLoginAt: row.last_login_at,
     loginCount: row.login_count ?? 0,
     authUserId: row.auth_user_id ?? null,
+    rankingVisible: row.ranking_visible !== false,
   };
 }
 
@@ -725,7 +726,7 @@ export async function getRanking(): Promise<{ userId: string; username: string; 
   });
 
   return [...agg.entries()]
-    .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student')
+    .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student' && userMap.get(uid)!.rankingVisible !== false)
     .map(([uid, stats]) => ({
       userId: uid,
       username: uid,

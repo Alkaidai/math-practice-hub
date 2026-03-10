@@ -5,6 +5,8 @@ import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, 
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem } from '../../lib/types';
+import { supabase } from '@/integrations/supabase/client';
+import { Checkbox } from '@/components/ui/checkbox';
 
 type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
 
@@ -277,7 +279,6 @@ function AdminTopicStats() {
   const { topics, attempts, questions } = data;
   const questionMap = new Map(questions.map(q => [q.id, q]));
 
-  // Aggregate by topic
   const stats = new Map<string, { total: number; correct: number; errors: number }>();
   attempts.forEach(a => {
     const q = questionMap.get(a.questionId);
@@ -317,8 +318,8 @@ function AdminTopicStats() {
 
           <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-muted">
+              <thead className="sticky top-0 bg-muted z-10">
+                <tr>
                   {['Tópico', 'Disciplina', 'Respostas', 'Acertos', 'Erros', '% Acerto', 'Barra'].map(h => (
                     <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
                   ))}
@@ -381,6 +382,7 @@ function AdminSettings() {
     { key: 'diagnostic_enabled', label: 'Diagnóstico inicial ativado', desc: 'Habilita o diagnóstico automático para novos alunos.' },
     { key: 'diagnostic_mandatory', label: 'Diagnóstico obrigatório', desc: 'Se ativado, novos alunos devem completar o diagnóstico antes de acessar o sistema.' },
     { key: 'diagnostic_results_visible', label: 'Resultado do diagnóstico visível para aluno', desc: 'Controla se o aluno pode ver o resultado do seu diagnóstico.' },
+    { key: 'public_signup_enabled', label: 'Cadastro público permitido', desc: 'Se ativado, qualquer pessoa pode se cadastrar. Se desativado, apenas admin pode criar alunos.' },
   ];
 
   return (
@@ -417,7 +419,7 @@ function AdminSettings() {
   );
 }
 
-// ============ EXISTING COMPONENTS (unchanged logic) ============
+// ============ ADMIN QUESTIONS (with bulk delete) ============
 
 function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -428,6 +430,8 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
     statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '',
   });
   const [feedback, setFeedback] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const loadData = useCallback(async () => {
     const [t, q] = await Promise.all([getTopics({ activeOnly: true }), loadQuestionBank()]);
@@ -490,6 +494,33 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
     onRefresh();
   };
 
+  const handleBulkDelete = async () => {
+    for (const id of selectedIds) {
+      await deleteQuestion(id);
+    }
+    setSelectedIds(new Set());
+    setConfirmDelete(false);
+    setFeedback(`✅ ${selectedIds.size} questão(ões) excluída(s).`);
+    await loadData();
+    onRefresh();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === questions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(questions.map(q => q.id)));
+    }
+  };
+
   const allTopics = topics;
 
   return (
@@ -497,9 +528,34 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
       <div className="flex justify-between items-center">
         <h2 className="font-heading text-sm font-bold uppercase">Questões</h2>
         <div className="flex gap-2">
+          {selectedIds.size > 0 && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="font-heading text-xs text-destructive border border-destructive px-2 py-0.5 hover:bg-destructive hover:text-destructive-foreground"
+            >
+              🗑 Excluir {selectedIds.size} selecionada(s)
+            </button>
+          )}
           <button onClick={resetForm} className="font-heading text-xs border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Nova questão</button>
         </div>
       </div>
+
+      {confirmDelete && (
+        <div className="border border-destructive bg-destructive/5 p-4 space-y-2">
+          <p className="font-heading text-sm text-destructive font-bold">
+            ⚠️ Confirmar exclusão de {selectedIds.size} questão(ões)?
+          </p>
+          <p className="font-body text-xs text-muted-foreground">Esta ação não pode ser desfeita.</p>
+          <div className="flex gap-2">
+            <button onClick={handleBulkDelete} className="font-heading text-xs bg-destructive text-destructive-foreground px-4 py-1.5 border border-destructive">
+              Sim, excluir
+            </button>
+            <button onClick={() => setConfirmDelete(false)} className="font-heading text-xs border border-border px-4 py-1.5">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="border border-border bg-card p-3 space-y-2">
         <h3 className="font-heading text-xs font-bold">{editingId ? 'Editar questão' : 'Nova questão'}</h3>
@@ -540,8 +596,14 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
 
       <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-muted">
+          <thead className="sticky top-0 bg-muted z-10">
+            <tr>
+              <th className="p-2 border border-border w-8">
+                <Checkbox
+                  checked={selectedIds.size === questions.length && questions.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </th>
               {['Série','Disciplina','Dificuldade','Tópico','Enunciado','Status','Ações'].map(h => (
                 <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
               ))}
@@ -549,7 +611,13 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
           </thead>
           <tbody>
             {questions.map(q => (
-              <tr key={q.id} className="hover:bg-muted/50">
+              <tr key={q.id} className={`hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-primary/5' : ''}`}>
+                <td className="p-2 border border-border">
+                  <Checkbox
+                    checked={selectedIds.has(q.id)}
+                    onCheckedChange={() => toggleSelect(q.id)}
+                  />
+                </td>
                 <td className="p-2 border border-border font-heading text-xs">{q.grade}</td>
                 <td className="p-2 border border-border font-heading text-xs">{subjectLabel(q.subject)}</td>
                 <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
@@ -570,6 +638,8 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
     </div>
   );
 }
+
+// ============ ADMIN LESSONS ============
 
 function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -648,6 +718,8 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
     </div>
   );
 }
+
+// ============ ADMIN TOPICS ============
 
 function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -747,6 +819,8 @@ function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
+// ============ ADMIN USERS (improved with password reset, ranking toggle) ============
+
 function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   const { user: adminUser } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -763,6 +837,9 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   } | null>(null);
   const [showPanel, setShowPanel] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetFeedback, setResetFeedback] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   const loadData = useCallback(async () => {
     const u = await loadUsers();
@@ -779,7 +856,7 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
       getTopics(),
       loadQuestionBank(),
     ]);
-    const { data: dashMeta } = await (await import('@/integrations/supabase/client')).supabase
+    const { data: dashMeta } = await supabase
       .from('dashboard_meta').select('*').eq('user_id', userId).maybeSingle();
     setDetailData({ attempts, notebook, diagnostic, dashMeta, topics, questions });
     setShowPanel(true);
@@ -802,8 +879,6 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
     setCreating(true);
     setFeedback('');
     try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke('create-user', {
         body: {
           email: form.email.trim(),
@@ -824,6 +899,36 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
       setFeedback(`❌ ${err.message}`);
     }
     setCreating(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!selected?.authUserId || !newPassword || newPassword.length < 6) {
+      setResetFeedback('Senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    setResettingPassword(true);
+    setResetFeedback('');
+    try {
+      const res = await supabase.functions.invoke('reset-user-password', {
+        body: { authUserId: selected.authUserId, newPassword },
+      });
+      if (res.error) throw new Error(res.error.message ?? 'Erro');
+      const result = res.data as any;
+      if (result?.error) throw new Error(result.error);
+      setResetFeedback('✅ Senha redefinida com sucesso!');
+      setNewPassword('');
+    } catch (err: any) {
+      setResetFeedback(`❌ ${err.message}`);
+    }
+    setResettingPassword(false);
+  };
+
+  const handleToggleRanking = async () => {
+    if (!selected) return;
+    const currentVal = (selected as any).rankingVisible !== false;
+    await supabase.from('profiles').update({ ranking_visible: !currentVal } as any).eq('id', selected.id);
+    await loadData();
+    setFeedback('Participação no ranking alterada.');
   };
 
   const handleResetDiagnostic = async () => {
@@ -853,7 +958,6 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   const errors = answered - correct;
   const rate = answered ? Math.round((correct / answered) * 100) : 0;
 
-  // Topic performance
   const topicPerf = new Map<string, { total: number; correct: number }>();
   attempts.forEach(a => {
     const q = questionsMap.get(a.questionId);
@@ -869,14 +973,8 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   const strongTopics = topicPerfArr.filter(t => t.rate >= 70 && t.total >= 2);
   const weakTopics = topicPerfArr.filter(t => t.rate < 50 && t.total >= 2);
 
-  // Recent history
   const recentAttempts = [...attempts].sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime()).slice(0, 10);
-  const recentErrors = [...attempts].filter(a => !a.isCorrect).sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime()).slice(0, 5);
-
-  // Active days
   const activeDays = new Set(attempts.map(a => a.answeredAt?.slice(0, 10))).size;
-
-  // Notebook stats
   const nbPending = notebook.filter(n => n.status === 'pending').length;
   const nbMastered = notebook.filter(n => n.status === 'mastered').length;
 
@@ -907,9 +1005,7 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
             {users.map(u => (
               <button
                 key={u.id}
-                onClick={() => {
-                  setSelectedId(u.username);
-                }}
+                onClick={() => setSelectedId(u.username)}
                 className={`w-full text-left border p-2 ${selectedId === u.username ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
               >
                 <p className="font-heading text-xs font-bold">{u.name || u.username}</p>
@@ -934,6 +1030,7 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
                   <MiniStat label="Conta criada" value={formatDate(selected.createdAt)} />
                   <MiniStat label="Último login" value={selected.lastLoginAt ? formatDate(selected.lastLoginAt) : 'Nunca'} />
                   <MiniStat label="Perfil" value={selected.role === 'admin' ? 'Administrador' : 'Aluno'} />
+                  <MiniStat label="Ranking" value={(selected as any).rankingVisible !== false ? '✅ Participa' : '❌ Não participa'} />
                 </div>
               </section>
 
@@ -1055,7 +1152,34 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
                 )}
               </section>
 
-              {/* 7. Ações */}
+              {/* 7. Redefinir Senha */}
+              <section>
+                <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">🔐 Redefinir Senha</h3>
+                {selected.authUserId ? (
+                  <div className="flex gap-2 items-end">
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      placeholder="Nova senha (mín. 6)"
+                      className="border border-border bg-background px-2 py-1 font-heading text-xs flex-1"
+                      minLength={6}
+                    />
+                    <button
+                      onClick={handleResetPassword}
+                      disabled={resettingPassword || !newPassword}
+                      className="font-heading text-xs bg-primary text-primary-foreground px-3 py-1 border border-primary disabled:opacity-50"
+                    >
+                      {resettingPassword ? 'Salvando...' : 'Redefinir'}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="font-body text-xs text-muted-foreground">Usuário sem conta de autenticação vinculada.</p>
+                )}
+                {resetFeedback && <p className="font-heading text-xs mt-1">{resetFeedback}</p>}
+              </section>
+
+              {/* 8. Ações */}
               <section>
                 <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">⚡ Ações</h3>
                 <div className="flex flex-wrap gap-2">
@@ -1070,6 +1194,12 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
                     className={`font-heading text-xs border px-3 py-1.5 ${selected.status === 'active' ? 'border-destructive text-destructive hover:bg-destructive/10' : 'border-primary text-primary hover:bg-primary/10'}`}
                   >
                     {selected.status === 'active' ? '🚫 Bloquear aluno' : '✅ Ativar aluno'}
+                  </button>
+                  <button
+                    onClick={handleToggleRanking}
+                    className="font-heading text-xs border border-border px-3 py-1.5 hover:bg-muted"
+                  >
+                    {(selected as any).rankingVisible !== false ? '🏆 Remover do ranking' : '🏆 Incluir no ranking'}
                   </button>
                 </div>
               </section>
@@ -1091,6 +1221,8 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
     </div>
   );
 }
+
+// ============ ADMIN COMMENTS ============
 
 function AdminComments({ onRefresh }: { onRefresh: () => void }) {
   const [filter, setFilter] = useState('all');
@@ -1167,6 +1299,8 @@ function AdminComments({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
+// ============ ADMIN NOTEBOOK ============
+
 function AdminNotebook() {
   const [selectedUser, setSelectedUser] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -1231,6 +1365,8 @@ function AdminNotebook() {
     </div>
   );
 }
+
+// ============ ADMIN REPORTS ============
 
 function AdminReports({ onRefresh }: { onRefresh: () => void }) {
   const [statusFilter, setStatusFilter] = useState('all');
@@ -1315,6 +1451,8 @@ function AdminReports({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
+// ============ ADMIN EXPORT ============
+
 function AdminExport() {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -1334,15 +1472,21 @@ function AdminExport() {
 
       const rows = questions.map(q => {
         const opts = q.options as string[];
-        const correctLetter = ['a', 'b', 'c', 'd', 'e'][q.correctIndex] ?? '';
+        const correctLetter = ['A','B','C','D','E'][q.correctIndex] ?? '';
         return [
-          q.statement, opts[0] ?? '', opts[1] ?? '', opts[2] ?? '', opts[3] ?? '', opts[4] ?? '',
-          correctLetter, topicMap.get(q.topicId) ?? q.topicId, q.explanation,
-          q.grade, q.subject, q.difficulty, q.status,
-        ].map(v => escapeCSV(String(v)));
+          escapeCSV(q.statement),
+          ...opts.map(o => escapeCSV(o || '')),
+          correctLetter,
+          escapeCSV(topicMap.get(q.topicId) ?? q.topicId ?? ''),
+          escapeCSV(q.explanation || ''),
+          q.grade,
+          subjectLabel(q.subject),
+          difficultyLabel(q.difficulty),
+          statusLabel(q.status),
+        ].join(',');
       });
 
-      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const csv = [headers.join(','), ...rows].join('\n');
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1372,6 +1516,8 @@ function AdminExport() {
     </div>
   );
 }
+
+// ============ ADMIN IMPORT ============
 
 function AdminImport({ onRefresh }: { onRefresh: () => void }) {
   const [file, setFile] = useState<File | null>(null);

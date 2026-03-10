@@ -256,6 +256,7 @@ export type Database = {
           login_count: number
           name: string
           password: string
+          ranking_visible: boolean
           role: string
           status: string
           username: string
@@ -270,6 +271,7 @@ export type Database = {
           login_count?: number
           name?: string
           password: string
+          ranking_visible?: boolean
           role?: string
           status?: string
           username: string
@@ -284,6 +286,7 @@ export type Database = {
           login_count?: number
           name?: string
           password?: string
+          ranking_visible?: boolean
           role?: string
           status?: string
           username?: string

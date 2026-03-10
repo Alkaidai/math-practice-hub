@@ -22,6 +22,7 @@ export interface User {
   lastLoginAt: string | null;
   loginCount: number;
   authUserId: string | null;
+  rankingVisible: boolean;
 }
 
 export interface AuthUser {
