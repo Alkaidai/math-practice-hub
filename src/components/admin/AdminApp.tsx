@@ -878,48 +878,47 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
 
-      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-0 bg-muted z-10">
-            <tr>
-              <th className="p-2 border border-border w-8">
-                <Checkbox
-                  checked={selectedIds.size === questions.length && questions.length > 0}
-                  onCheckedChange={toggleSelectAll}
-                />
-              </th>
-              {['Série','Disciplina','Dificuldade','Tópico','Enunciado','🖼️','Status','Ações'].map(h => (
-                <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {questions.map(q => (
-              <tr key={q.id} className={`hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-primary/5' : ''}`}>
-                <td className="p-2 border border-border">
-                  <Checkbox
-                    checked={selectedIds.has(q.id)}
-                    onCheckedChange={() => toggleSelect(q.id)}
-                  />
-                </td>
-                <td className="p-2 border border-border font-heading text-xs">{q.grade}</td>
-                <td className="p-2 border border-border font-heading text-xs">{subjectLabel(q.subject)}</td>
-                <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
-                <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
-                <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
-                <td className="p-2 border border-border font-heading text-xs text-center">{q.imageUrl ? '🖼️' : '—'}</td>
-                <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
-                <td className="p-2 border border-border">
-                  <div className="flex gap-1">
-                    <button onClick={() => handleEdit(q)} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Editar</button>
-                    <button onClick={() => handleDelete(q.id)} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
-                  </div>
-                </td>
-              </tr>
+      {/* Pagination for admin questions */}
+      <AdminPaginatedTable
+        items={questions}
+        perPage={30}
+        renderHeader={() => (
+          <tr>
+            <th className="p-2 border border-border w-8">
+              <Checkbox
+                checked={selectedIds.size === questions.length && questions.length > 0}
+                onCheckedChange={toggleSelectAll}
+              />
+            </th>
+            {['Série','Disciplina','Dificuldade','Tópico','Enunciado','🖼️','Status','Ações'].map(h => (
+              <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        )}
+        renderRow={(q: Question) => (
+          <tr key={q.id} className={`hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-primary/5' : ''}`}>
+            <td className="p-2 border border-border">
+              <Checkbox
+                checked={selectedIds.has(q.id)}
+                onCheckedChange={() => toggleSelect(q.id)}
+              />
+            </td>
+            <td className="p-2 border border-border font-heading text-xs">{q.grade}</td>
+            <td className="p-2 border border-border font-heading text-xs">{subjectLabel(q.subject)}</td>
+            <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
+            <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
+            <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
+            <td className="p-2 border border-border font-heading text-xs text-center">{q.imageUrl ? '🖼️' : '—'}</td>
+            <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
+            <td className="p-2 border border-border">
+              <div className="flex gap-1">
+                <button onClick={() => handleEdit(q)} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Editar</button>
+                <button onClick={() => handleDelete(q.id)} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
+              </div>
+            </td>
+          </tr>
+        )}
+      />
     </div>
   );
 }
