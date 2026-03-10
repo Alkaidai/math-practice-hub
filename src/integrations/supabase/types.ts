@@ -251,6 +251,7 @@ export type Database = {
           grade_level: string | null
           id: string
           last_login_at: string | null
+          login_count: number
           password: string
           role: string
           status: string
@@ -261,6 +262,7 @@ export type Database = {
           grade_level?: string | null
           id: string
           last_login_at?: string | null
+          login_count?: number
           password: string
           role?: string
           status?: string
@@ -271,6 +273,7 @@ export type Database = {
           grade_level?: string | null
           id?: string
           last_login_at?: string | null
+          login_count?: number
           password?: string
           role?: string
           status?: string

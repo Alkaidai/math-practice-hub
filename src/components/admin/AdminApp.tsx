@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
-import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults } from '../../lib/storage';
+import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem } from '../../lib/types';
@@ -752,7 +752,15 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   const [form, setForm] = useState({ username: '', password: '', role: 'student', status: 'active', gradeLevel: '' });
   const [feedback, setFeedback] = useState('');
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedAttempts, setSelectedAttempts] = useState<Attempt[]>([]);
+  const [detailData, setDetailData] = useState<{
+    attempts: Attempt[];
+    notebook: NotebookItem[];
+    diagnostic: any | null;
+    dashMeta: any | null;
+    topics: Topic[];
+    questions: Question[];
+  } | null>(null);
+  const [showPanel, setShowPanel] = useState(false);
 
   const loadData = useCallback(async () => {
     const u = await loadUsers();
@@ -761,18 +769,30 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const loadStudentDetail = useCallback(async (userId: string) => {
+    const [attempts, notebook, diagnostic, topics, questions] = await Promise.all([
+      getAttempts(userId),
+      getNotebook(userId),
+      getDiagnosticResult(userId),
+      getTopics(),
+      loadQuestionBank(),
+    ]);
+    const { data: dashMeta } = await (await import('@/integrations/supabase/client')).supabase
+      .from('dashboard_meta').select('*').eq('user_id', userId).maybeSingle();
+    setDetailData({ attempts, notebook, diagnostic, dashMeta, topics, questions });
+    setShowPanel(true);
+  }, []);
+
   useEffect(() => {
     if (selectedId) {
-      getAttempts(selectedId).then(setSelectedAttempts);
+      loadStudentDetail(selectedId);
     } else {
-      setSelectedAttempts([]);
+      setDetailData(null);
+      setShowPanel(false);
     }
-  }, [selectedId]);
+  }, [selectedId, loadStudentDetail]);
 
   const selected = users.find(u => u.username === selectedId);
-  const answered = selectedAttempts.length;
-  const correct = selectedAttempts.filter(a => a.isCorrect).length;
-  const rate = answered ? Math.round((correct / answered) * 100) : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -783,10 +803,64 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
     onRefresh();
   };
 
+  const handleResetDiagnostic = async () => {
+    if (!selected) return;
+    await resetDiagnostic(selected.id);
+    await loadStudentDetail(selected.username);
+    setFeedback('Diagnóstico resetado.');
+  };
+
+  const handleToggleStatus = async () => {
+    if (!selected) return;
+    await toggleUserStatus(selected.id);
+    await loadData();
+    if (selectedId) await loadStudentDetail(selectedId);
+    setFeedback('Status alterado.');
+  };
+
+  // Compute detail stats
+  const attempts = detailData?.attempts ?? [];
+  const notebook = detailData?.notebook ?? [];
+  const diagnostic = detailData?.diagnostic;
+  const topicsMap = new Map((detailData?.topics ?? []).map(t => [t.id, t.name]));
+  const questionsMap = new Map((detailData?.questions ?? []).map(q => [q.id, q]));
+
+  const answered = attempts.length;
+  const correct = attempts.filter(a => a.isCorrect).length;
+  const errors = answered - correct;
+  const rate = answered ? Math.round((correct / answered) * 100) : 0;
+
+  // Topic performance
+  const topicPerf = new Map<string, { total: number; correct: number }>();
+  attempts.forEach(a => {
+    const q = questionsMap.get(a.questionId);
+    const tid = q?.topicId || 'sem-topico';
+    const prev = topicPerf.get(tid) ?? { total: 0, correct: 0 };
+    prev.total += 1;
+    if (a.isCorrect) prev.correct += 1;
+    topicPerf.set(tid, prev);
+  });
+  const topicPerfArr = [...topicPerf.entries()]
+    .map(([tid, s]) => ({ topic: topicsMap.get(tid) ?? tid, ...s, rate: Math.round((s.correct / s.total) * 100) }))
+    .sort((a, b) => b.total - a.total);
+  const strongTopics = topicPerfArr.filter(t => t.rate >= 70 && t.total >= 2);
+  const weakTopics = topicPerfArr.filter(t => t.rate < 50 && t.total >= 2);
+
+  // Recent history
+  const recentAttempts = [...attempts].sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime()).slice(0, 10);
+  const recentErrors = [...attempts].filter(a => !a.isCorrect).sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime()).slice(0, 5);
+
+  // Active days
+  const activeDays = new Set(attempts.map(a => a.answeredAt?.slice(0, 10))).size;
+
+  // Notebook stats
+  const nbPending = notebook.filter(n => n.status === 'pending').length;
+  const nbMastered = notebook.filter(n => n.status === 'mastered').length;
+
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-sm font-bold uppercase">Usuários</h2>
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-3">
         <div className="space-y-3">
           <form onSubmit={handleSubmit} className="border border-border bg-card p-3 space-y-2">
             <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Username" className="w-full border border-border bg-background px-2 py-1 font-heading text-xs" required />
@@ -805,7 +879,7 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
             {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
           </form>
 
-          <div className="space-y-1">
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
             {users.map(u => (
               <button
                 key={u.id}
@@ -822,18 +896,173 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
           </div>
         </div>
 
-        <div className="border border-border bg-card p-4">
-          {selected ? (
-            <div className="space-y-2">
-              <h3 className="font-heading text-xs font-bold">Inspeção: {selected.username}</h3>
-              <p className="font-heading text-xs text-muted-foreground">Turma: {selected.gradeLevel ?? 'sem turma'} · Status: {selected.status}</p>
-              <p className="font-heading text-xs">Respondidas: {answered} | Acertos: {correct} | Aproveitamento: {rate}%</p>
+        <div className="border border-border bg-card p-4 overflow-y-auto max-h-[700px]">
+          {selected && showPanel && detailData ? (
+            <div className="space-y-4">
+              {/* 1. Dados gerais */}
+              <section>
+                <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">📋 Dados Gerais</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  <MiniStat label="Nome" value={selected.username} />
+                  <MiniStat label="Status" value={selected.status === 'active' ? '🟢 Ativo' : '🔴 Bloqueado'} />
+                  <MiniStat label="Série/Turma" value={selected.gradeLevel ?? 'Sem turma'} />
+                  <MiniStat label="Conta criada" value={formatDate(selected.createdAt)} />
+                  <MiniStat label="Último login" value={selected.lastLoginAt ? formatDate(selected.lastLoginAt) : 'Nunca'} />
+                  <MiniStat label="Perfil" value={selected.role === 'admin' ? 'Administrador' : 'Aluno'} />
+                </div>
+              </section>
+
+              {/* 2. Engajamento */}
+              <section>
+                <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">🔥 Engajamento</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <MiniStat label="Total de logins" value={selected.loginCount} />
+                  <MiniStat label="Dias ativos" value={activeDays} />
+                  <MiniStat label="Sequência atual" value={`${detailData.dashMeta?.streak ?? 0} dia(s)`} />
+                  <MiniStat label="Última atividade" value={recentAttempts[0] ? formatDate(recentAttempts[0].answeredAt) : 'Nenhuma'} />
+                </div>
+              </section>
+
+              {/* 3. Desempenho */}
+              <section>
+                <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">📊 Desempenho</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <MiniStat label="Respondidas" value={answered} />
+                  <MiniStat label="Acertos" value={correct} />
+                  <MiniStat label="Erros" value={errors} />
+                  <MiniStat label="% Acerto" value={`${rate}%`} />
+                </div>
+                {strongTopics.length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-heading text-[10px] text-muted-foreground uppercase">Tópicos fortes:</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {strongTopics.map(t => (
+                        <span key={t.topic} className="font-heading text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5">
+                          {t.topic} ({t.rate}%)
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {weakTopics.length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-heading text-[10px] text-muted-foreground uppercase">Tópicos fracos:</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {weakTopics.map(t => (
+                        <span key={t.topic} className="font-heading text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-1.5 py-0.5">
+                          {t.topic} ({t.rate}%)
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              {/* 4. Diagnóstico */}
+              <section>
+                <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">🩺 Diagnóstico</h3>
+                {diagnostic ? (
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <MiniStat label="Status" value="✅ Realizado" />
+                      <MiniStat label="Data" value={formatDate(diagnostic.completed_at)} />
+                      <MiniStat label="Nível" value={(diagnostic.recommended_plan as any)?.level ?? '-'} />
+                      <MiniStat label="% Acerto" value={`${diagnostic.accuracy_rate}%`} />
+                    </div>
+                    {(diagnostic.weaknesses as any[])?.length > 0 && (
+                      <p className="font-heading text-[10px] text-muted-foreground">
+                        Fraquezas: {(diagnostic.weaknesses as any[]).join(', ')}
+                      </p>
+                    )}
+                    {(diagnostic.recommended_plan as any)?.focusTopics && (
+                      <p className="font-heading text-[10px] text-muted-foreground">
+                        Recomendações: Focar em {(diagnostic.recommended_plan as any).focusTopics?.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="font-body text-xs text-muted-foreground">Diagnóstico não realizado.</p>
+                )}
+              </section>
+
+              {/* 5. Revisão */}
+              <section>
+                <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">📒 Revisão (Caderno de Erros)</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  <MiniStat label="Total itens" value={notebook.length} />
+                  <MiniStat label="Pendentes" value={nbPending} />
+                  <MiniStat label="Dominados" value={nbMastered} />
+                </div>
+              </section>
+
+              {/* 6. Histórico recente */}
+              <section>
+                <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">🕒 Histórico Recente</h3>
+                {recentAttempts.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-muted">
+                          {['Data', 'Questão', 'Tópico', 'Resultado'].map(h => (
+                            <th key={h} className="font-heading text-[10px] text-left p-1.5 border border-border font-bold">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentAttempts.map((a, i) => {
+                          const q = questionsMap.get(a.questionId);
+                          return (
+                            <tr key={i} className="hover:bg-muted/50">
+                              <td className="p-1.5 border border-border font-heading text-[10px]">{formatDate(a.answeredAt)}</td>
+                              <td className="p-1.5 border border-border font-body text-[10px]">{q?.statement?.slice(0, 40) ?? a.questionId}...</td>
+                              <td className="p-1.5 border border-border font-heading text-[10px]">{topicsMap.get(q?.topicId ?? '') ?? '-'}</td>
+                              <td className="p-1.5 border border-border font-heading text-[10px] font-bold">
+                                {a.isCorrect ? <span className="text-primary">✅ Acertou</span> : <span className="text-destructive">❌ Errou</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="font-body text-xs text-muted-foreground">Sem atividade registrada.</p>
+                )}
+              </section>
+
+              {/* 7. Ações */}
+              <section>
+                <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">⚡ Ações</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleResetDiagnostic}
+                    className="font-heading text-xs border border-border px-3 py-1.5 hover:bg-muted"
+                  >
+                    🔄 Resetar diagnóstico
+                  </button>
+                  <button
+                    onClick={handleToggleStatus}
+                    className={`font-heading text-xs border px-3 py-1.5 ${selected.status === 'active' ? 'border-destructive text-destructive hover:bg-destructive/10' : 'border-primary text-primary hover:bg-primary/10'}`}
+                  >
+                    {selected.status === 'active' ? '🚫 Bloquear aluno' : '✅ Ativar aluno'}
+                  </button>
+                </div>
+              </section>
             </div>
           ) : (
-            <p className="font-body text-sm text-muted-foreground">Selecione um usuário para inspecionar.</p>
+            <p className="font-body text-sm text-muted-foreground">Selecione um usuário para ver o painel completo.</p>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="border border-border bg-background p-2">
+      <p className="font-heading text-[10px] text-muted-foreground uppercase">{label}</p>
+      <p className="font-heading text-sm font-bold text-foreground">{String(value)}</p>
     </div>
   );
 }
