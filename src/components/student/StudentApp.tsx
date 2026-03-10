@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { initStorageFromSeeds } from '../../lib/storage';
 import { LoginForm } from './LoginForm';
 import { StudentDashboard } from './StudentDashboard';
 import { QuestionsList } from './QuestionsList';
@@ -14,10 +13,6 @@ export function StudentApp() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
 
-  useEffect(() => {
-    initStorageFromSeeds();
-  }, []);
-
   const handleRefazer = (questionId: string) => {
     setTargetQuestion(questionId);
     setTab('questions');
@@ -28,7 +23,6 @@ export function StudentApp() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-20 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
         <h1 className="font-heading text-sm font-bold text-foreground tracking-tight">
           <span className="text-primary">CX</span> Cadê o Xis
@@ -59,7 +53,6 @@ export function StudentApp() {
           <LoginForm />
         ) : (
           <>
-            {/* Navigation */}
             <nav className="flex gap-1 mb-4 border-b border-border pb-1">
               {([['dashboard', 'Painel'], ['questions', 'Questões'], ['notebook', 'Caderno de erros']] as [Tab, string][]).map(([key, label]) => (
                 <button
