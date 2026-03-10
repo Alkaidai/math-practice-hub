@@ -12,7 +12,7 @@ import { getDiagnosticResult, getAppSetting } from '../../lib/storage';
 type Tab = 'dashboard' | 'questions' | 'notebook' | 'ranking';
 
 export function StudentApp() {
-  const { user, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
