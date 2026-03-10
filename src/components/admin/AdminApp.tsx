@@ -1837,7 +1837,7 @@ function AdminExport() {
       const [questions, topics] = await Promise.all([loadQuestionBank(), getTopics({})]);
       const topicMap = new Map(topics.map(t => [t.id, t.name]));
 
-      const headers = ['pergunta', 'a', 'b', 'c', 'd', 'e', 'correta', 'topico', 'explicacao', 'serie', 'disciplina', 'dificuldade', 'status'];
+      const headers = ['pergunta', 'a', 'b', 'c', 'd', 'e', 'correta', 'topico', 'explicacao', 'serie', 'disciplina', 'dificuldade', 'status', 'image_url', 'image_alt'];
       const escapeCSV = (val: string) => {
         if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`;
         return val;
@@ -1856,6 +1856,8 @@ function AdminExport() {
           subjectLabel(q.subject),
           difficultyLabel(q.difficulty),
           statusLabel(q.status),
+          escapeCSV(q.imageUrl ?? ''),
+          escapeCSV(q.imageAlt ?? ''),
         ].join(',');
       });
 
