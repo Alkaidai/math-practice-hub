@@ -73,7 +73,9 @@ export function StudentApp() {
       </header>
 
       <main className="max-w-[1160px] mx-auto px-4 py-5">
-        {!user ? (
+        {authLoading ? (
+          <p className="font-body text-muted-foreground">Carregando...</p>
+        ) : !user ? (
           <LoginForm />
         ) : !diagChecked ? (
           <p className="font-body text-muted-foreground">Carregando...</p>

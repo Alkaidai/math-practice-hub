@@ -748,8 +748,9 @@ function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
 }
 
 function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
+  const { user: adminUser } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [form, setForm] = useState({ username: '', password: '', role: 'student', status: 'active', gradeLevel: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'student', status: 'active', gradeLevel: '' });
   const [feedback, setFeedback] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [detailData, setDetailData] = useState<{
@@ -761,10 +762,11 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
     questions: Question[];
   } | null>(null);
   const [showPanel, setShowPanel] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const loadData = useCallback(async () => {
     const u = await loadUsers();
-    setUsers(u.sort((a, b) => a.username.localeCompare(b.username)));
+    setUsers(u.sort((a, b) => (a.name || a.username).localeCompare(b.name || b.username)));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -796,11 +798,32 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.username || !form.password) { setFeedback('Obrigatório.'); return; }
-    await upsertUser({ username: form.username, password: form.password, role: form.role as any, status: form.status as any, gradeLevel: form.gradeLevel || null } as any);
-    setFeedback('Salvo.');
-    await loadData();
-    onRefresh();
+    if (!form.name || !form.email || !form.password) { setFeedback('Preencha nome, email e senha.'); return; }
+    setCreating(true);
+    setFeedback('');
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke('create-user', {
+        body: {
+          email: form.email.trim(),
+          password: form.password,
+          name: form.name.trim(),
+          role: form.role,
+          gradeLevel: form.gradeLevel || null,
+        },
+      });
+      if (res.error) throw new Error(res.error.message ?? 'Erro ao criar usuário');
+      const result = res.data as any;
+      if (result?.error) throw new Error(result.error);
+      setFeedback('✅ Usuário criado com sucesso!');
+      setForm({ name: '', email: '', password: '', role: 'student', status: 'active', gradeLevel: '' });
+      await loadData();
+      onRefresh();
+    } catch (err: any) {
+      setFeedback(`❌ ${err.message}`);
+    }
+    setCreating(false);
   };
 
   const handleResetDiagnostic = async () => {
@@ -860,22 +883,23 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-sm font-bold uppercase">Usuários</h2>
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-3">
         <div className="space-y-3">
           <form onSubmit={handleSubmit} className="border border-border bg-card p-3 space-y-2">
-            <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Username" className="w-full border border-border bg-background px-2 py-1 font-heading text-xs" required />
-            <input value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Senha" className="w-full border border-border bg-background px-2 py-1 font-heading text-xs" required />
+            <h3 className="font-heading text-xs font-bold">Criar novo usuário</h3>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome completo" className="w-full border border-border bg-background px-2 py-1 font-heading text-xs" required />
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-full border border-border bg-background px-2 py-1 font-heading text-xs" required />
+            <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Senha (mín. 6 caracteres)" className="w-full border border-border bg-background px-2 py-1 font-heading text-xs" required minLength={6} />
             <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className="w-full border border-border bg-background px-2 py-1 font-heading text-xs">
-              <option value="student">aluno</option><option value="admin">administrador</option>
-            </select>
-            <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="w-full border border-border bg-background px-2 py-1 font-heading text-xs">
-              <option value="active">ativo</option><option value="blocked">bloqueado</option>
+              <option value="student">Aluno</option><option value="admin">Administrador</option>
             </select>
             <select value={form.gradeLevel} onChange={e => setForm(f => ({ ...f, gradeLevel: e.target.value }))} className="w-full border border-border bg-background px-2 py-1 font-heading text-xs">
-              <option value="">Nenhuma</option>
+              <option value="">Sem turma</option>
               {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
-            <button type="submit" className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary w-full">Salvar</button>
+            <button type="submit" disabled={creating} className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary w-full disabled:opacity-50">
+              {creating ? 'Criando...' : 'Criar usuário'}
+            </button>
             {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
           </form>
 
@@ -885,12 +909,11 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
                 key={u.id}
                 onClick={() => {
                   setSelectedId(u.username);
-                  setForm({ username: u.username, password: u.password, role: u.role, status: u.status, gradeLevel: u.gradeLevel ?? '' });
                 }}
                 className={`w-full text-left border p-2 ${selectedId === u.username ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
               >
-                <p className="font-heading text-xs font-bold">{u.username}</p>
-                <p className="font-heading text-[10px] text-muted-foreground">{u.role} · {u.status} · {u.gradeLevel ?? 'sem turma'}</p>
+                <p className="font-heading text-xs font-bold">{u.name || u.username}</p>
+                <p className="font-heading text-[10px] text-muted-foreground">{u.email || u.username} · {u.role} · {u.status}</p>
               </button>
             ))}
           </div>
@@ -903,7 +926,9 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
               <section>
                 <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">📋 Dados Gerais</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  <MiniStat label="Nome" value={selected.username} />
+                  <MiniStat label="Nome" value={selected.name || selected.username} />
+                  <MiniStat label="Email" value={selected.email || '-'} />
+                  <MiniStat label="Username" value={selected.username} />
                   <MiniStat label="Status" value={selected.status === 'active' ? '🟢 Ativo' : '🔴 Bloqueado'} />
                   <MiniStat label="Série/Turma" value={selected.gradeLevel ?? 'Sem turma'} />
                   <MiniStat label="Conta criada" value={formatDate(selected.createdAt)} />
@@ -999,10 +1024,10 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
               <section>
                 <h3 className="font-heading text-xs font-bold uppercase text-primary mb-2">🕒 Histórico Recente</h3>
                 {recentAttempts.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-60 overflow-y-auto">
                     <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-muted">
+                      <thead className="sticky top-0 bg-muted">
+                        <tr>
                           {['Data', 'Questão', 'Tópico', 'Resultado'].map(h => (
                             <th key={h} className="font-heading text-[10px] text-left p-1.5 border border-border font-bold">{h}</th>
                           ))}
