@@ -738,7 +738,10 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
             {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
           <select value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
-            {Object.entries(SUBJECTS_MAP).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            {subjects.length > 0 
+              ? subjects.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)
+              : Object.entries(SUBJECTS_MAP).map(([code, label]) => <option key={code} value={code}>{label}</option>)
+            }
           </select>
           <select value={form.difficulty} onChange={e => setForm(f => ({ ...f, difficulty: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
             {Object.entries(DIFFICULTIES_MAP).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
