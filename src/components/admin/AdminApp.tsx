@@ -538,7 +538,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-muted">
