@@ -1,336 +1,578 @@
-import { STORAGE_KEYS, SEED_VERSION, SEED_USERS, GRADES } from './constants';
+import { supabase } from '@/integrations/supabase/client';
 import type {
   Question, Topic, Lesson, Attempt, NotebookItem,
   Report, TrainingPlan, User, AuthUser, Comment, Reply,
   DashboardMeta, QuestionFilters, CommentStatusType
 } from './types';
-import questionsSeed from '../data/questions.seed.json';
-import topicsSeed from '../data/topics.seed.json';
-import lessonsSeed from '../data/lessons.seed.json';
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function parseJson<T>(raw: string | null, fallback: T): T {
-  try {
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function normalizeReply(reply: Partial<Reply>): Reply {
+// ---- Users / Profiles ----
+
+export async function loadUsers(): Promise<User[]> {
+  const { data } = await supabase.from('profiles').select('*');
+  if (!data) return [];
+  return data.map((row: any) => ({
+    id: row.id,
+    username: row.username,
+    password: row.password,
+    role: row.role,
+    status: row.status,
+    gradeLevel: row.grade_level,
+    createdAt: row.created_at,
+    lastLoginAt: row.last_login_at,
+  }));
+}
+
+export async function saveUsers(users: User[]): Promise<User[]> {
+  // Not typically needed with DB, but kept for compatibility
+  return users;
+}
+
+export async function upsertUser(userPatch: Partial<User>): Promise<User> {
+  const row: any = {
+    username: userPatch.username,
+    password: userPatch.password,
+    role: userPatch.role ?? 'student',
+    status: userPatch.status ?? 'active',
+    grade_level: userPatch.gradeLevel ?? null,
+  };
+  if (userPatch.id) row.id = userPatch.id;
+  else row.id = newId('usr');
+
+  const { data } = await supabase
+    .from('profiles')
+    .upsert(row, { onConflict: 'username' })
+    .select()
+    .single();
+
+  const d = data as any;
   return {
-    id: reply?.id ?? newId('rep'),
-    author: { username: reply?.author?.username ?? 'admin', role: reply?.author?.role ?? 'admin' },
-    createdAt: reply?.createdAt ?? nowIso(),
-    text: String(reply?.text ?? '').trim(),
+    id: d.id, username: d.username, password: d.password,
+    role: d.role, status: d.status, gradeLevel: d.grade_level,
+    createdAt: d.created_at, lastLoginAt: d.last_login_at,
   };
 }
 
-function normalizeComment(comment: Partial<Comment>): Comment {
-  return {
-    id: comment?.id ?? newId('cmt'),
-    author: { username: comment?.author?.username ?? 'anônimo', role: comment?.author?.role ?? 'student' },
-    createdAt: comment?.createdAt ?? nowIso(),
-    text: String(comment?.text ?? '').trim(),
-    status: (['open', 'answered', 'hidden'] as CommentStatusType[]).includes(comment?.status as CommentStatusType)
-      ? comment!.status as CommentStatusType
-      : 'open',
-    replies: Array.isArray(comment?.replies)
-      ? comment!.replies.map(normalizeReply).filter(r => r.text)
-      : [],
-  };
+export async function getUsersByRole(role: string): Promise<User[]> {
+  const { data } = await supabase.from('profiles').select('*').eq('role', role);
+  if (!data) return [];
+  return data.map((row: any) => ({
+    id: row.id, username: row.username, password: row.password,
+    role: row.role, status: row.status, gradeLevel: row.grade_level,
+    createdAt: row.created_at, lastLoginAt: row.last_login_at,
+  }));
 }
 
-function normalizeQuestion(question: Partial<Question>): Question {
-  const createdAt = question?.createdAt ?? nowIso();
-  return {
-    id: String(question?.id ?? newId('q')),
-    grade: question?.grade ?? '7EF',
-    subject: question?.subject ?? 'math',
-    difficulty: question?.difficulty ?? 'easy',
-    topicId: question?.topicId ?? '',
-    statement: String(question?.statement ?? '').trim(),
-    options: Array.isArray(question?.options)
-      ? question!.options.map(o => String(o ?? '').trim()).filter(Boolean)
-      : [],
-    correctIndex: Number.isInteger(question?.correctIndex) ? question!.correctIndex : 0,
-    explanation: String(question?.explanation ?? '').trim(),
-    status: question?.status === 'draft' ? 'draft' : 'published',
-    createdAt,
-    updatedAt: question?.updatedAt ?? createdAt,
-    comments: Array.isArray(question?.comments) ? question!.comments.map(normalizeComment).filter(c => c.text) : [],
-  };
-}
+export async function authenticate(username: string, password: string): Promise<AuthUser | null> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('username', username)
+    .eq('password', password)
+    .single();
 
-function normalizeUser(user: Partial<User>): User {
-  return {
-    id: String(user?.id ?? newId('usr')),
-    username: String(user?.username ?? '').trim(),
-    password: String(user?.password ?? ''),
-    role: user?.role === 'admin' ? 'admin' : 'student',
-    status: user?.status === 'blocked' ? 'blocked' : 'active',
-    gradeLevel: GRADES.includes(user?.gradeLevel as any) ? user!.gradeLevel! : null,
-    createdAt: user?.createdAt ?? nowIso(),
-    lastLoginAt: user?.lastLoginAt ?? null,
-  };
-}
+  if (!data) return null;
+  const row = data as any;
+  if (row.status === 'blocked') return null;
 
-function normalizeTopic(topic: any): Topic {
-  const name = String(topic?.name ?? topic?.label ?? topic?.id ?? '').trim();
-  const gradeFromLegacy = Array.isArray(topic?.grades) && topic.grades.length === 1 ? String(topic.grades[0]) : 'all';
-  const grade = String(topic?.grade ?? gradeFromLegacy ?? 'all').trim() || 'all';
-  return {
-    id: String(topic?.id ?? name.toLowerCase().replace(/[^a-z0-9]+/gi, '-')).trim(),
-    name,
-    label: name,
-    subject: String(topic?.subject ?? '').trim(),
-    grade,
-    status: topic?.status === 'inactive' ? 'inactive' : 'active',
-  };
-}
+  await supabase.from('profiles').update({ last_login_at: nowIso() }).eq('id', row.id);
 
-function normalizeLesson(lesson: Partial<Lesson>): Lesson {
-  return {
-    id: String(lesson?.id ?? newId('lesson')),
-    title: String(lesson?.title ?? '').trim(),
-    url: String(lesson?.url ?? '').trim(),
-    topic: String(lesson?.topic ?? '').trim(),
-    subject: String(lesson?.subject ?? '').trim(),
-    grade: String(lesson?.grade ?? '').trim(),
-  };
-}
-
-function normalizeAttempt(attempt: Partial<Attempt>): Attempt {
-  return {
-    id: attempt?.id ?? Date.now(),
-    userId: String(attempt?.userId ?? ''),
-    questionId: String(attempt?.questionId ?? ''),
-    selectedIndex: Number(attempt?.selectedIndex ?? -1),
-    isCorrect: Boolean(attempt?.isCorrect),
-    answeredAt: attempt?.answeredAt ?? nowIso(),
-  };
-}
-
-function normalizeNotebookItem(item: Partial<NotebookItem>): NotebookItem {
-  return {
-    userId: String(item?.userId ?? ''),
-    questionId: String(item?.questionId ?? ''),
-    grade: item?.grade ? String(item.grade) : null,
-    subject: item?.subject ? String(item.subject) : null,
-    difficulty: item?.difficulty ? String(item.difficulty) : null,
-    topicId: item?.topicId ? String(item.topicId) : null,
-    status: item?.status === 'mastered' ? 'mastered' : 'pending',
-    whatIErred: String(item?.whatIErred ?? ''),
-    ruleInsight: String(item?.ruleInsight ?? ''),
-    updatedAt: item?.updatedAt ?? nowIso(),
-  };
-}
-
-function normalizeTrainingPlan(plan: Partial<TrainingPlan>): TrainingPlan {
-  return {
-    id: String(plan?.id ?? newId('tp')),
-    createdAt: plan?.createdAt ?? nowIso(),
-    topic: String(plan?.topic ?? ''),
-    qty: Number(plan?.qty ?? 0),
-    distribution: {
-      easy: Number(plan?.distribution?.easy ?? 0),
-      medium: Number(plan?.distribution?.medium ?? 0),
-      hard: Number(plan?.distribution?.hard ?? 0),
-    },
-    questionIds: Array.isArray(plan?.questionIds) ? plan!.questionIds.map(String) : [],
-  };
-}
-
-function normalizeDashboardFilters(filters: Partial<QuestionFilters> = {}): QuestionFilters {
-  return {
-    grade: String(filters.grade ?? ''),
-    subject: String(filters.subject ?? ''),
-    difficulty: String(filters.difficulty ?? ''),
-    topicId: String(filters.topicId ?? ''),
-    search: String(filters.search ?? ''),
-  };
-}
-
-function normalizeDashboardMeta(meta: Partial<DashboardMeta> = {}): DashboardMeta {
-  return {
-    streak: Number.isFinite(Number(meta.streak)) ? Math.max(0, Number(meta.streak)) : 0,
-    lastAttemptDate: meta.lastAttemptDate ? String(meta.lastAttemptDate) : null,
-    lastFilters: normalizeDashboardFilters(meta.lastFilters),
-  };
-}
-
-// ---- Users ----
-
-function ensureUsersSeeded(): void {
-  const stored = parseJson<User[] | null>(localStorage.getItem(STORAGE_KEYS.users), null);
-  if (Array.isArray(stored) && stored.length) return;
-  localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(SEED_USERS.map(normalizeUser)));
-}
-
-export function loadUsers(): User[] {
-  ensureUsersSeeded();
-  const stored = parseJson<User[]>(localStorage.getItem(STORAGE_KEYS.users), []);
-  return Array.isArray(stored) ? stored.map(normalizeUser).filter(u => u.username) : [];
-}
-
-export function saveUsers(users: User[]): User[] {
-  const normalized = Array.isArray(users) ? users.map(normalizeUser).filter(u => u.username) : [];
-  localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(normalized));
-  return normalized;
-}
-
-export function upsertUser(userPatch: Partial<User>): User {
-  const all = loadUsers();
-  const index = all.findIndex(u => u.id === userPatch?.id || u.username === userPatch?.username);
-  const merged = normalizeUser({ ...(index >= 0 ? all[index] : {}), ...userPatch });
-  if (index >= 0) all[index] = merged;
-  else all.push(merged);
-  saveUsers(all);
-  return merged;
-}
-
-export function getUsersByRole(role: string): User[] {
-  return loadUsers().filter(u => u.role === role);
-}
-
-export function authenticate(username: string, password: string): AuthUser | null {
-  const users = loadUsers();
-  const found = users.find(u => u.username === username && u.password === password);
-  if (!found || found.status === 'blocked') return null;
-  found.lastLoginAt = nowIso();
-  saveUsers(users);
-  return { id: found.id, username: found.username, role: found.role, gradeLevel: found.gradeLevel };
+  return { id: row.id, username: row.username, role: row.role, gradeLevel: row.grade_level };
 }
 
 export function getCurrentUser(): AuthUser | null {
-  return parseJson<AuthUser | null>(localStorage.getItem(STORAGE_KEYS.currentUser), null);
+  try {
+    const raw = localStorage.getItem('qb_currentUser');
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
 
 export function setCurrentUser(user: AuthUser): void {
-  localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(user));
+  localStorage.setItem('qb_currentUser', JSON.stringify(user));
 }
 
 export function logout(): void {
-  localStorage.removeItem(STORAGE_KEYS.currentUser);
+  localStorage.removeItem('qb_currentUser');
 }
 
 // ---- Questions ----
 
-export function loadQuestionBank(): Question[] {
-  const stored = parseJson<Question[]>(localStorage.getItem(STORAGE_KEYS.questionBank), []);
-  return Array.isArray(stored) ? stored.map(normalizeQuestion) : [];
-}
+async function loadCommentsForQuestions(questionIds: string[]): Promise<Map<string, Comment[]>> {
+  const map = new Map<string, Comment[]>();
+  if (!questionIds.length) return map;
 
-export function saveQuestionBank(bank: Question[]): Question[] {
-  const normalized = Array.isArray(bank) ? bank.map(normalizeQuestion) : [];
-  localStorage.setItem(STORAGE_KEYS.questionBank, JSON.stringify(normalized));
-  return normalized;
-}
+  const { data: comments } = await supabase
+    .from('comments')
+    .select('*')
+    .in('question_id', questionIds);
 
-export function saveQuestionsBulk(questions: Partial<Question>[]): Question[] {
-  const current = loadQuestionBank();
-  const usedIds = new Set(current.map(q => q.id));
-  const normalized = (Array.isArray(questions) ? questions : []).map(q => {
-    let id = String(q?.id ?? newId('q'));
-    while (usedIds.has(id)) id = newId('q');
-    usedIds.add(id);
-    return { ...q, id } as Partial<Question>;
+  if (!comments || !comments.length) return map;
+
+  const commentIds = comments.map((c: any) => c.id);
+  const { data: replies } = await supabase
+    .from('replies')
+    .select('*')
+    .in('comment_id', commentIds);
+
+  const repliesMap = new Map<string, Reply[]>();
+  (replies ?? []).forEach((r: any) => {
+    const arr = repliesMap.get(r.comment_id) ?? [];
+    arr.push({ id: r.id, author: { username: r.author_username, role: r.author_role }, createdAt: r.created_at, text: r.text });
+    repliesMap.set(r.comment_id, arr);
   });
-  return saveQuestionBank([...normalized.map(normalizeQuestion), ...current]);
+
+  comments.forEach((c: any) => {
+    const arr = map.get(c.question_id) ?? [];
+    arr.push({
+      id: c.id,
+      author: { username: c.author_username, role: c.author_role },
+      createdAt: c.created_at,
+      text: c.text,
+      status: c.status as CommentStatusType,
+      replies: repliesMap.get(c.id) ?? [],
+    });
+    map.set(c.question_id, arr);
+  });
+
+  return map;
 }
 
-export function getQuestionById(id: string): Question | null {
-  return loadQuestionBank().find(q => q.id === id) ?? null;
+export async function loadQuestionBank(): Promise<Question[]> {
+  const { data } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
+  if (!data) return [];
+
+  const questionIds = data.map((q: any) => q.id);
+  const commentsMap = await loadCommentsForQuestions(questionIds);
+
+  return data.map((row: any) => ({
+    id: row.id,
+    grade: row.grade,
+    subject: row.subject,
+    difficulty: row.difficulty,
+    topicId: row.topic_id ?? '',
+    statement: row.statement,
+    options: Array.isArray(row.options) ? row.options : JSON.parse(row.options ?? '[]'),
+    correctIndex: row.correct_index,
+    explanation: row.explanation,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    comments: commentsMap.get(row.id) ?? [],
+  }));
+}
+
+export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
+  // For saving the full bank, upsert all questions
+  const rows = bank.map(q => ({
+    id: q.id,
+    grade: q.grade,
+    subject: q.subject,
+    difficulty: q.difficulty,
+    topic_id: q.topicId || null,
+    statement: q.statement,
+    options: q.options,
+    correct_index: q.correctIndex,
+    explanation: q.explanation,
+    status: q.status,
+    created_at: q.createdAt,
+    updated_at: q.updatedAt,
+  }));
+
+  await supabase.from('questions').upsert(rows);
+  return bank;
+}
+
+export async function saveQuestionsBulk(questions: Partial<Question>[]): Promise<Question[]> {
+  const rows = (Array.isArray(questions) ? questions : []).map(q => ({
+    id: q.id ?? newId('q'),
+    grade: q.grade ?? '7EF',
+    subject: q.subject ?? 'math',
+    difficulty: q.difficulty ?? 'easy',
+    topic_id: q.topicId || null,
+    statement: q.statement ?? '',
+    options: q.options ?? [],
+    correct_index: q.correctIndex ?? 0,
+    explanation: q.explanation ?? '',
+    status: q.status ?? 'published',
+    created_at: q.createdAt ?? nowIso(),
+    updated_at: q.updatedAt ?? nowIso(),
+  }));
+
+  const { data } = await supabase.from('questions').upsert(rows).select();
+  return (data ?? []).map((row: any) => ({
+    id: row.id, grade: row.grade, subject: row.subject, difficulty: row.difficulty,
+    topicId: row.topic_id ?? '', statement: row.statement,
+    options: Array.isArray(row.options) ? row.options : JSON.parse(row.options ?? '[]'),
+    correctIndex: row.correct_index, explanation: row.explanation, status: row.status,
+    createdAt: row.created_at, updatedAt: row.updated_at, comments: [],
+  }));
+}
+
+export async function getQuestionById(id: string): Promise<Question | null> {
+  const { data } = await supabase.from('questions').select('*').eq('id', id).single();
+  if (!data) return null;
+  const row = data as any;
+  const commentsMap = await loadCommentsForQuestions([row.id]);
+  return {
+    id: row.id, grade: row.grade, subject: row.subject, difficulty: row.difficulty,
+    topicId: row.topic_id ?? '', statement: row.statement,
+    options: Array.isArray(row.options) ? row.options : JSON.parse(row.options ?? '[]'),
+    correctIndex: row.correct_index, explanation: row.explanation, status: row.status,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+    comments: commentsMap.get(row.id) ?? [],
+  };
+}
+
+export async function deleteQuestion(id: string): Promise<void> {
+  await supabase.from('questions').delete().eq('id', id);
 }
 
 // ---- Topics ----
 
-export function getTopics(options: { activeOnly?: boolean } = {}): Topic[] {
-  const stored = parseJson<Topic[]>(localStorage.getItem(STORAGE_KEYS.topicsBank), []);
-  const list = Array.isArray(stored) ? stored.map(normalizeTopic).filter(t => t.id && t.name) : [];
-  if (options.activeOnly) return list.filter(t => t.status === 'active');
-  return list;
+export async function getTopics(options: { activeOnly?: boolean } = {}): Promise<Topic[]> {
+  let query = supabase.from('topics').select('*');
+  if (options.activeOnly) query = query.eq('status', 'active');
+  const { data } = await query;
+  if (!data) return [];
+  return data.map((row: any) => ({
+    id: row.id, name: row.name, label: row.label,
+    subject: row.subject, grade: row.grade, status: row.status,
+  }));
 }
 
-export function saveTopicsBank(topics: Topic[]): void {
-  const normalized = Array.isArray(topics) ? topics.map(normalizeTopic).filter(t => t.id && t.name) : [];
-  localStorage.setItem(STORAGE_KEYS.topicsBank, JSON.stringify(normalized));
+export async function saveTopicsBank(topics: Topic[]): Promise<void> {
+  await supabase.from('topics').upsert(topics.map(t => ({
+    id: t.id, name: t.name, label: t.label ?? t.name,
+    subject: t.subject, grade: t.grade, status: t.status,
+  })));
 }
 
-export function createTopic(topic: Partial<Topic>): Topic {
-  const all = getTopics();
-  const normalized = normalizeTopic(topic);
-  all.push(normalized);
-  saveTopicsBank(all);
-  return normalized;
+export async function createTopic(topic: Partial<Topic>): Promise<Topic> {
+  const row = {
+    id: topic.id ?? newId('topic'),
+    name: topic.name ?? '',
+    label: topic.label ?? topic.name ?? '',
+    subject: topic.subject ?? '',
+    grade: topic.grade ?? 'all',
+    status: topic.status ?? 'active',
+  };
+  await supabase.from('topics').insert(row);
+  return row as Topic;
 }
 
-export function updateTopic(id: string, patch: Partial<Topic>): Topic | null {
-  const all = getTopics();
-  const index = all.findIndex(t => t.id === id);
-  if (index < 0) return null;
-  const updated = normalizeTopic({ ...all[index], ...patch, id });
-  all[index] = updated;
-  saveTopicsBank(all);
-  return updated;
+export async function updateTopic(id: string, patch: Partial<Topic>): Promise<Topic | null> {
+  const update: any = {};
+  if (patch.name !== undefined) { update.name = patch.name; update.label = patch.name; }
+  if (patch.subject !== undefined) update.subject = patch.subject;
+  if (patch.grade !== undefined) update.grade = patch.grade;
+  if (patch.status !== undefined) update.status = patch.status;
+
+  const { data } = await supabase.from('topics').update(update).eq('id', id).select().single();
+  if (!data) return null;
+  const row = data as any;
+  return { id: row.id, name: row.name, label: row.label, subject: row.subject, grade: row.grade, status: row.status };
 }
 
-export function toggleTopicStatus(id: string): Topic | null {
-  const topic = getTopics().find(t => t.id === id);
-  if (!topic) return null;
-  return updateTopic(id, { status: topic.status === 'active' ? 'inactive' : 'active' });
+export async function toggleTopicStatus(id: string): Promise<Topic | null> {
+  const { data: current } = await supabase.from('topics').select('status').eq('id', id).single();
+  if (!current) return null;
+  const newStatus = (current as any).status === 'active' ? 'inactive' : 'active';
+  return updateTopic(id, { status: newStatus as any });
 }
 
-export function deleteTopic(id: string): void {
-  saveTopicsBank(getTopics().filter(t => t.id !== id));
+export async function deleteTopic(id: string): Promise<void> {
+  await supabase.from('topics').delete().eq('id', id);
 }
 
 // ---- Comments ----
 
-export function addComment(questionId: string, comment: Partial<Comment>): Comment | null {
-  const bank = loadQuestionBank();
-  const qIndex = bank.findIndex(q => q.id === questionId);
-  if (qIndex < 0) return null;
-  const normalized = normalizeComment(comment);
-  bank[qIndex].comments = [...(bank[qIndex].comments ?? []), normalized];
-  bank[qIndex].updatedAt = nowIso();
-  saveQuestionBank(bank);
-  return normalized;
+export async function addComment(questionId: string, comment: Partial<Comment>): Promise<Comment | null> {
+  const row = {
+    id: newId('cmt'),
+    question_id: questionId,
+    author_username: comment.author?.username ?? 'anônimo',
+    author_role: comment.author?.role ?? 'student',
+    text: comment.text ?? '',
+    status: 'open',
+  };
+  const { data } = await supabase.from('comments').insert(row).select().single();
+  if (!data) return null;
+  const d = data as any;
+  return {
+    id: d.id, author: { username: d.author_username, role: d.author_role },
+    createdAt: d.created_at, text: d.text, status: d.status, replies: [],
+  };
 }
 
-export function addReply(questionId: string, commentId: string, reply: Partial<Reply>): Comment | null {
-  const bank = loadQuestionBank();
-  const question = bank.find(q => q.id === questionId);
-  if (!question) return null;
-  const comment = question.comments.find(c => c.id === commentId);
-  if (!comment) return null;
-  comment.replies.push(normalizeReply(reply));
-  comment.status = 'answered';
-  question.updatedAt = nowIso();
-  saveQuestionBank(bank);
-  return comment;
+export async function addReply(questionId: string, commentId: string, reply: Partial<Reply>): Promise<Comment | null> {
+  const row = {
+    id: newId('rep'),
+    comment_id: commentId,
+    author_username: reply.author?.username ?? 'admin',
+    author_role: reply.author?.role ?? 'admin',
+    text: reply.text ?? '',
+  };
+  await supabase.from('replies').insert(row);
+  await supabase.from('comments').update({ status: 'answered' }).eq('id', commentId);
+
+  // Return updated comment
+  const { data: c } = await supabase.from('comments').select('*').eq('id', commentId).single();
+  if (!c) return null;
+  const cd = c as any;
+  const { data: replies } = await supabase.from('replies').select('*').eq('comment_id', commentId);
+  return {
+    id: cd.id, author: { username: cd.author_username, role: cd.author_role },
+    createdAt: cd.created_at, text: cd.text, status: cd.status,
+    replies: (replies ?? []).map((r: any) => ({
+      id: r.id, author: { username: r.author_username, role: r.author_role },
+      createdAt: r.created_at, text: r.text,
+    })),
+  };
 }
 
-export function setCommentStatus(questionId: string, commentId: string, status: CommentStatusType): Comment | null {
-  const bank = loadQuestionBank();
-  const question = bank.find(q => q.id === questionId);
-  if (!question) return null;
-  const comment = question.comments.find(c => c.id === commentId);
-  if (!comment) return null;
-  comment.status = status;
-  question.updatedAt = nowIso();
-  saveQuestionBank(bank);
-  return comment;
+export async function setCommentStatus(questionId: string, commentId: string, status: CommentStatusType): Promise<Comment | null> {
+  await supabase.from('comments').update({ status }).eq('id', commentId);
+  return null;
 }
 
 // ---- Attempts ----
+
+export async function getAttempts(userId?: string): Promise<Attempt[]> {
+  let query = supabase.from('attempts').select('*');
+  if (userId) query = query.eq('user_id', userId);
+  const { data } = await query;
+  if (!data) return [];
+  return data.map((row: any) => ({
+    id: row.id, userId: row.user_id, questionId: row.question_id,
+    selectedIndex: row.selected_index, isCorrect: row.is_correct,
+    answeredAt: row.answered_at,
+  }));
+}
+
+export async function addAttempt(attempt: Partial<Attempt>): Promise<Attempt> {
+  const row = {
+    user_id: attempt.userId ?? '',
+    question_id: attempt.questionId ?? '',
+    selected_index: attempt.selectedIndex ?? -1,
+    is_correct: attempt.isCorrect ?? false,
+    answered_at: attempt.answeredAt ?? nowIso(),
+  };
+  const { data } = await supabase.from('attempts').insert(row).select().single();
+  const d = (data ?? row) as any;
+
+  // Update streak
+  await updateUserStreak(attempt.userId ?? '', attempt.answeredAt);
+
+  return {
+    id: d.id ?? Date.now(), userId: d.user_id, questionId: d.question_id,
+    selectedIndex: d.selected_index, isCorrect: d.is_correct, answeredAt: d.answered_at,
+  };
+}
+
+// ---- Notebook ----
+
+export async function getNotebook(userId?: string): Promise<NotebookItem[]> {
+  let query = supabase.from('notebook_items').select('*');
+  if (userId) query = query.eq('user_id', userId);
+  const { data } = await query;
+  if (!data) return [];
+  return data.map((row: any) => ({
+    userId: row.user_id, questionId: row.question_id,
+    grade: row.grade, subject: row.subject, difficulty: row.difficulty, topicId: row.topic_id,
+    status: row.status, whatIErred: row.what_i_erred, ruleInsight: row.rule_insight,
+    updatedAt: row.updated_at,
+  }));
+}
+
+export async function upsertNotebookItem(userId: string, questionId: string, patch: Partial<NotebookItem> = {}): Promise<NotebookItem> {
+  // Get question metadata
+  const { data: q } = await supabase.from('questions').select('grade, subject, difficulty, topic_id').eq('id', questionId).single();
+  const qMeta = q ? { grade: (q as any).grade, subject: (q as any).subject, difficulty: (q as any).difficulty, topic_id: (q as any).topic_id } : {};
+
+  const row: any = {
+    user_id: userId,
+    question_id: questionId,
+    grade: patch.grade ?? qMeta.grade ?? null,
+    subject: patch.subject ?? qMeta.subject ?? null,
+    difficulty: patch.difficulty ?? qMeta.difficulty ?? null,
+    topic_id: patch.topicId ?? qMeta.topic_id ?? null,
+    status: patch.status ?? 'pending',
+    what_i_erred: patch.whatIErred ?? '',
+    rule_insight: patch.ruleInsight ?? '',
+    updated_at: nowIso(),
+  };
+
+  const { data } = await supabase
+    .from('notebook_items')
+    .upsert(row, { onConflict: 'user_id,question_id' })
+    .select()
+    .single();
+
+  const d = (data ?? row) as any;
+  return {
+    userId: d.user_id, questionId: d.question_id,
+    grade: d.grade, subject: d.subject, difficulty: d.difficulty, topicId: d.topic_id,
+    status: d.status, whatIErred: d.what_i_erred, ruleInsight: d.rule_insight,
+    updatedAt: d.updated_at,
+  };
+}
+
+// ---- Reports ----
+
+export async function getReports(): Promise<Report[]> {
+  const { data } = await supabase.from('reports').select('*').order('created_at', { ascending: false });
+  if (!data) return [];
+  return data.map((row: any) => ({
+    id: row.id, questionId: row.question_id,
+    questionMeta: row.question_meta ?? { grade: '', subject: '', topic: '', difficulty: '', preview: '' },
+    type: row.type, message: row.message, createdAt: row.created_at,
+    createdBy: row.created_by ?? { username: '', role: 'student' },
+    status: row.status, adminNote: row.admin_note,
+    resolvedAt: row.resolved_at, resolvedBy: row.resolved_by,
+  }));
+}
+
+export async function addReport(report: Partial<Report>): Promise<Report> {
+  const row = {
+    id: newId('rep'),
+    question_id: report.questionId ?? '',
+    question_meta: report.questionMeta ?? {},
+    type: report.type ?? 'outro',
+    message: report.message ?? '',
+    created_by: report.createdBy ?? { username: '', role: 'student' },
+    status: 'open',
+    admin_note: '',
+  };
+  await supabase.from('reports').insert(row);
+  return {
+    id: row.id, questionId: row.question_id, questionMeta: row.question_meta as any,
+    type: row.type, message: row.message, createdAt: nowIso(),
+    createdBy: row.created_by as any, status: 'open', adminNote: '',
+    resolvedAt: null, resolvedBy: null,
+  };
+}
+
+export async function updateReport(reportId: string, patch: Partial<Report>): Promise<Report | null> {
+  const update: any = {};
+  if (patch.status) update.status = patch.status;
+  if (patch.adminNote !== undefined) update.admin_note = patch.adminNote;
+  if (patch.resolvedAt !== undefined) update.resolved_at = patch.resolvedAt;
+  if (patch.resolvedBy !== undefined) update.resolved_by = patch.resolvedBy;
+
+  await supabase.from('reports').update(update).eq('id', reportId);
+  return null;
+}
+
+export async function setReportStatus(reportId: string, status: string, adminNote = '', resolvedBy: { username: string; role: string } | null = null): Promise<Report | null> {
+  const update: any = { status, admin_note: adminNote };
+  if (status === 'resolved' || status === 'ignored') {
+    update.resolved_at = nowIso();
+    update.resolved_by = resolvedBy;
+  }
+  if (status === 'open') {
+    update.resolved_at = null;
+    update.resolved_by = null;
+  }
+  await supabase.from('reports').update(update).eq('id', reportId);
+  return null;
+}
+
+// ---- Training Plans ----
+
+export async function getTrainingPlans(userId: string): Promise<TrainingPlan[]> {
+  const { data } = await supabase.from('training_plans').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+  if (!data) return [];
+  return data.map((row: any) => ({
+    id: row.id, createdAt: row.created_at, topic: row.topic,
+    qty: row.qty, distribution: row.distribution ?? { easy: 0, medium: 0, hard: 0 },
+    questionIds: row.question_ids ?? [],
+  }));
+}
+
+export async function addTrainingPlan(userId: string, plan: Partial<TrainingPlan>): Promise<TrainingPlan> {
+  const row = {
+    id: plan.id ?? newId('tp'),
+    user_id: userId,
+    topic: plan.topic ?? '',
+    qty: plan.qty ?? 0,
+    distribution: plan.distribution ?? { easy: 0, medium: 0, hard: 0 },
+    question_ids: plan.questionIds ?? [],
+  };
+  await supabase.from('training_plans').insert(row);
+  return {
+    id: row.id, createdAt: nowIso(), topic: row.topic,
+    qty: row.qty, distribution: row.distribution, questionIds: row.question_ids,
+  };
+}
+
+export async function getTrainingPlanById(planId: string): Promise<(TrainingPlan & { userId: string }) | null> {
+  const { data } = await supabase.from('training_plans').select('*').eq('id', planId).single();
+  if (!data) return null;
+  const row = data as any;
+  return {
+    userId: row.user_id, id: row.id, createdAt: row.created_at, topic: row.topic,
+    qty: row.qty, distribution: row.distribution, questionIds: row.question_ids,
+  };
+}
+
+// ---- Lessons ----
+
+export async function getLessons(): Promise<Lesson[]> {
+  const { data } = await supabase.from('lessons').select('*');
+  if (!data) return [];
+  return data.map((row: any) => ({
+    id: row.id, title: row.title, url: row.url,
+    topic: row.topic, subject: row.subject, grade: row.grade,
+  }));
+}
+
+export async function saveLessons(lessons: Lesson[]): Promise<Lesson[]> {
+  await supabase.from('lessons').upsert(lessons.map(l => ({
+    id: l.id, title: l.title, url: l.url,
+    topic: l.topic, subject: l.subject, grade: l.grade,
+  })));
+  return lessons;
+}
+
+export async function saveLesson(lesson: Partial<Lesson>): Promise<Lesson> {
+  const row = {
+    id: lesson.id ?? newId('lesson'),
+    title: lesson.title ?? '',
+    url: lesson.url ?? '',
+    topic: lesson.topic ?? '',
+    subject: lesson.subject ?? '',
+    grade: lesson.grade ?? '',
+  };
+  await supabase.from('lessons').insert(row);
+  return row as Lesson;
+}
+
+export async function updateLesson(lessonId: string, patch: Partial<Lesson>): Promise<Lesson | null> {
+  const update: any = {};
+  if (patch.title !== undefined) update.title = patch.title;
+  if (patch.url !== undefined) update.url = patch.url;
+  if (patch.topic !== undefined) update.topic = patch.topic;
+  if (patch.subject !== undefined) update.subject = patch.subject;
+  if (patch.grade !== undefined) update.grade = patch.grade;
+
+  const { data } = await supabase.from('lessons').update(update).eq('id', lessonId).select().single();
+  if (!data) return null;
+  const row = data as any;
+  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade };
+}
+
+export async function deleteLesson(lessonId: string): Promise<void> {
+  await supabase.from('lessons').delete().eq('id', lessonId);
+}
+
+// ---- Dashboard Meta ----
 
 function toDateOnly(value: string | null): string | null {
   if (!value) return null;
@@ -346,231 +588,74 @@ function dayDiff(from: string | null, to: string | null): number | null {
   return Math.round((t - f) / 86400000);
 }
 
-function updateUserStreak(userId: string, answeredAt?: string): void {
+async function updateUserStreak(userId: string, answeredAt?: string): Promise<void> {
   if (!userId) return;
-  const map = parseJson<Record<string, DashboardMeta>>(localStorage.getItem(STORAGE_KEYS.dashboardMeta), {});
-  const current = normalizeDashboardMeta(map[userId]);
+  const { data: existing } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).single();
+
+  const current = existing
+    ? { streak: (existing as any).streak ?? 0, lastAttemptDate: (existing as any).last_attempt_date }
+    : { streak: 0, lastAttemptDate: null };
+
   const today = toDateOnly(answeredAt ?? nowIso());
   const last = toDateOnly(current.lastAttemptDate);
   if (!today) return;
+
   const diff = dayDiff(last, today);
+  let newStreak = current.streak;
   if (diff === 0) {
-    current.lastAttemptDate = today;
+    // same day, no change
   } else if (diff === 1) {
-    current.streak += 1;
-    current.lastAttemptDate = today;
+    newStreak += 1;
   } else {
-    current.streak = 1;
-    current.lastAttemptDate = today;
+    newStreak = 1;
   }
-  map[userId] = current;
-  localStorage.setItem(STORAGE_KEYS.dashboardMeta, JSON.stringify(map));
-}
 
-export function getAttempts(userId?: string): Attempt[] {
-  const stored = parseJson<Attempt[]>(localStorage.getItem(STORAGE_KEYS.attempts), []);
-  const list = Array.isArray(stored) ? stored.map(normalizeAttempt) : [];
-  if (!userId) return list;
-  return list.filter(a => a.userId === userId);
-}
-
-export function addAttempt(attempt: Partial<Attempt>): Attempt {
-  const list = getAttempts();
-  const normalized = normalizeAttempt(attempt);
-  list.push(normalized);
-  localStorage.setItem(STORAGE_KEYS.attempts, JSON.stringify(list));
-  updateUserStreak(normalized.userId, normalized.answeredAt);
-  return normalized;
-}
-
-// ---- Notebook ----
-
-export function getNotebook(userId?: string): NotebookItem[] {
-  const stored = parseJson<NotebookItem[]>(localStorage.getItem(STORAGE_KEYS.notebook), []);
-  const list = Array.isArray(stored) ? stored.map(normalizeNotebookItem) : [];
-  if (!userId) return list;
-  return list.filter(i => i.userId === userId);
-}
-
-export function upsertNotebookItem(userId: string, questionId: string, patch: Partial<NotebookItem> = {}): NotebookItem {
-  const all = getNotebook();
-  const index = all.findIndex(i => i.userId === userId && i.questionId === questionId);
-  const question = getQuestionById(questionId);
-  const qMeta = question ? { grade: question.grade, subject: question.subject, difficulty: question.difficulty, topicId: question.topicId } : {};
-  const next = normalizeNotebookItem({ userId, questionId, ...qMeta, ...(index >= 0 ? all[index] : {}), ...patch, updatedAt: nowIso() });
-  if (index >= 0) all[index] = next;
-  else all.push(next);
-  localStorage.setItem(STORAGE_KEYS.notebook, JSON.stringify(all));
-  return next;
-}
-
-// ---- Reports ----
-
-export function getReports(): Report[] {
-  const stored = parseJson<Report[]>(localStorage.getItem(STORAGE_KEYS.reports), []);
-  return Array.isArray(stored) ? stored : [];
-}
-
-export function addReport(report: Partial<Report>): Report {
-  const all = getReports();
-  const normalized: Report = {
-    id: report?.id ?? newId('rep'),
-    questionId: String(report?.questionId ?? ''),
-    questionMeta: {
-      grade: String(report?.questionMeta?.grade ?? ''),
-      subject: String(report?.questionMeta?.subject ?? ''),
-      topic: String(report?.questionMeta?.topic ?? ''),
-      difficulty: String(report?.questionMeta?.difficulty ?? ''),
-      preview: String(report?.questionMeta?.preview ?? '').trim(),
-    },
-    type: String(report?.type ?? 'outro'),
-    message: String(report?.message ?? '').trim(),
-    createdAt: report?.createdAt ?? nowIso(),
-    createdBy: {
-      username: String(report?.createdBy?.username ?? ''),
-      role: String(report?.createdBy?.role ?? 'student'),
-    },
-    status: (['open', 'resolved', 'ignored'] as const).includes(report?.status as any) ? report!.status as Report['status'] : 'open',
-    adminNote: String(report?.adminNote ?? '').trim(),
-    resolvedAt: report?.resolvedAt ?? null,
-    resolvedBy: report?.resolvedBy ?? null,
-  };
-  all.unshift(normalized);
-  localStorage.setItem(STORAGE_KEYS.reports, JSON.stringify(all));
-  return normalized;
-}
-
-export function updateReport(reportId: string, patch: Partial<Report>): Report | null {
-  const all = getReports();
-  const index = all.findIndex(r => r.id === reportId);
-  if (index < 0) return null;
-  all[index] = { ...all[index], ...patch } as Report;
-  localStorage.setItem(STORAGE_KEYS.reports, JSON.stringify(all));
-  return all[index];
-}
-
-export function setReportStatus(reportId: string, status: string, adminNote = '', resolvedBy: { username: string; role: string } | null = null): Report | null {
-  const patch: Partial<Report> = { status: status as Report['status'], adminNote };
-  if (status === 'resolved' || status === 'ignored') {
-    patch.resolvedAt = nowIso();
-    patch.resolvedBy = resolvedBy;
-  }
-  if (status === 'open') {
-    patch.resolvedAt = null;
-    patch.resolvedBy = null;
-  }
-  return updateReport(reportId, patch);
-}
-
-// ---- Training Plans ----
-
-export function getTrainingPlans(userId: string): TrainingPlan[] {
-  const map = parseJson<Record<string, TrainingPlan[]>>(localStorage.getItem(STORAGE_KEYS.trainingPlans), {});
-  const plans = Array.isArray(map?.[userId]) ? map[userId] : [];
-  return plans.map(normalizeTrainingPlan);
-}
-
-export function addTrainingPlan(userId: string, plan: Partial<TrainingPlan>): TrainingPlan {
-  const map = parseJson<Record<string, TrainingPlan[]>>(localStorage.getItem(STORAGE_KEYS.trainingPlans), {});
-  const current = Array.isArray(map[userId]) ? map[userId] : [];
-  const normalized = normalizeTrainingPlan(plan);
-  map[userId] = [normalized, ...current];
-  localStorage.setItem(STORAGE_KEYS.trainingPlans, JSON.stringify(map));
-  return normalized;
-}
-
-export function getTrainingPlanById(planId: string): (TrainingPlan & { userId: string }) | null {
-  const map = parseJson<Record<string, TrainingPlan[]>>(localStorage.getItem(STORAGE_KEYS.trainingPlans), {});
-  for (const [userId, plans] of Object.entries(map)) {
-    const found = (Array.isArray(plans) ? plans : []).find(p => p.id === planId);
-    if (found) return { userId, ...normalizeTrainingPlan(found) };
-  }
-  return null;
-}
-
-// ---- Lessons ----
-
-export function getLessons(): Lesson[] {
-  const stored = parseJson<Lesson[]>(localStorage.getItem(STORAGE_KEYS.lessons), []);
-  return Array.isArray(stored) ? stored.map(normalizeLesson).filter(l => l.title && l.url && l.topic) : [];
-}
-
-export function saveLessons(lessons: Lesson[]): Lesson[] {
-  const normalized = Array.isArray(lessons) ? lessons.map(normalizeLesson).filter(l => l.title && l.url && l.topic) : [];
-  localStorage.setItem(STORAGE_KEYS.lessons, JSON.stringify(normalized));
-  return normalized;
-}
-
-export function saveLesson(lesson: Partial<Lesson>): Lesson {
-  const all = getLessons();
-  const normalized = normalizeLesson(lesson);
-  all.unshift(normalized);
-  saveLessons(all);
-  return normalized;
-}
-
-export function updateLesson(lessonId: string, patch: Partial<Lesson>): Lesson | null {
-  const all = getLessons();
-  const index = all.findIndex(l => l.id === lessonId);
-  if (index < 0) return null;
-  const updated = normalizeLesson({ ...all[index], ...patch, id: lessonId });
-  all[index] = updated;
-  saveLessons(all);
-  return updated;
-}
-
-export function deleteLesson(lessonId: string): void {
-  saveLessons(getLessons().filter(l => l.id !== lessonId));
-}
-
-// ---- Dashboard Meta ----
-
-export function getStudentDashboardMeta(userId: string): DashboardMeta {
-  if (!userId) return normalizeDashboardMeta({});
-  const map = parseJson<Record<string, DashboardMeta>>(localStorage.getItem(STORAGE_KEYS.dashboardMeta), {});
-  return normalizeDashboardMeta(map[userId]);
-}
-
-export function saveStudentDashboardMeta(userId: string, patch: Partial<DashboardMeta> = {}): DashboardMeta {
-  if (!userId) return normalizeDashboardMeta({});
-  const map = parseJson<Record<string, DashboardMeta>>(localStorage.getItem(STORAGE_KEYS.dashboardMeta), {});
-  const current = normalizeDashboardMeta(map[userId]);
-  const next = normalizeDashboardMeta({
-    ...current,
-    ...patch,
-    lastFilters: patch.lastFilters ? normalizeDashboardFilters(patch.lastFilters) : current.lastFilters,
+  await supabase.from('dashboard_meta').upsert({
+    user_id: userId,
+    streak: newStreak,
+    last_attempt_date: today,
+    last_filters: existing ? (existing as any).last_filters : { grade: '', subject: '', difficulty: '', topicId: '', search: '' },
   });
-  map[userId] = next;
-  localStorage.setItem(STORAGE_KEYS.dashboardMeta, JSON.stringify(map));
+}
+
+export async function getStudentDashboardMeta(userId: string): Promise<DashboardMeta> {
+  const empty: DashboardMeta = { streak: 0, lastAttemptDate: null, lastFilters: { grade: '', subject: '', difficulty: '', topicId: '', search: '' } };
+  if (!userId) return empty;
+  const { data } = await supabase.from('dashboard_meta').select('*').eq('user_id', userId).single();
+  if (!data) return empty;
+  const row = data as any;
+  return {
+    streak: row.streak ?? 0,
+    lastAttemptDate: row.last_attempt_date,
+    lastFilters: row.last_filters ?? empty.lastFilters,
+  };
+}
+
+export async function saveStudentDashboardMeta(userId: string, patch: Partial<DashboardMeta> = {}): Promise<DashboardMeta> {
+  const current = await getStudentDashboardMeta(userId);
+  const next: DashboardMeta = {
+    streak: patch.streak ?? current.streak,
+    lastAttemptDate: patch.lastAttemptDate ?? current.lastAttemptDate,
+    lastFilters: patch.lastFilters ?? current.lastFilters,
+  };
+
+  await supabase.from('dashboard_meta').upsert({
+    user_id: userId,
+    streak: next.streak,
+    last_attempt_date: next.lastAttemptDate,
+    last_filters: next.lastFilters,
+  });
+
   return next;
 }
 
-// ---- Init ----
+// ---- Init (no-op with DB) ----
 
-export function initStorageFromSeeds(): void {
-  ensureUsersSeeded();
-
-  // Init topics
-  const existingTopics = parseJson<Topic[] | null>(localStorage.getItem(STORAGE_KEYS.topicsBank), null);
-  if (!Array.isArray(existingTopics) || !existingTopics.length) {
-    saveTopicsBank((topicsSeed as any[]).map(normalizeTopic));
-  }
-
-  const shouldReset = localStorage.getItem(STORAGE_KEYS.version) !== SEED_VERSION;
-  const hasBank = !!localStorage.getItem(STORAGE_KEYS.questionBank);
-  const hasLessons = !!localStorage.getItem(STORAGE_KEYS.lessons);
-
-  if (!shouldReset && hasBank && hasLessons) return;
-
-  saveQuestionBank((questionsSeed as any[]).map(q => normalizeQuestion({ ...q, createdAt: nowIso(), updatedAt: nowIso() })));
-  saveLessons((lessonsSeed as any[]).map(normalizeLesson));
-  localStorage.setItem(STORAGE_KEYS.version, SEED_VERSION);
+export async function initStorageFromSeeds(): Promise<void> {
+  // Data is already in the database, no seeding needed
 }
 
-export function resetToSeed(): void {
-  localStorage.removeItem(STORAGE_KEYS.questionBank);
-  localStorage.removeItem(STORAGE_KEYS.topicsBank);
-  localStorage.removeItem(STORAGE_KEYS.lessons);
-  localStorage.removeItem(STORAGE_KEYS.version);
-  initStorageFromSeeds();
+export async function resetToSeed(): Promise<void> {
+  // Could re-seed from JSON files, but for now just a no-op
+  // The seed data is already in the database
 }

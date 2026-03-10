@@ -4,13 +4,13 @@ import { authenticate as authFn, getCurrentUser, setCurrentUser, logout as logou
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (username: string, password: string) => AuthUser | null;
+  login: (username: string, password: string) => Promise<AuthUser | null>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: () => null,
+  login: async () => null,
   logout: () => {},
 });
 
@@ -21,8 +21,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(getCurrentUser());
   }, []);
 
-  const login = useCallback((username: string, password: string): AuthUser | null => {
-    const result = authFn(username, password);
+  const login = useCallback(async (username: string, password: string): Promise<AuthUser | null> => {
+    const result = await authFn(username, password);
     if (result) {
       setCurrentUser(result);
       setUser(result);

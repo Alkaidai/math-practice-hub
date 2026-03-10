@@ -1,22 +1,38 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
+import type { Question, Topic, NotebookItem } from '../../lib/types';
 
 export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string) => void }) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
 
   const [filters, setFilters] = useState({ grade: '', subject: '', difficulty: '', topicId: '', status: '' });
-  const [, setRefresh] = useState(0);
-  const forceRefresh = useCallback(() => setRefresh(n => n + 1), []);
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
+  const [allTopics, setAllTopics] = useState<Topic[]>([]);
+  const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const topics = useMemo(() => getTopics({ activeOnly: true }), []);
-  const questionsMap = useMemo(() => new Map(loadQuestionBank().map(q => [q.id, q])), []);
+  const loadData = useCallback(async () => {
+    const [questions, topics, notebook] = await Promise.all([
+      loadQuestionBank(),
+      getTopics({ activeOnly: true }),
+      getNotebook(userId),
+    ]);
+    setAllQuestions(questions);
+    setAllTopics(topics);
+    setNotebookItems(notebook);
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const questionsMap = useMemo(() => new Map(allQuestions.map(q => [q.id, q])), [allQuestions]);
 
   const items = useMemo(() => {
-    let notebook = getNotebook(userId).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    let notebook = [...notebookItems].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
     return notebook.filter(item => {
       const q = questionsMap.get(item.questionId);
@@ -32,7 +48,9 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       if (filters.status && item.status !== filters.status) return false;
       return true;
     });
-  }, [userId, filters, questionsMap]);
+  }, [notebookItems, filters, questionsMap]);
+
+  if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
   return (
     <div className="space-y-4">
@@ -53,7 +71,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
           </select>
           <select value={filters.topicId} onChange={e => setFilters(f => ({ ...f, topicId: e.target.value }))} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
             <option value="">Todos os tópicos</option>
-            {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {allTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
             <option value="">Todos os status</option>
@@ -77,7 +95,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
                 question={q}
                 userId={userId}
                 onRefazer={() => onRefazer(q.id)}
-                onSave={forceRefresh}
+                onSave={loadData}
               />
             );
           })}
@@ -93,8 +111,8 @@ function NotebookCard({ item, question: q, userId, onRefazer, onSave }: {
   const [whatIErred, setWhatIErred] = useState(item.whatIErred);
   const [ruleInsight, setRuleInsight] = useState(item.ruleInsight);
 
-  const handleSave = (mastered: boolean) => {
-    upsertNotebookItem(userId, q.id, { whatIErred, ruleInsight, ...(mastered ? { status: 'mastered' } : {}) });
+  const handleSave = async (mastered: boolean) => {
+    await upsertNotebookItem(userId, q.id, { whatIErred, ruleInsight, ...(mastered ? { status: 'mastered' } : {}) });
     onSave();
   };
 

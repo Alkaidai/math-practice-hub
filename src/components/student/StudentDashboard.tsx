@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, formatDate } from '../../lib/ui-utils';
+import type { Question, Attempt, NotebookItem, DashboardMeta, Topic } from '../../lib/types';
 
 interface WeakTopic {
   topicId: string;
@@ -11,57 +12,80 @@ interface WeakTopic {
   errorRate: number;
 }
 
+interface DashboardData {
+  answered: number;
+  correct: number;
+  rate: number;
+  pendingCount: number;
+  meta: DashboardMeta;
+  weakTopics: WeakTopic[];
+  wrongLatest: Attempt[];
+  recent: Attempt[];
+  questions: Map<string, Question>;
+}
+
 export function StudentDashboard({ onNavigateQuestions, onRefazer }: { onNavigateQuestions: () => void; onRefazer: (questionId: string) => void }) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
+  const [data, setData] = useState<DashboardData | null>(null);
 
-  const data = useMemo(() => {
-    const attempts = getAttempts(userId);
-    const answered = attempts.length;
-    const correct = attempts.filter(a => a.isCorrect).length;
-    const rate = answered ? Math.round((correct / answered) * 100) : 0;
-    const notebook = getNotebook(userId);
-    const pendingCount = notebook.filter(i => i.status === 'pending').length;
-    const meta = getStudentDashboardMeta(userId);
-    const questions = new Map(loadQuestionBank().map(q => [q.id, q]));
-    const topicMap = new Map(getTopics().map(t => [t.id, t.name]));
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const [attempts, notebook, meta, allQuestions, topics] = await Promise.all([
+        getAttempts(userId),
+        getNotebook(userId),
+        getStudentDashboardMeta(userId),
+        loadQuestionBank(),
+        getTopics(),
+      ]);
 
-    // Weak topics
-    const agg = new Map<string, { topicId: string; label: string; total: number; errors: number }>();
-    attempts.forEach(a => {
-      const q = questions.get(a.questionId);
-      if (!q?.topicId) return;
-      const prev = agg.get(q.topicId) ?? { topicId: q.topicId, label: topicMap.get(q.topicId) ?? q.topicId, total: 0, errors: 0 };
-      prev.total += 1;
-      if (!a.isCorrect) prev.errors += 1;
-      agg.set(q.topicId, prev);
-    });
+      if (cancelled) return;
 
-    const weakTopics: WeakTopic[] = [...agg.values()]
-      .filter(x => x.total > 0)
-      .map(x => ({ ...x, errorRate: Math.round((x.errors / x.total) * 100) }))
-      .sort((a, b) => b.errorRate - a.errorRate || b.errors - a.errors)
-      .slice(0, 5);
+      const answered = attempts.length;
+      const correct = attempts.filter(a => a.isCorrect).length;
+      const rate = answered ? Math.round((correct / answered) * 100) : 0;
+      const pendingCount = notebook.filter(i => i.status === 'pending').length;
+      const questions = new Map(allQuestions.map(q => [q.id, q]));
+      const topicMap = new Map(topics.map(t => [t.id, t.name]));
 
-    // Recent wrong
-    const wrongLatest = attempts
-      .filter(a => !a.isCorrect)
-      .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
-      .slice(0, 10);
+      const agg = new Map<string, { topicId: string; label: string; total: number; errors: number }>();
+      attempts.forEach(a => {
+        const q = questions.get(a.questionId);
+        if (!q?.topicId) return;
+        const prev = agg.get(q.topicId) ?? { topicId: q.topicId, label: topicMap.get(q.topicId) ?? q.topicId, total: 0, errors: 0 };
+        prev.total += 1;
+        if (!a.isCorrect) prev.errors += 1;
+        agg.set(q.topicId, prev);
+      });
 
-    // Recent history
-    const recent = [...attempts]
-      .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
-      .slice(0, 20);
+      const weakTopics: WeakTopic[] = [...agg.values()]
+        .filter(x => x.total > 0)
+        .map(x => ({ ...x, errorRate: Math.round((x.errors / x.total) * 100) }))
+        .sort((a, b) => b.errorRate - a.errorRate || b.errors - a.errors)
+        .slice(0, 5);
 
-    return { answered, correct, rate, pendingCount, meta, weakTopics, wrongLatest, recent, questions };
+      const wrongLatest = attempts
+        .filter(a => !a.isCorrect)
+        .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
+        .slice(0, 10);
+
+      const recent = [...attempts]
+        .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
+        .slice(0, 20);
+
+      setData({ answered, correct, rate, pendingCount, meta, weakTopics, wrongLatest, recent, questions });
+    }
+    load();
+    return () => { cancelled = true; };
   }, [userId]);
+
+  if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
   const hasData = data.answered > 0;
 
   return (
     <div className="space-y-4">
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           ['Respondidas', String(data.answered)],
@@ -87,7 +111,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer }: { onNavigat
 
       {hasData && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Weak Topics */}
           <div className="border border-border bg-card p-4">
             <h3 className="font-heading text-sm font-bold text-foreground mb-2">TÓPICOS FRACOS (TOP 5)</h3>
             {data.weakTopics.length > 0 ? (
@@ -104,7 +127,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer }: { onNavigat
             )}
           </div>
 
-          {/* Recent wrong */}
           <div className="border border-border bg-card p-4">
             <h3 className="font-heading text-sm font-bold text-foreground mb-2">REVISAR ERROS (ÚLTIMAS 10)</h3>
             <div className="max-h-80 overflow-y-auto space-y-2">
@@ -126,7 +148,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer }: { onNavigat
             </div>
           </div>
 
-          {/* Recent history */}
           <div className="border border-border bg-card p-4 md:col-span-2">
             <h3 className="font-heading text-sm font-bold text-foreground mb-2">HISTÓRICO RECENTE</h3>
             <div className="max-h-80 overflow-y-auto space-y-1">

@@ -1,9 +1,9 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { loadQuestionBank, getTopics, getNotebook, addAttempt, upsertNotebookItem, addComment, addReport, getAttempts, saveStudentDashboardMeta, getLessons } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, optionLetter, formatDate, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import type { Question, QuestionFilters, Comment as CommentType } from '../../lib/types';
+import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson } from '../../lib/types';
 
 interface AnswerState {
   selectedIndex: number;
@@ -20,11 +20,37 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
   const [, setRefresh] = useState(0);
   const forceRefresh = useCallback(() => setRefresh(n => n + 1), []);
 
-  const topics = useMemo(() => getTopics({ activeOnly: true }), []);
-  const topicMap = useMemo(() => new Map(getTopics().map(t => [t.id, t.name])), []);
+  // Async loaded data
+  const [allTopics, setAllTopics] = useState<Topic[]>([]);
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
+  const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
+  const [allLessons, setAllLessons] = useState<Lesson[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const [topics, questions, notebook, lessons] = await Promise.all([
+        getTopics({ activeOnly: true }),
+        loadQuestionBank(),
+        userId ? getNotebook(userId) : Promise.resolve([]),
+        getLessons(),
+      ]);
+      if (cancelled) return;
+      setAllTopics(topics);
+      setAllQuestions(questions);
+      setNotebookItems(notebook);
+      setAllLessons(lessons);
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const topicMap = useMemo(() => new Map(allTopics.map(t => [t.id, t.name])), [allTopics]);
 
   const questions = useMemo(() => {
-    let qs = loadQuestionBank().filter(q => q.status !== 'draft');
+    let qs = allQuestions.filter(q => q.status !== 'draft');
     if (filters.grade) qs = qs.filter(q => q.grade === filters.grade);
     if (filters.subject) qs = qs.filter(q => q.subject === subjectCode(filters.subject));
     if (filters.difficulty) qs = qs.filter(q => q.difficulty === difficultyCode(filters.difficulty));
@@ -34,9 +60,9 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
       qs = qs.filter(q => `${q.statement} ${q.options.join(' ')}`.toLowerCase().includes(needle));
     }
     return qs;
-  }, [filters]);
+  }, [filters, allQuestions]);
 
-  const notebookMap = useMemo(() => new Map(getNotebook(userId).map(n => [n.questionId, n])), [userId, answers]);
+  const notebookMap = useMemo(() => new Map(notebookItems.map(n => [n.questionId, n])), [notebookItems]);
 
   const handleFilter = (key: keyof QuestionFilters, value: string) => {
     const next = { ...filters, [key]: value };
@@ -44,52 +70,58 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
     if (userId) saveStudentDashboardMeta(userId, { lastFilters: next });
   };
 
-  const handleConfirm = (q: Question, selectedIndex: number) => {
+  const handleConfirm = async (q: Question, selectedIndex: number) => {
     if (!user) return;
     const isCorrect = selectedIndex === q.correctIndex;
     setAnswers(prev => ({ ...prev, [q.id]: { selectedIndex, isCorrect } }));
     setActiveTab(prev => ({ ...prev, [q.id]: 'gabarito' }));
-    addAttempt({ userId: user.username, questionId: q.id, selectedIndex, isCorrect, answeredAt: new Date().toISOString() });
-    if (!isCorrect) upsertNotebookItem(user.username, q.id, { status: 'pending' });
+    await addAttempt({ userId: user.username, questionId: q.id, selectedIndex, isCorrect, answeredAt: new Date().toISOString() });
+    if (!isCorrect) {
+      const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
+      setNotebookItems(prev => {
+        const idx = prev.findIndex(n => n.questionId === q.id);
+        if (idx >= 0) { const next = [...prev]; next[idx] = item; return next; }
+        return [...prev, item];
+      });
+    }
 
-    // Error flash (Momento de Assinatura)
     if (!isCorrect) {
       document.body.classList.add('error-flash');
       setTimeout(() => document.body.classList.remove('error-flash'), 200);
     }
-    forceRefresh();
   };
 
-  const handleComment = (questionId: string, text: string) => {
+  const handleComment = async (questionId: string, text: string) => {
     if (!user || !text.trim()) return;
-    addComment(questionId, { author: { username: user.username, role: user.role }, text: text.trim(), status: 'open', replies: [] });
-    forceRefresh();
+    await addComment(questionId, { author: { username: user.username, role: user.role }, text: text.trim(), status: 'open', replies: [] });
+    // Reload questions to get updated comments
+    const updated = await loadQuestionBank();
+    setAllQuestions(updated);
   };
 
-  const handleReport = (q: Question, type: string, message: string) => {
+  const handleReport = async (q: Question, type: string, message: string) => {
     if (!user || !message.trim()) return;
-    addReport({
+    await addReport({
       questionId: q.id,
       questionMeta: { grade: q.grade, subject: q.subject, topic: topicMap.get(q.topicId) ?? q.topicId, difficulty: q.difficulty, preview: q.statement.slice(0, 120) },
       type, message: message.trim(),
       createdBy: { username: user.username, role: user.role },
       status: 'open',
     });
-    forceRefresh();
   };
 
   const lessonsForQuestion = (q: Question) => {
-    const all = getLessons();
-    const byTopic = all.filter(l => l.topic === q.topicId);
+    const byTopic = allLessons.filter(l => l.topic === q.topicId);
     if (byTopic.length) return byTopic;
-    const bySubject = all.filter(l => l.subject === q.subject);
+    const bySubject = allLessons.filter(l => l.subject === q.subject);
     if (bySubject.length) return bySubject;
-    return all.filter(l => l.grade === q.grade);
+    return allLessons.filter(l => l.grade === q.grade);
   };
+
+  if (loading) return <p className="font-body text-muted-foreground">Carregando questões...</p>;
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
       <div className="border border-border bg-card p-3">
         <h3 className="font-heading text-xs font-bold text-foreground uppercase tracking-wide mb-2">FILTROS</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -107,13 +139,12 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
           </select>
           <select value={filters.topicId} onChange={e => handleFilter('topicId', e.target.value)} className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground">
             <option value="">Todos os tópicos</option>
-            {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {allTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           <input value={filters.search} onChange={e => handleFilter('search', e.target.value)} placeholder="Buscar" className="border border-border bg-card px-2 py-1.5 font-heading text-xs text-foreground placeholder:text-muted-foreground" />
         </div>
       </div>
 
-      {/* Questions */}
       {questions.length === 0 ? (
         <p className="font-body text-muted-foreground">Nenhuma questão encontrada com os filtros atuais.</p>
       ) : (
@@ -133,8 +164,19 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
               onTabChange={(tab) => setActiveTab(prev => ({ ...prev, [q.id]: tab }))}
               onComment={(text) => handleComment(q.id, text)}
               onReport={(type, message) => handleReport(q, type, message)}
-              onAddNotebook={() => { if (user) { upsertNotebookItem(user.username, q.id, { status: 'pending' }); setActiveTab(prev => ({ ...prev, [q.id]: 'caderno' })); forceRefresh(); }}}
-              onSaveNotebook={(whatIErred, ruleInsight, mastered) => { if (user) { upsertNotebookItem(user.username, q.id, { whatIErred, ruleInsight, ...(mastered ? { status: 'mastered' } : {}) }); forceRefresh(); }}}
+              onAddNotebook={async () => {
+                if (user) {
+                  const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
+                  setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
+                  setActiveTab(prev => ({ ...prev, [q.id]: 'caderno' }));
+                }
+              }}
+              onSaveNotebook={async (whatIErred, ruleInsight, mastered) => {
+                if (user) {
+                  const item = await upsertNotebookItem(user.username, q.id, { whatIErred, ruleInsight, ...(mastered ? { status: 'mastered' } : {}) });
+                  setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
+                }
+              }}
             />
           ))}
         </div>
@@ -182,7 +224,6 @@ function QuestionCard({
         </p>
       </header>
 
-      {/* Options */}
       <div className="space-y-2 mb-3">
         {q.options.map((opt, i) => {
           let cls = 'border border-border p-2 flex items-center gap-2 cursor-pointer';
@@ -192,15 +233,7 @@ function QuestionCard({
 
           return (
             <label key={i} className={cls}>
-              <input
-                type="radio"
-                name={`opt_${q.id}`}
-                value={i}
-                checked={locked ? answer?.selectedIndex === i : selected === i}
-                disabled={locked}
-                onChange={() => setSelected(i)}
-                className="accent-primary"
-              />
+              <input type="radio" name={`opt_${q.id}`} value={i} checked={locked ? answer?.selectedIndex === i : selected === i} disabled={locked} onChange={() => setSelected(i)} className="accent-primary" />
               <span className="font-heading text-xs font-bold text-primary min-w-[24px]">({optionLetter(i)})</span>
               <span className="font-body text-sm">{opt}</span>
             </label>
@@ -208,15 +241,8 @@ function QuestionCard({
         })}
       </div>
 
-      {/* Confirm */}
       <div className="flex items-center gap-3 mb-3">
-        <button
-          disabled={locked || selected === null}
-          onClick={() => selected !== null && onConfirm(selected)}
-          className="font-heading text-sm font-semibold bg-primary text-primary-foreground px-4 py-1.5 border border-primary disabled:opacity-40"
-        >
-          Confirmar
-        </button>
+        <button disabled={locked || selected === null} onClick={() => selected !== null && onConfirm(selected)} className="font-heading text-sm font-semibold bg-primary text-primary-foreground px-4 py-1.5 border border-primary disabled:opacity-40">Confirmar</button>
         {answer && (
           <span className={`font-heading text-sm font-bold ${answer.isCorrect ? 'text-success' : 'text-destructive'}`}>
             {answer.isCorrect ? '✅ Acertou' : '❌ Errou'}
@@ -224,33 +250,16 @@ function QuestionCard({
         )}
       </div>
 
-      {/* Tabs */}
       <div className="flex flex-wrap gap-1 border-b border-border pb-1 mb-3">
         {tabs.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => { if (!tab.blocked) onTabChange(tab.key); }}
-            className={`font-heading text-xs px-2 py-1 border-b-2 ${activeTab === tab.key ? 'border-primary text-foreground font-bold' : 'border-transparent text-muted-foreground'} ${tab.blocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-          >
+          <button key={tab.key} onClick={() => { if (!tab.blocked) onTabChange(tab.key); }} className={`font-heading text-xs px-2 py-1 border-b-2 ${activeTab === tab.key ? 'border-primary text-foreground font-bold' : 'border-transparent text-muted-foreground'} ${tab.blocked ? 'opacity-40 cursor-not-allowed' : ''}`}>
             {tab.label}{tab.blocked ? ' 🔒' : ''}
           </button>
         ))}
       </div>
 
-      {/* Tab Panel */}
       <div className="border border-border p-3 bg-background">
-        <TabPanel
-          tab={activeTab}
-          question={q}
-          answer={answer}
-          user={user}
-          notebookItem={notebookItem}
-          lessons={lessons}
-          onComment={onComment}
-          onReport={onReport}
-          onAddNotebook={onAddNotebook}
-          onSaveNotebook={onSaveNotebook}
-        />
+        <TabPanel tab={activeTab} question={q} answer={answer} user={user} notebookItem={notebookItem} lessons={lessons} onComment={onComment} onReport={onReport} onAddNotebook={onAddNotebook} onSaveNotebook={onSaveNotebook} />
       </div>
     </article>
   );
@@ -284,9 +293,7 @@ function TabPanel({ tab, question: q, answer, user, notebookItem, lessons, onCom
         {lessons.map(l => (
           <div key={l.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
             <span className="font-body text-sm font-semibold">{l.title}</span>
-            <a href={l.url} target="_blank" rel="noopener noreferrer" className="font-heading text-xs text-primary border border-primary px-2 py-0.5 hover:bg-primary hover:text-primary-foreground">
-              Assistir
-            </a>
+            <a href={l.url} target="_blank" rel="noopener noreferrer" className="font-heading text-xs text-primary border border-primary px-2 py-0.5 hover:bg-primary hover:text-primary-foreground">Assistir</a>
           </div>
         ))}
       </div>

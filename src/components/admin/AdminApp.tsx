@@ -1,20 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
-import { initStorageFromSeeds, resetToSeed, loadQuestionBank, saveQuestionBank, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic } from '../../lib/storage';
+import { loadQuestionBank, saveQuestionBank, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import type { Question, Topic, Lesson, Report } from '../../lib/types';
+import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem } from '../../lib/types';
 
 type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'users' | 'comments' | 'notebook' | 'reports' | 'import';
 
 export function AdminApp() {
   const { user, logout } = useAuth();
   const [panel, setPanel] = useState<Panel>('dashboard');
-  const [, setRefresh] = useState(0);
-  const forceRefresh = useCallback(() => setRefresh(n => n + 1), []);
-
-  useEffect(() => { initStorageFromSeeds(); }, []);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const forceRefresh = useCallback(() => setRefreshKey(n => n + 1), []);
 
   if (!user) {
     return (
@@ -53,7 +51,6 @@ export function AdminApp() {
       <AdminHeader user={user} onLogout={logout} />
 
       <main className="max-w-[1160px] mx-auto px-4 py-5">
-        {/* Menu */}
         <nav className="flex flex-wrap items-center gap-2 mb-4">
           {menuGroups.map((group, gi) => (
             <div key={gi} className="inline-flex items-center gap-1 border border-border px-2 py-1 bg-card">
@@ -71,14 +68,14 @@ export function AdminApp() {
           ))}
         </nav>
 
-        {panel === 'dashboard' && <AdminDashboard />}
-        {panel === 'questions' && <AdminQuestions onRefresh={forceRefresh} />}
-        {panel === 'lessons' && <AdminLessons onRefresh={forceRefresh} />}
-        {panel === 'cadastros' && <AdminTopics onRefresh={forceRefresh} />}
-        {panel === 'users' && <AdminUsers onRefresh={forceRefresh} />}
-        {panel === 'comments' && <AdminComments onRefresh={forceRefresh} />}
-        {panel === 'notebook' && <AdminNotebook />}
-        {panel === 'reports' && <AdminReports onRefresh={forceRefresh} />}
+        {panel === 'dashboard' && <AdminDashboard key={refreshKey} />}
+        {panel === 'questions' && <AdminQuestions key={refreshKey} onRefresh={forceRefresh} />}
+        {panel === 'lessons' && <AdminLessons key={refreshKey} onRefresh={forceRefresh} />}
+        {panel === 'cadastros' && <AdminTopics key={refreshKey} onRefresh={forceRefresh} />}
+        {panel === 'users' && <AdminUsers key={refreshKey} onRefresh={forceRefresh} />}
+        {panel === 'comments' && <AdminComments key={refreshKey} onRefresh={forceRefresh} />}
+        {panel === 'notebook' && <AdminNotebook key={refreshKey} />}
+        {panel === 'reports' && <AdminReports key={refreshKey} onRefresh={forceRefresh} />}
         {panel === 'import' && <AdminImport onRefresh={forceRefresh} />}
       </main>
     </div>
@@ -114,9 +111,17 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 }
 
 function AdminDashboard() {
-  const questions = loadQuestionBank();
-  const attempts = getAttempts();
-  const users = loadUsers();
+  const [data, setData] = useState<{ questions: Question[]; attempts: Attempt[]; users: User[] } | null>(null);
+
+  useEffect(() => {
+    Promise.all([loadQuestionBank(), getAttempts(), loadUsers()]).then(([questions, attempts, users]) => {
+      setData({ questions, attempts, users });
+    });
+  }, []);
+
+  if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
+
+  const { questions, attempts, users } = data;
   const published = questions.filter(q => q.status !== 'draft').length;
   const draft = questions.length - published;
   const activeUsers = new Set(attempts.map(a => a.userId).filter(Boolean)).size;
@@ -125,10 +130,7 @@ function AdminDashboard() {
 
   const countBy = (arr: any[], picker: (item: any) => string) => {
     const map = new Map<string, number>();
-    arr.forEach(item => {
-      const key = picker(item) ?? '-';
-      map.set(key, (map.get(key) ?? 0) + 1);
-    });
+    arr.forEach(item => { const key = picker(item) ?? '-'; map.set(key, (map.get(key) ?? 0) + 1); });
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   };
 
@@ -169,14 +171,23 @@ function AdminDashboard() {
 }
 
 function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
-  const topics = getTopics({ activeOnly: true });
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    grade: '7EF', subject: 'math', difficulty: 'easy', topicId: topics[0]?.id ?? '', status: 'published',
+    grade: '7EF', subject: 'math', difficulty: 'easy', topicId: '', status: 'published',
     statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '',
   });
   const [feedback, setFeedback] = useState('');
-  const questions = loadQuestionBank();
+
+  const loadData = useCallback(async () => {
+    const [t, q] = await Promise.all([getTopics({ activeOnly: true }), loadQuestionBank()]);
+    setTopics(t);
+    setQuestions(q);
+    if (t.length && !form.topicId) setForm(f => ({ ...f, topicId: t[0].id }));
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -184,14 +195,13 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
     setFeedback('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.statement) { setFeedback('Enunciado é obrigatório.'); return; }
     if (form.options.some(o => !o)) { setFeedback('Preencha todas as alternativas.'); return; }
     if (!form.correctLetter) { setFeedback('Selecione a resposta correta.'); return; }
 
     const correctIndex = ['A','B','C','D','E'].indexOf(form.correctLetter);
-    const bank = loadQuestionBank();
     const q: any = {
       id: editingId ?? uid('q'),
       grade: form.grade, subject: form.subject, difficulty: form.difficulty, topicId: form.topicId,
@@ -201,16 +211,16 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
     };
 
     if (editingId) {
-      const existing = bank.find(x => x.id === editingId);
+      const existing = questions.find(x => x.id === editingId);
       if (existing) { q.createdAt = existing.createdAt; q.comments = existing.comments; }
-      const idx = bank.findIndex(x => x.id === editingId);
-      if (idx >= 0) bank[idx] = q;
+      const bank = questions.map(x => x.id === editingId ? q : x);
+      await saveQuestionBank(bank);
     } else {
-      bank.unshift(q);
+      await saveQuestionBank([q, ...questions]);
     }
-    saveQuestionBank(bank);
     setFeedback('Questão salva.');
     resetForm();
+    await loadData();
     onRefresh();
   };
 
@@ -225,10 +235,13 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
     });
   };
 
-  const handleDelete = (id: string) => {
-    saveQuestionBank(loadQuestionBank().filter(q => q.id !== id));
+  const handleDelete = async (id: string) => {
+    await deleteQuestion(id);
+    await loadData();
     onRefresh();
   };
+
+  const allTopics = topics;
 
   return (
     <div className="space-y-4">
@@ -236,11 +249,9 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
         <h2 className="font-heading text-sm font-bold uppercase">Questões</h2>
         <div className="flex gap-2">
           <button onClick={resetForm} className="font-heading text-xs border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Nova questão</button>
-          <button onClick={() => { resetToSeed(); onRefresh(); }} className="font-heading text-xs text-destructive border border-destructive px-2 py-0.5">Reiniciar dados</button>
         </div>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSubmit} className="border border-border bg-card p-3 space-y-2">
         <h3 className="font-heading text-xs font-bold">{editingId ? 'Editar questão' : 'Nova questão'}</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -254,7 +265,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
             {Object.entries(DIFFICULTIES_MAP).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
           <select value={form.topicId} onChange={e => setForm(f => ({ ...f, topicId: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
-            {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {allTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
             <option value="published">Publicado</option>
@@ -278,7 +289,6 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -294,7 +304,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
                 <td className="p-2 border border-border font-heading text-xs">{q.grade}</td>
                 <td className="p-2 border border-border font-heading text-xs">{subjectLabel(q.subject)}</td>
                 <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
-                <td className="p-2 border border-border font-heading text-xs">{getTopics().find(t => t.id === q.topicId)?.name ?? '-'}</td>
+                <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
                 <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
                 <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
                 <td className="p-2 border border-border">
@@ -316,21 +326,31 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', url: '', subject: 'math', grade: '7EF', topic: '' });
   const [feedback, setFeedback] = useState('');
-  const topics = getTopics({ activeOnly: true });
-  const lessons = getLessons();
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const loadData = useCallback(async () => {
+    const [t, l] = await Promise.all([getTopics({ activeOnly: true }), getLessons()]);
+    setTopics(t);
+    setLessons(l);
+    if (t.length && !form.topic) setForm(f => ({ ...f, topic: t[0].id }));
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title || !form.url || !form.topic) { setFeedback('Preencha todos os campos.'); return; }
     if (editingId) {
-      updateLesson(editingId, { ...form, id: editingId });
+      await updateLesson(editingId, { ...form, id: editingId });
       setFeedback('Aula atualizada.');
     } else {
-      saveLesson({ ...form, id: uid('lesson') });
+      await saveLesson({ ...form, id: uid('lesson') });
       setFeedback('Aula salva.');
     }
     setEditingId(null);
     setForm({ title: '', url: '', subject: 'math', grade: '7EF', topic: topics[0]?.id ?? '' });
+    await loadData();
     onRefresh();
   };
 
@@ -369,7 +389,7 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
               <td className="p-2 border border-border">
                 <div className="flex gap-1">
                   <button onClick={() => { setEditingId(l.id); setForm({ title: l.title, url: l.url, subject: l.subject, grade: l.grade, topic: l.topic }); }} className="font-heading text-[10px] border border-border px-2 py-0.5">Editar</button>
-                  <button onClick={() => { deleteLesson(l.id); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
+                  <button onClick={async () => { await deleteLesson(l.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
                 </div>
               </td>
             </tr>
@@ -385,8 +405,15 @@ function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
   const [form, setForm] = useState({ name: '', subject: 'math', grade: 'all', status: 'active' });
   const [feedback, setFeedback] = useState('');
   const [filter, setFilter] = useState({ subject: 'all', status: 'all', search: '' });
+  const [allTopics, setAllTopics] = useState<Topic[]>([]);
 
-  let topics = getTopics();
+  const loadData = useCallback(async () => {
+    setAllTopics(await getTopics());
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  let topics = allTopics;
   if (filter.subject !== 'all') topics = topics.filter(t => t.subject === filter.subject);
   if (filter.status !== 'all') topics = topics.filter(t => t.status === filter.status);
   if (filter.search) {
@@ -394,18 +421,19 @@ function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
     topics = topics.filter(t => `${t.name} ${t.subject} ${t.grade}`.toLowerCase().includes(needle));
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.subject) { setFeedback('Preencha nome e disciplina.'); return; }
     if (editingId) {
-      updateTopic(editingId, { name: form.name, subject: form.subject, grade: form.grade, status: form.status as any });
+      await updateTopic(editingId, { name: form.name, subject: form.subject, grade: form.grade, status: form.status as any });
       setFeedback('Tópico atualizado.');
     } else {
-      createTopic({ id: uid('topic'), name: form.name, subject: form.subject, grade: form.grade, status: form.status as any, label: form.name });
+      await createTopic({ id: uid('topic'), name: form.name, subject: form.subject, grade: form.grade, status: form.status as any, label: form.name });
       setFeedback('Tópico criado.');
     }
     setEditingId(null);
     setForm({ name: '', subject: 'math', grade: 'all', status: 'active' });
+    await loadData();
     onRefresh();
   };
 
@@ -458,8 +486,8 @@ function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
               <td className="p-2 border border-border">
                 <div className="flex gap-1">
                   <button onClick={() => { setEditingId(t.id); setForm({ name: t.name, subject: t.subject, grade: t.grade, status: t.status }); }} className="font-heading text-[10px] border border-border px-2 py-0.5">Editar</button>
-                  <button onClick={() => { toggleTopicStatus(t.id); onRefresh(); }} className="font-heading text-[10px] border border-border px-2 py-0.5">{t.status === 'active' ? 'Desativar' : 'Reativar'}</button>
-                  <button onClick={() => { deleteTopic(t.id); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
+                  <button onClick={async () => { await toggleTopicStatus(t.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] border border-border px-2 py-0.5">{t.status === 'active' ? 'Desativar' : 'Reativar'}</button>
+                  <button onClick={async () => { await deleteTopic(t.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
                 </div>
               </td>
             </tr>
@@ -474,21 +502,37 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState({ username: '', password: '', role: 'student', status: 'active', gradeLevel: '' });
   const [feedback, setFeedback] = useState('');
-  const users = loadUsers().sort((a, b) => a.username.localeCompare(b.username));
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedAttempts, setSelectedAttempts] = useState<Attempt[]>([]);
+
+  const loadData = useCallback(async () => {
+    const u = await loadUsers();
+    setUsers(u.sort((a, b) => a.username.localeCompare(b.username)));
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (selectedId) {
+      getAttempts(selectedId).then(setSelectedAttempts);
+    } else {
+      setSelectedAttempts([]);
+    }
+  }, [selectedId]);
+
   const selected = users.find(u => u.username === selectedId);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.username || !form.password) { setFeedback('Obrigatório.'); return; }
-    upsertUser({ username: form.username, password: form.password, role: form.role as any, status: form.status as any, gradeLevel: form.gradeLevel || null } as any);
-    setFeedback('Salvo.');
-    onRefresh();
-  };
-
-  const selectedAttempts = selectedId ? getAttempts(selectedId) : [];
   const answered = selectedAttempts.length;
   const correct = selectedAttempts.filter(a => a.isCorrect).length;
   const rate = answered ? Math.round((correct / answered) * 100) : 0;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.username || !form.password) { setFeedback('Obrigatório.'); return; }
+    await upsertUser({ username: form.username, password: form.password, role: form.role as any, status: form.status as any, gradeLevel: form.gradeLevel || null } as any);
+    setFeedback('Salvo.');
+    await loadData();
+    onRefresh();
+  };
 
   return (
     <div className="space-y-4">
@@ -549,11 +593,18 @@ function AdminComments({ onRefresh }: { onRefresh: () => void }) {
   const [filter, setFilter] = useState('all');
   const [selectedThread, setSelectedThread] = useState<{ questionId: string; commentId: string } | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [topicMap, setTopicMap] = useState(new Map<string, string>());
 
-  const questions = loadQuestionBank();
+  const loadData = useCallback(async () => {
+    const [q, t] = await Promise.all([loadQuestionBank(), getTopics()]);
+    setQuestions(q);
+    setTopicMap(new Map(t.map(t => [t.id, t.name])));
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
   const rows: { question: Question; comment: any; topic: string }[] = [];
-  const topicMap = new Map(getTopics().map(t => [t.id, t.name]));
-
   questions.forEach(q => {
     (q.comments ?? []).forEach(c => {
       if (filter !== 'all' && c.status !== filter) return;
@@ -601,9 +652,9 @@ function AdminComments({ onRefresh }: { onRefresh: () => void }) {
               ))}
               <textarea value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Responder" className="w-full border border-border bg-background p-2 font-body text-sm min-h-[40px]" />
               <div className="flex gap-2">
-                <button onClick={() => { if (replyText.trim() && selectedThread) { addReply(selectedThread.questionId, selectedThread.commentId, { author: { username: 'admin', role: 'admin' }, text: replyText.trim() }); setReplyText(''); onRefresh(); } }} className="font-heading text-xs bg-primary text-primary-foreground px-3 py-1 border border-primary">Responder</button>
-                <button onClick={() => { if (selectedThread) { setCommentStatus(selectedThread.questionId, selectedThread.commentId, 'open'); onRefresh(); } }} className="font-heading text-xs border border-border px-3 py-1">Reabrir</button>
-                <button onClick={() => { if (selectedThread) { setCommentStatus(selectedThread.questionId, selectedThread.commentId, 'hidden'); onRefresh(); } }} className="font-heading text-xs text-destructive border border-destructive px-3 py-1">Ocultar</button>
+                <button onClick={async () => { if (replyText.trim() && selectedThread) { await addReply(selectedThread.questionId, selectedThread.commentId, { author: { username: 'admin', role: 'admin' }, text: replyText.trim() }); setReplyText(''); await loadData(); onRefresh(); } }} className="font-heading text-xs bg-primary text-primary-foreground px-3 py-1 border border-primary">Responder</button>
+                <button onClick={async () => { if (selectedThread) { await setCommentStatus(selectedThread.questionId, selectedThread.commentId, 'open'); await loadData(); onRefresh(); } }} className="font-heading text-xs border border-border px-3 py-1">Reabrir</button>
+                <button onClick={async () => { if (selectedThread) { await setCommentStatus(selectedThread.questionId, selectedThread.commentId, 'hidden'); await loadData(); onRefresh(); } }} className="font-heading text-xs text-destructive border border-destructive px-3 py-1">Ocultar</button>
               </div>
             </div>
           ) : <p className="font-body text-sm text-muted-foreground">Selecione um comentário.</p>}
@@ -617,10 +668,27 @@ function AdminNotebook() {
   const [selectedUser, setSelectedUser] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const students = getUsersByRole('student').sort((a, b) => a.username.localeCompare(b.username));
-  const questionsMap = new Map(loadQuestionBank().map(q => [q.id, q]));
+  const [students, setStudents] = useState<User[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
 
-  let items = selectedUser ? getNotebook(selectedUser) : [];
+  useEffect(() => {
+    Promise.all([getUsersByRole('student'), loadQuestionBank()]).then(([s, q]) => {
+      setStudents(s.sort((a, b) => a.username.localeCompare(b.username)));
+      setQuestions(q);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (selectedUser) {
+      getNotebook(selectedUser).then(setNotebookItems);
+    } else {
+      setNotebookItems([]);
+    }
+  }, [selectedUser]);
+
+  const questionsMap = new Map(questions.map(q => [q.id, q]));
+  let items = notebookItems;
   if (statusFilter !== 'all') items = items.filter(i => i.status === statusFilter);
   if (search) {
     const needle = search.toLowerCase();
@@ -666,18 +734,26 @@ function AdminReports({ onRefresh }: { onRefresh: () => void }) {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { user } = useAuth();
+  const [reports, setReports] = useState<Report[]>([]);
 
-  let reports = getReports();
-  if (statusFilter !== 'all') reports = reports.filter(r => r.status === statusFilter);
+  const loadData = useCallback(async () => {
+    setReports(await getReports());
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  let filtered = reports;
+  if (statusFilter !== 'all') filtered = filtered.filter(r => r.status === statusFilter);
   if (search) {
     const needle = search.toLowerCase();
-    reports = reports.filter(r => `${r.type} ${r.message} ${r.questionMeta?.preview ?? ''} ${r.createdBy?.username ?? ''}`.toLowerCase().includes(needle));
+    filtered = filtered.filter(r => `${r.type} ${r.message} ${r.questionMeta?.preview ?? ''} ${r.createdBy?.username ?? ''}`.toLowerCase().includes(needle));
   }
 
-  const selected = reports.find(r => r.id === selectedId);
+  const selected = filtered.find(r => r.id === selectedId);
 
-  const handleStatus = (id: string, status: string) => {
-    setReportStatus(id, status, '', { username: user?.username ?? 'admin', role: 'admin' });
+  const handleStatus = async (id: string, status: string) => {
+    await setReportStatus(id, status, '', { username: user?.username ?? 'admin', role: 'admin' });
+    await loadData();
     onRefresh();
   };
 
@@ -701,7 +777,7 @@ function AdminReports({ onRefresh }: { onRefresh: () => void }) {
               {['Questão','Tipo','Usuário','Status','Ações'].map(h => <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>)}
             </tr></thead>
             <tbody>
-              {reports.map(r => (
+              {filtered.map(r => (
                 <tr key={r.id} className={selectedId === r.id ? 'bg-primary/5' : ''}>
                   <td className="p-2 border border-border font-body text-xs">{(r.questionMeta?.preview ?? '').slice(0, 50)}</td>
                   <td className="p-2 border border-border font-heading text-xs">{r.type}</td>
@@ -742,7 +818,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
       <h2 className="font-heading text-sm font-bold uppercase">Importar</h2>
       <div className="border border-border bg-card p-4">
         <p className="font-body text-sm text-muted-foreground">
-          Funcionalidade de importação JSON/CSV/PDF será migrada em breve. 
+          Funcionalidade de importação JSON/CSV/PDF será implementada em breve.
           Para importar questões agora, use o painel de questões para cadastrar manualmente.
         </p>
       </div>
