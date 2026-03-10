@@ -70,11 +70,12 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
 
   useEffect(() => {
     async function load() {
-      const [attempts, topics, subjects, questions] = await Promise.all([
+      const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getTopics({ activeOnly: true }),
         getSubjects({ activeOnly: true }),
         loadQuestionBank(),
+        externalUserId ? Promise.resolve([]) : getAllowedSubjectSlugs(userId),
       ]);
 
       const topicMap = new Map(topics.map(t => [t.id, t]));
