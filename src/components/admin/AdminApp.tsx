@@ -946,7 +946,10 @@ function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
         <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome do tópico" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
         <div className="grid grid-cols-3 gap-2">
           <select value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
-            {Object.entries(SUBJECTS_MAP).map(([c, l]) => <option key={c} value={c}>{l}</option>)}
+            {subjectsList.length > 0
+              ? subjectsList.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)
+              : Object.entries(SUBJECTS_MAP).map(([c, l]) => <option key={c} value={c}>{l}</option>)
+            }
           </select>
           <select value={form.grade} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
             <option value="all">Todas</option>
