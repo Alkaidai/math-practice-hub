@@ -74,7 +74,7 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
 
       // If still nothing, show all topics with questions
       if (weakTopicIds.length === 0) {
-        weakTopicIds = topics.filter(t => (publishedByTopic.get(t.id) ?? 0) > 0).map(t => t.id).slice(0, 5);
+        weakTopicIds = filteredTopics.filter(t => (publishedByTopic.get(t.id) ?? 0) > 0).map(t => t.id).slice(0, 5);
       }
 
       const progress: TopicProgress[] = weakTopicIds.map(tid => {
