@@ -226,6 +226,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       )}
 
+      {/* Knowledge Map */}
+      <KnowledgeMap />
+
       {/* Achievements */}
       <Achievements />
     </div>
