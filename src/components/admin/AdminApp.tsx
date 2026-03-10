@@ -1055,9 +1055,11 @@ function AdminUsers({ onRefresh }: { onRefresh: () => void }) {
   useEffect(() => {
     if (selectedId) {
       loadStudentDetail(selectedId);
+      getUserSubjectAccess(selectedId).then(setUserSubjectSlugs);
     } else {
       setDetailData(null);
       setShowPanel(false);
+      setUserSubjectSlugs([]);
     }
   }, [selectedId, loadStudentDetail]);
 
