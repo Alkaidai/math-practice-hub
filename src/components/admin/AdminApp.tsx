@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
-import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic } from '../../lib/storage';
+import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem } from '../../lib/types';
 
-type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'users' | 'comments' | 'notebook' | 'reports' | 'import';
+type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'ranking' | 'topic-stats' | 'settings';
 
 export function AdminApp() {
   const { user, logout } = useAuth();
@@ -42,8 +42,9 @@ export function AdminApp() {
   const menuGroups = [
     { label: null, items: [{ id: 'dashboard' as Panel, label: 'Painel' }] },
     { label: 'Conteúdo', items: [{ id: 'questions' as Panel, label: 'Questões' }, { id: 'lessons' as Panel, label: 'Aulas' }, { id: 'cadastros' as Panel, label: 'Tópicos' }, { id: 'import' as Panel, label: 'Importar' }] },
+    { label: 'Análise', items: [{ id: 'ranking' as Panel, label: '🏆 Ranking' }, { id: 'topic-stats' as Panel, label: '📊 Tópicos' }] },
     { label: 'Pessoas', items: [{ id: 'users' as Panel, label: 'Usuários' }, { id: 'comments' as Panel, label: 'Comentários' }, { id: 'notebook' as Panel, label: 'Caderno' }] },
-    { label: 'Qualidade', items: [{ id: 'reports' as Panel, label: 'Erros reportados' }] },
+    { label: 'Sistema', items: [{ id: 'reports' as Panel, label: 'Erros' }, { id: 'settings' as Panel, label: '⚙️ Config' }] },
   ];
 
   return (
@@ -77,6 +78,9 @@ export function AdminApp() {
         {panel === 'notebook' && <AdminNotebook key={refreshKey} />}
         {panel === 'reports' && <AdminReports key={refreshKey} onRefresh={forceRefresh} />}
         {panel === 'import' && <AdminImport onRefresh={forceRefresh} />}
+        {panel === 'ranking' && <AdminRanking key={refreshKey} />}
+        {panel === 'topic-stats' && <AdminTopicStats key={refreshKey} />}
+        {panel === 'settings' && <AdminSettings key={refreshKey} />}
       </main>
     </div>
   );
@@ -109,6 +113,8 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
     </div>
   );
 }
+
+// ============ ADMIN DASHBOARD ============
 
 function AdminDashboard() {
   const [data, setData] = useState<{ questions: Question[]; attempts: Attempt[]; users: User[] } | null>(null);
@@ -169,6 +175,248 @@ function AdminDashboard() {
     </div>
   );
 }
+
+// ============ ADMIN RANKING ============
+
+function AdminRanking() {
+  const [ranking, setRanking] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [diagnostics, setDiagnostics] = useState<any[]>([]);
+
+  useEffect(() => {
+    Promise.all([getRanking(), getAllDiagnosticResults()]).then(([r, d]) => {
+      setRanking(r);
+      setDiagnostics(d);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-heading text-sm font-bold uppercase">🏆 Ranking de Alunos</h2>
+
+      {ranking.length === 0 ? (
+        <p className="font-body text-sm text-muted-foreground">Nenhum dado de ranking ainda.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-muted">
+                {['#', 'Aluno', 'Respondidas', 'Acertos', '% Acerto', 'Sequência'].map(h => (
+                  <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ranking.map((r, i) => (
+                <tr key={r.userId} className="hover:bg-muted/50">
+                  <td className="p-2 border border-border font-heading text-xs font-bold">
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                  </td>
+                  <td className="p-2 border border-border font-heading text-xs font-bold">{r.username}</td>
+                  <td className="p-2 border border-border font-heading text-xs">{r.total}</td>
+                  <td className="p-2 border border-border font-heading text-xs">{r.correct}</td>
+                  <td className="p-2 border border-border font-heading text-xs">{r.rate}%</td>
+                  <td className="p-2 border border-border font-heading text-xs">{r.streak} dia{r.streak === 1 ? '' : 's'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {diagnostics.length > 0 && (
+        <div>
+          <h3 className="font-heading text-sm font-bold uppercase mt-4 mb-2">📊 Diagnósticos Realizados</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-muted">
+                  {['Aluno', 'Data', 'Questões', 'Acertos', '% Acerto', 'Nível', 'Fraquezas'].map(h => (
+                    <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {diagnostics.map((d: any) => (
+                  <tr key={d.id} className="hover:bg-muted/50">
+                    <td className="p-2 border border-border font-heading text-xs font-bold">{d.user_id}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{formatDate(d.completed_at)}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{d.total_questions}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{d.correct_answers}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{d.accuracy_rate}%</td>
+                    <td className="p-2 border border-border font-heading text-xs">{(d.recommended_plan as any)?.level ?? '-'}</td>
+                    <td className="p-2 border border-border font-body text-xs">{(d.weaknesses as any[])?.join(', ') || 'Nenhuma'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============ ADMIN TOPIC STATS ============
+
+function AdminTopicStats() {
+  const [data, setData] = useState<{ topics: Topic[]; attempts: Attempt[]; questions: Question[] } | null>(null);
+
+  useEffect(() => {
+    Promise.all([getTopics(), getAttempts(), loadQuestionBank()]).then(([topics, attempts, questions]) => {
+      setData({ topics, attempts, questions });
+    });
+  }, []);
+
+  if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
+
+  const { topics, attempts, questions } = data;
+  const questionMap = new Map(questions.map(q => [q.id, q]));
+
+  // Aggregate by topic
+  const stats = new Map<string, { total: number; correct: number; errors: number }>();
+  attempts.forEach(a => {
+    const q = questionMap.get(a.questionId);
+    if (!q?.topicId) return;
+    const prev = stats.get(q.topicId) ?? { total: 0, correct: 0, errors: 0 };
+    prev.total += 1;
+    if (a.isCorrect) prev.correct += 1;
+    else prev.errors += 1;
+    stats.set(q.topicId, prev);
+  });
+
+  const topicStats = topics.map(t => {
+    const s = stats.get(t.id) ?? { total: 0, correct: 0, errors: 0 };
+    return {
+      ...t,
+      total: s.total,
+      correct: s.correct,
+      errors: s.errors,
+      rate: s.total ? Math.round((s.correct / s.total) * 100) : 0,
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
+
+      {topicStats.length === 0 ? (
+        <p className="font-body text-sm text-muted-foreground">Nenhum tópico encontrado.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="Total tópicos" value={topicStats.length} />
+            <StatCard label="Com respostas" value={topicStats.filter(t => t.total > 0).length} />
+            <StatCard label="Melhor tópico" value={topicStats.filter(t => t.total > 0).sort((a, b) => b.rate - a.rate)[0]?.name ?? '-'} />
+            <StatCard label="Pior tópico" value={topicStats.filter(t => t.total > 0).sort((a, b) => a.rate - b.rate)[0]?.name ?? '-'} />
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-muted">
+                  {['Tópico', 'Disciplina', 'Respostas', 'Acertos', 'Erros', '% Acerto', 'Barra'].map(h => (
+                    <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {topicStats.map(t => (
+                  <tr key={t.id} className="hover:bg-muted/50">
+                    <td className="p-2 border border-border font-heading text-xs font-bold">{t.name}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{subjectLabel(t.subject)}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{t.total}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{t.correct}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{t.errors}</td>
+                    <td className="p-2 border border-border font-heading text-xs font-bold">{t.rate}%</td>
+                    <td className="p-2 border border-border">
+                      <div className="w-full bg-muted h-3 relative">
+                        <div className="h-3 bg-primary transition-all" style={{ width: `${t.rate}%` }} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============ ADMIN SETTINGS ============
+
+function AdminSettings() {
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState('');
+  const [questionCount, setQuestionCount] = useState(0);
+
+  useEffect(() => {
+    Promise.all([getAllAppSettings(), loadQuestionBank()]).then(([s, q]) => {
+      setSettings(s);
+      setQuestionCount(q.filter(x => x.status !== 'draft').length);
+      setLoading(false);
+    });
+  }, []);
+
+  const toggle = async (key: string) => {
+    const current = settings[key] === 'true';
+    const newVal = current ? 'false' : 'true';
+    await setAppSetting(key, newVal);
+    setSettings(prev => ({ ...prev, [key]: newVal }));
+    setFeedback(`Configuração "${key}" alterada.`);
+    setTimeout(() => setFeedback(''), 2000);
+  };
+
+  if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
+
+  const toggleItems = [
+    { key: 'ranking_visible', label: 'Ranking visível para alunos', desc: 'Controla se os alunos podem ver o ranking na área deles.' },
+    { key: 'diagnostic_enabled', label: 'Diagnóstico inicial ativado', desc: 'Habilita o diagnóstico automático para novos alunos.' },
+    { key: 'diagnostic_mandatory', label: 'Diagnóstico obrigatório', desc: 'Se ativado, novos alunos devem completar o diagnóstico antes de acessar o sistema.' },
+    { key: 'diagnostic_results_visible', label: 'Resultado do diagnóstico visível para aluno', desc: 'Controla se o aluno pode ver o resultado do seu diagnóstico.' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-heading text-sm font-bold uppercase">⚙️ Configurações do Sistema</h2>
+
+      {questionCount < 20 && (
+        <div className="border border-destructive bg-destructive/5 p-3">
+          <p className="font-heading text-xs text-destructive font-bold">
+            ⚠️ Apenas {questionCount} questões publicadas. O diagnóstico precisa de pelo menos 20 questões.
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {toggleItems.map(item => (
+          <div key={item.key} className="border border-border bg-card p-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-heading text-sm font-bold text-foreground">{item.label}</p>
+              <p className="font-body text-xs text-muted-foreground">{item.desc}</p>
+            </div>
+            <button
+              onClick={() => toggle(item.key)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${settings[item.key] === 'true' ? 'bg-primary' : 'bg-muted'}`}
+            >
+              <span className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${settings[item.key] === 'true' ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
+    </div>
+  );
+}
+
+// ============ EXISTING COMPONENTS (unchanged logic) ============
 
 function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -900,14 +1148,12 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         const correctRaw = get(colMap.correta).toUpperCase().trim();
         const correctIndex = ['A', 'B', 'C', 'D', 'E'].indexOf(correctRaw);
 
-        // Resolve topic by name
         const topicName = get(colMap.topico);
         const matchedTopic = topics.find(t =>
           t.name.toLowerCase() === topicName.toLowerCase() ||
           t.label.toLowerCase() === topicName.toLowerCase()
         );
 
-        // Resolve grade, subject, difficulty from CSV or defaults
         const gradeRaw = get(colMap.serie);
         const grade = GRADES.includes(gradeRaw as any) ? gradeRaw : defaultGrade;
 
@@ -974,9 +1220,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
     }
   };
 
-  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação
-"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4"
-"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3"`;
+  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação\n"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4"\n"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3"`;
 
   return (
     <div className="space-y-4">
@@ -1028,31 +1272,18 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
           </div>
         </div>
 
-        <div>
-          <input type="file" accept=".csv" onChange={handleFile} className="font-body text-sm" />
-        </div>
-
-        {feedback && <p className={`font-heading text-xs ${feedback.startsWith('✅') ? 'text-primary' : 'text-muted-foreground'}`}>{feedback}</p>}
+        <input type="file" accept=".csv" onChange={handleFile} className="font-heading text-xs" />
       </div>
+
+      {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
 
       {preview.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-heading text-xs font-bold">Prévia ({preview.filter(p => p.valid).length} válidas de {preview.length})</h3>
-            <button
-              onClick={handleImport}
-              disabled={importing || !preview.some(p => p.valid)}
-              className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary disabled:opacity-50"
-            >
-              {importing ? 'Importando...' : `Importar ${preview.filter(p => p.valid).length} questões`}
-            </button>
-          </div>
-
-          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+          <div className="overflow-x-auto max-h-96">
             <table className="w-full text-sm border-collapse">
-              <thead className="sticky top-0">
-                <tr className="bg-muted">
-                  {['#', 'Status', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dificuldade'].map(h => (
+              <thead>
+                <tr className="bg-muted sticky top-0">
+                  {['#', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dific.', 'Status'].map(h => (
                     <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
                   ))}
                 </tr>
@@ -1061,18 +1292,26 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
                 {preview.map((p, i) => (
                   <tr key={i} className={p.valid ? '' : 'bg-destructive/10'}>
                     <td className="p-2 border border-border font-heading text-xs">{i + 1}</td>
-                    <td className="p-2 border border-border font-heading text-xs">{p.valid ? '✅' : '❌'}</td>
-                    <td className="p-2 border border-border font-body text-xs max-w-[300px] truncate">{p.statement || '(vazio)'}</td>
-                    <td className="p-2 border border-border font-heading text-xs">{p.correctLetter || '?'}</td>
-                    <td className="p-2 border border-border font-heading text-xs">{p.topicId ? topics.find(t => t.id === p.topicId)?.name : p.topicName || '-'}</td>
+                    <td className="p-2 border border-border font-body text-xs">{p.statement.slice(0, 60)}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{p.correctLetter || '⚠️'}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{p.topicId ? '✅' : (p.topicName || '—')}</td>
                     <td className="p-2 border border-border font-heading text-xs">{p.grade}</td>
-                    <td className="p-2 border border-border font-heading text-xs">{SUBJECTS_MAP[p.subject] ?? p.subject}</td>
-                    <td className="p-2 border border-border font-heading text-xs">{DIFFICULTIES_MAP[p.difficulty] ?? p.difficulty}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{subjectLabel(p.subject)}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(p.difficulty)}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{p.valid ? '✅' : '❌'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          <button
+            onClick={handleImport}
+            disabled={importing || !preview.some(p => p.valid)}
+            className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary disabled:opacity-40"
+          >
+            {importing ? 'Importando...' : `Importar ${preview.filter(p => p.valid).length} questões válidas`}
+          </button>
         </div>
       )}
     </div>

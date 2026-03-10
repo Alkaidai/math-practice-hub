@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       attempts: {
         Row: {
           answered_at: string
@@ -21,6 +39,7 @@ export type Database = {
           is_correct: boolean
           question_id: string
           selected_index: number
+          topic_id: string | null
           user_id: string
         }
         Insert: {
@@ -29,6 +48,7 @@ export type Database = {
           is_correct?: boolean
           question_id: string
           selected_index?: number
+          topic_id?: string | null
           user_id: string
         }
         Update: {
@@ -37,6 +57,7 @@ export type Database = {
           is_correct?: boolean
           question_id?: string
           selected_index?: number
+          topic_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -105,6 +126,45 @@ export type Database = {
           last_filters?: Json
           streak?: number
           user_id?: string
+        }
+        Relationships: []
+      }
+      diagnostic_results: {
+        Row: {
+          accuracy_rate: number
+          completed_at: string
+          correct_answers: number
+          id: number
+          recommended_plan: Json
+          strengths: Json
+          topic_breakdown: Json
+          total_questions: number
+          user_id: string
+          weaknesses: Json
+        }
+        Insert: {
+          accuracy_rate?: number
+          completed_at?: string
+          correct_answers?: number
+          id?: never
+          recommended_plan?: Json
+          strengths?: Json
+          topic_breakdown?: Json
+          total_questions?: number
+          user_id: string
+          weaknesses?: Json
+        }
+        Update: {
+          accuracy_rate?: number
+          completed_at?: string
+          correct_answers?: number
+          id?: never
+          recommended_plan?: Json
+          strengths?: Json
+          topic_breakdown?: Json
+          total_questions?: number
+          user_id?: string
+          weaknesses?: Json
         }
         Relationships: []
       }

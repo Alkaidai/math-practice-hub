@@ -75,7 +75,7 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
     const isCorrect = selectedIndex === q.correctIndex;
     setAnswers(prev => ({ ...prev, [q.id]: { selectedIndex, isCorrect } }));
     setActiveTab(prev => ({ ...prev, [q.id]: 'gabarito' }));
-    await addAttempt({ userId: user.username, questionId: q.id, selectedIndex, isCorrect, answeredAt: new Date().toISOString() });
+    await addAttempt({ userId: user.username, questionId: q.id, selectedIndex, isCorrect, answeredAt: new Date().toISOString(), topicId: q.topicId });
     if (!isCorrect) {
       const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
       setNotebookItems(prev => {
