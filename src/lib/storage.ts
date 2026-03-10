@@ -278,6 +278,8 @@ export async function loadQuestionBank(): Promise<Question[]> {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     comments: commentsMap.get(row.id) ?? [],
+    imageUrl: row.image_url ?? null,
+    imageAlt: row.image_alt ?? null,
   }));
 }
 
@@ -295,6 +297,8 @@ export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
     status: q.status,
     created_at: q.createdAt,
     updated_at: q.updatedAt,
+    image_url: q.imageUrl ?? null,
+    image_alt: q.imageAlt ?? null,
   }));
 
   await supabase.from('questions').upsert(rows);
@@ -315,6 +319,8 @@ export async function saveQuestionsBulk(questions: Partial<Question>[]): Promise
     status: q.status ?? 'published',
     created_at: q.createdAt ?? nowIso(),
     updated_at: q.updatedAt ?? nowIso(),
+    image_url: q.imageUrl ?? null,
+    image_alt: q.imageAlt ?? null,
   }));
 
   const { data } = await supabase.from('questions').upsert(rows).select();
@@ -324,6 +330,7 @@ export async function saveQuestionsBulk(questions: Partial<Question>[]): Promise
     options: Array.isArray(row.options) ? row.options : JSON.parse(row.options ?? '[]'),
     correctIndex: row.correct_index, explanation: row.explanation, status: row.status,
     createdAt: row.created_at, updatedAt: row.updated_at, comments: [],
+    imageUrl: row.image_url ?? null, imageAlt: row.image_alt ?? null,
   }));
 }
 
@@ -339,6 +346,7 @@ export async function getQuestionById(id: string): Promise<Question | null> {
     correctIndex: row.correct_index, explanation: row.explanation, status: row.status,
     createdAt: row.created_at, updatedAt: row.updated_at,
     comments: commentsMap.get(row.id) ?? [],
+    imageUrl: row.image_url ?? null, imageAlt: row.image_alt ?? null,
   };
 }
 

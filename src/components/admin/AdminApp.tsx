@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
 import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess } from '../../lib/storage';
@@ -15,7 +15,7 @@ import {
 import {
   LayoutDashboard, FileText, BookOpen, GraduationCap, Folder, Upload, Download,
   Trophy, BarChart3, Users, MessageSquare, Notebook, AlertTriangle, Settings,
-  ArrowLeft, LogOut,
+  ArrowLeft, LogOut, ImageIcon, X, Trash2,
 } from 'lucide-react';
 
 type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
@@ -654,10 +654,13 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
   const [form, setForm] = useState({
     grade: '7EF', subject: '', difficulty: 'easy', topicId: '', status: 'published',
     statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '',
+    imageUrl: '' as string | null, imageAlt: '',
   });
   const [feedback, setFeedback] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
     const [t, q, s] = await Promise.all([getTopics({ activeOnly: true }), loadQuestionBank(), getSubjects({ activeOnly: true })]);
@@ -672,8 +675,32 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
 
   const resetForm = () => {
     setEditingId(null);
-    setForm({ grade: '7EF', subject: 'math', difficulty: 'easy', topicId: topics[0]?.id ?? '', status: 'published', statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '' });
+    setForm({ grade: '7EF', subject: 'math', difficulty: 'easy', topicId: topics[0]?.id ?? '', status: 'published', statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '', imageUrl: null, imageAlt: '' });
     setFeedback('');
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() ?? 'png';
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from('question-images').upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('question-images').getPublicUrl(path);
+      setForm(f => ({ ...f, imageUrl: urlData.publicUrl }));
+      setFeedback('Imagem carregada.');
+    } catch (err: any) {
+      setFeedback(`❌ Erro no upload: ${err.message}`);
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveImage = async () => {
+    setForm(f => ({ ...f, imageUrl: null, imageAlt: '' }));
+    setFeedback('Imagem removida.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -688,6 +715,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
       grade: form.grade, subject: form.subject, difficulty: form.difficulty, topicId: form.topicId,
       statement: form.statement, options: form.options, correctIndex,
       explanation: form.explanation, status: form.status,
+      imageUrl: form.imageUrl || null, imageAlt: form.imageAlt || null,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: [],
     };
 
@@ -713,6 +741,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
       options: [...q.options, '', '', '', '', ''].slice(0, 5),
       correctLetter: ['A','B','C','D','E'][q.correctIndex] ?? '',
       explanation: q.explanation,
+      imageUrl: q.imageUrl ?? null, imageAlt: q.imageAlt ?? '',
     });
   };
 
@@ -821,6 +850,30 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
           </select>
           <textarea value={form.explanation} onChange={e => setForm(f => ({ ...f, explanation: e.target.value }))} placeholder="Explicação" className="flex-1 border border-border bg-background p-2 font-body text-sm min-h-[40px]" required />
         </div>
+        {/* Image upload */}
+        <div className="border border-dashed border-border rounded-lg p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="font-heading text-xs font-bold">Imagem da questão (opcional)</span>
+          </div>
+          {form.imageUrl ? (
+            <div className="flex items-start gap-3">
+              <img src={form.imageUrl} alt={form.imageAlt || 'Preview'} className="max-h-32 rounded-lg border border-border object-contain" />
+              <div className="flex-1 space-y-1">
+                <input value={form.imageAlt} onChange={e => setForm(f => ({ ...f, imageAlt: e.target.value }))} placeholder="Texto alternativo (acessibilidade)" className="w-full border border-border bg-background px-2 py-1 font-body text-xs" />
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Substituir</button>
+                  <button type="button" onClick={handleRemoveImage} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5 flex items-center gap-1"><Trash2 className="h-3 w-3" />Remover</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="font-heading text-xs border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50">
+              {uploading ? 'Carregando...' : '+ Adicionar imagem'}
+            </button>
+          )}
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+        </div>
         <button type="submit" className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary">Salvar questão</button>
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
@@ -835,7 +888,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
                   onCheckedChange={toggleSelectAll}
                 />
               </th>
-              {['Série','Disciplina','Dificuldade','Tópico','Enunciado','Status','Ações'].map(h => (
+              {['Série','Disciplina','Dificuldade','Tópico','Enunciado','🖼️','Status','Ações'].map(h => (
                 <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
               ))}
             </tr>
@@ -854,6 +907,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
                 <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
                 <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
                 <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
+                <td className="p-2 border border-border font-heading text-xs text-center">{q.imageUrl ? '🖼️' : '—'}</td>
                 <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
                 <td className="p-2 border border-border">
                   <div className="flex gap-1">
@@ -1783,7 +1837,7 @@ function AdminExport() {
       const [questions, topics] = await Promise.all([loadQuestionBank(), getTopics({})]);
       const topicMap = new Map(topics.map(t => [t.id, t.name]));
 
-      const headers = ['pergunta', 'a', 'b', 'c', 'd', 'e', 'correta', 'topico', 'explicacao', 'serie', 'disciplina', 'dificuldade', 'status'];
+      const headers = ['pergunta', 'a', 'b', 'c', 'd', 'e', 'correta', 'topico', 'explicacao', 'serie', 'disciplina', 'dificuldade', 'status', 'image_url', 'image_alt'];
       const escapeCSV = (val: string) => {
         if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`;
         return val;
@@ -1802,6 +1856,8 @@ function AdminExport() {
           subjectLabel(q.subject),
           difficultyLabel(q.difficulty),
           statusLabel(q.status),
+          escapeCSV(q.imageUrl ?? ''),
+          escapeCSV(q.imageAlt ?? ''),
         ].join(',');
       });
 
@@ -1914,6 +1970,8 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         serie: header.findIndex(h => ['série', 'serie', 'grade', 'ano'].includes(h)),
         disciplina: header.findIndex(h => ['disciplina', 'matéria', 'materia', 'subject'].includes(h)),
         dificuldade: header.findIndex(h => ['dificuldade', 'difficulty', 'nivel', 'nível'].includes(h)),
+        imageUrl: header.findIndex(h => ['image_url', 'imagem', 'imagem_url', 'url_imagem'].includes(h)),
+        imageAlt: header.findIndex(h => ['image_alt', 'alt_imagem', 'texto_alternativo', 'imagem_alt'].includes(h)),
       };
 
       if (colMap.pergunta === -1) {
@@ -1941,6 +1999,10 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         const diffRaw = get(colMap.dificuldade);
         const difficulty = DIFFICULTIES_REVERSE[diffRaw] ?? (Object.keys(DIFFICULTIES_MAP).includes(diffRaw) ? diffRaw : defaultDifficulty);
 
+        const imageUrl = get(colMap.imageUrl) || null;
+        const imageAlt = get(colMap.imageAlt) || null;
+        const imageValid = !imageUrl || /^https?:\/\/.+/i.test(imageUrl);
+
         return {
           statement: get(colMap.pergunta),
           options: [get(colMap.altA), get(colMap.altB), get(colMap.altC), get(colMap.altD), get(colMap.altE)],
@@ -1952,7 +2014,10 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
           grade,
           subject,
           difficulty,
-          valid: !!get(colMap.pergunta) && correctIndex >= 0,
+          imageUrl,
+          imageAlt,
+          imageValid,
+          valid: !!get(colMap.pergunta) && correctIndex >= 0 && imageValid,
         };
       });
 
@@ -1984,6 +2049,8 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         comments: [],
+        imageUrl: p.imageUrl ?? null,
+        imageAlt: p.imageAlt ?? null,
       }));
 
       await saveQuestionsBulk(questions);
@@ -1998,7 +2065,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
     }
   };
 
-  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação\n"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4"\n"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3"`;
+  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação,image_url,image_alt\n"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4","",""\n"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3","https://exemplo.com/raiz.png","Diagrama de raiz quadrada"`;
 
   return (
     <div className="space-y-4">
@@ -2009,7 +2076,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
           <h3 className="font-heading text-xs font-bold mb-1">Formato esperado do CSV</h3>
           <p className="font-body text-xs text-muted-foreground mb-2">
             Colunas obrigatórias: <strong>pergunta, a, b, c, d, e, correta</strong>.
-            Opcionais: <strong>tópico, explicação, série, disciplina, dificuldade</strong>.
+            Opcionais: <strong>tópico, explicação, série, disciplina, dificuldade, image_url, image_alt</strong>.
           </p>
           <details className="text-xs">
             <summary className="font-heading cursor-pointer text-primary">Ver exemplo de CSV</summary>
@@ -2061,7 +2128,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-muted sticky top-0">
-                  {['#', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dific.', 'Status'].map(h => (
+                  {['#', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dific.', '🖼️', 'Status'].map(h => (
                     <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
                   ))}
                 </tr>
@@ -2076,6 +2143,9 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
                     <td className="p-2 border border-border font-heading text-xs">{p.grade}</td>
                     <td className="p-2 border border-border font-heading text-xs">{subjectLabel(p.subject)}</td>
                     <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(p.difficulty)}</td>
+                    <td className="p-2 border border-border font-heading text-xs text-center" title={p.imageUrl || ''}>
+                      {p.imageUrl ? (p.imageValid !== false ? '🖼️' : '⚠️') : '—'}
+                    </td>
                     <td className="p-2 border border-border font-heading text-xs">{p.valid ? '✅' : '❌'}</td>
                   </tr>
                 ))}
