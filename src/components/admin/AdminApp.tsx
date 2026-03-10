@@ -6,7 +6,7 @@ import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCod
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem } from '../../lib/types';
 
-type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'ranking' | 'topic-stats' | 'settings';
+type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
 
 export function AdminApp() {
   const { user, logout } = useAuth();
