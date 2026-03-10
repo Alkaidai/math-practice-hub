@@ -967,7 +967,10 @@ function AdminTopics({ onRefresh }: { onRefresh: () => void }) {
       <div className="flex gap-2">
         <select value={filter.subject} onChange={e => setFilter(f => ({ ...f, subject: e.target.value }))} className="border border-border bg-card px-2 py-1 font-heading text-xs">
           <option value="all">Todas disciplinas</option>
-          {Object.entries(SUBJECTS_MAP).map(([c, l]) => <option key={c} value={c}>{l}</option>)}
+          {subjectsList.length > 0
+            ? subjectsList.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)
+            : Object.entries(SUBJECTS_MAP).map(([c, l]) => <option key={c} value={c}>{l}</option>)
+          }
         </select>
         <select value={filter.status} onChange={e => setFilter(f => ({ ...f, status: e.target.value }))} className="border border-border bg-card px-2 py-1 font-heading text-xs">
           <option value="all">Todos status</option>
