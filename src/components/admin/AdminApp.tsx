@@ -1970,6 +1970,8 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         serie: header.findIndex(h => ['série', 'serie', 'grade', 'ano'].includes(h)),
         disciplina: header.findIndex(h => ['disciplina', 'matéria', 'materia', 'subject'].includes(h)),
         dificuldade: header.findIndex(h => ['dificuldade', 'difficulty', 'nivel', 'nível'].includes(h)),
+        imageUrl: header.findIndex(h => ['image_url', 'imagem', 'imagem_url', 'url_imagem'].includes(h)),
+        imageAlt: header.findIndex(h => ['image_alt', 'alt_imagem', 'texto_alternativo', 'imagem_alt'].includes(h)),
       };
 
       if (colMap.pergunta === -1) {
@@ -1997,6 +1999,10 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         const diffRaw = get(colMap.dificuldade);
         const difficulty = DIFFICULTIES_REVERSE[diffRaw] ?? (Object.keys(DIFFICULTIES_MAP).includes(diffRaw) ? diffRaw : defaultDifficulty);
 
+        const imageUrl = get(colMap.imageUrl) || null;
+        const imageAlt = get(colMap.imageAlt) || null;
+        const imageValid = !imageUrl || /^https?:\/\/.+/i.test(imageUrl);
+
         return {
           statement: get(colMap.pergunta),
           options: [get(colMap.altA), get(colMap.altB), get(colMap.altC), get(colMap.altD), get(colMap.altE)],
@@ -2008,7 +2014,10 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
           grade,
           subject,
           difficulty,
-          valid: !!get(colMap.pergunta) && correctIndex >= 0,
+          imageUrl,
+          imageAlt,
+          imageValid,
+          valid: !!get(colMap.pergunta) && correctIndex >= 0 && imageValid,
         };
       });
 
