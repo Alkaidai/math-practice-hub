@@ -8,6 +8,7 @@ import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
 import { StudyTrail } from './StudyTrail';
+import { KnowledgeMap } from './KnowledgeMap';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
 
 interface WeakTopic {
