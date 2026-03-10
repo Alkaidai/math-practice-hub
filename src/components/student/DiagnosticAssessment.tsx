@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { loadQuestionBank, getTopics, addAttempt, saveDiagnosticResult, getDiagnosticResult, getAppSetting } from '../../lib/storage';
+import { loadQuestionBank, getTopics, addAttempt, saveDiagnosticResult, getDiagnosticResult, getAppSetting, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, optionLetter } from '../../lib/ui-utils';
 import type { Question, Topic } from '../../lib/types';
 
