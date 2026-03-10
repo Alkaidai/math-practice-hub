@@ -78,7 +78,9 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
         externalUserId ? Promise.resolve([]) : getAllowedSubjectSlugs(userId),
       ]);
 
-      const topicMap = new Map(topics.map(t => [t.id, t]));
+      // Filter topics by allowed subjects (skip for admin viewing)
+      const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
+      const topicMap = new Map(filteredTopics.map(t => [t.id, t]));
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
 
       // Compute stats per topic from attempts
