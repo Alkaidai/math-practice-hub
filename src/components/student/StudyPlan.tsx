@@ -35,7 +35,7 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
 
       const topicMap = new Map(filteredTopics.map(t => [t.id, t.name]));
       const publishedByTopic = new Map<string, number>();
-      questions.filter(q => q.status !== 'draft').forEach(q => {
+      filteredQuestions.filter(q => q.status !== 'draft').forEach(q => {
         if (q.topicId) publishedByTopic.set(q.topicId, (publishedByTopic.get(q.topicId) ?? 0) + 1);
       });
 
