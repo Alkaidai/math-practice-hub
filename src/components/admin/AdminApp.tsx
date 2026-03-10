@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
-import { loadQuestionBank, saveQuestionBank, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic } from '../../lib/storage';
+import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
-import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
+import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem } from '../../lib/types';
 
 type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'users' | 'comments' | 'notebook' | 'reports' | 'import';
