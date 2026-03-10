@@ -73,6 +73,7 @@ export function AdminApp() {
 
         {panel === 'dashboard' && <AdminDashboard key={refreshKey} />}
         {panel === 'questions' && <AdminQuestions key={refreshKey} onRefresh={forceRefresh} />}
+        {panel === 'subjects' && <AdminSubjects key={refreshKey} onRefresh={forceRefresh} />}
         {panel === 'lessons' && <AdminLessons key={refreshKey} onRefresh={forceRefresh} />}
         {panel === 'cadastros' && <AdminTopics key={refreshKey} onRefresh={forceRefresh} />}
         {panel === 'users' && <AdminUsers key={refreshKey} onRefresh={forceRefresh} />}
