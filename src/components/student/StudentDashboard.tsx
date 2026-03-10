@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult } from '../../lib/storage';
+import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, formatDate } from '../../lib/ui-utils';
 import { Progress } from '../ui/progress';
 import { DiagnosticReport } from './DiagnosticReport';
