@@ -653,7 +653,7 @@ export async function saveStudentDashboardMeta(userId: string, patch: Partial<Da
 // ---- App Settings ----
 
 export async function getAppSetting(key: string): Promise<string> {
-  const { data } = await supabase.from('app_settings').select('value').eq('key', key).single();
+  const { data } = await supabase.from('app_settings').select('value').eq('key', key).maybeSingle();
   if (!data) return '';
   const val = (data as any).value;
   return typeof val === 'string' ? val : JSON.stringify(val);
