@@ -22,14 +22,18 @@ export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) =>
 
   useEffect(() => {
     async function load() {
-      const [diag, attempts, topics, questions] = await Promise.all([
+      const [diag, attempts, topics, questions, allowedSlugs] = await Promise.all([
         getDiagnosticResult(userId),
         getAttempts(userId),
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
+        getAllowedSubjectSlugs(userId),
       ]);
 
-      const topicMap = new Map(topics.map(t => [t.id, t.name]));
+      const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
+      const filteredQuestions = questions.filter(q => allowedSlugs.includes(q.subject));
+
+      const topicMap = new Map(filteredTopics.map(t => [t.id, t.name]));
       const publishedByTopic = new Map<string, number>();
       questions.filter(q => q.status !== 'draft').forEach(q => {
         if (q.topicId) publishedByTopic.set(q.topicId, (publishedByTopic.get(q.topicId) ?? 0) + 1);
