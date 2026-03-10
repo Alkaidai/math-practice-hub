@@ -27,6 +27,7 @@ export async function loadUsers(): Promise<User[]> {
     gradeLevel: row.grade_level,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
+    loginCount: row.login_count ?? 0,
   }));
 }
 
