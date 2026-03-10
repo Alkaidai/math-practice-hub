@@ -118,6 +118,15 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
     return allLessons.filter(l => l.grade === q.grade);
   };
 
+  const [page, setPage] = useState(0);
+  const [perPage, setPerPage] = useState(5);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(0); }, [filters]);
+
+  const totalPages = Math.max(1, Math.ceil(questions.length / perPage));
+  const pagedQuestions = questions.slice(page * perPage, (page + 1) * perPage);
+
   if (loading) return <p className="font-body text-muted-foreground">Carregando questões...</p>;
 
   return (
@@ -148,38 +157,66 @@ export function QuestionsList({ initialQuestionId }: { initialQuestionId?: strin
       {questions.length === 0 ? (
         <p className="font-body text-muted-foreground">Nenhuma questão encontrada com os filtros atuais.</p>
       ) : (
-        <div className="space-y-4">
-          {questions.map((q, idx) => (
-            <QuestionCard
-              key={q.id}
-              question={q}
-              index={idx}
-              answer={answers[q.id]}
-              activeTab={activeTab[q.id] ?? 'gabarito'}
-              notebookItem={notebookMap.get(q.id)}
-              topicLabel={topicMap.get(q.topicId) ?? '—'}
-              user={user}
-              lessons={lessonsForQuestion(q)}
-              onConfirm={(selectedIndex) => handleConfirm(q, selectedIndex)}
-              onTabChange={(tab) => setActiveTab(prev => ({ ...prev, [q.id]: tab }))}
-              onComment={(text) => handleComment(q.id, text)}
-              onReport={(type, message) => handleReport(q, type, message)}
-              onAddNotebook={async () => {
-                if (user) {
-                  const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
-                  setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
-                  setActiveTab(prev => ({ ...prev, [q.id]: 'caderno' }));
-                }
-              }}
-              onSaveNotebook={async (whatIErred, ruleInsight, mastered) => {
-                if (user) {
-                  const item = await upsertNotebookItem(user.username, q.id, { whatIErred, ruleInsight, ...(mastered ? { status: 'mastered' } : {}) });
-                  setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
-                }
-              }}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex items-center justify-between">
+            <p className="font-heading text-xs text-muted-foreground">
+              {questions.length} questão(ões) · Página {page + 1} de {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="font-heading text-xs text-muted-foreground">Por página:</span>
+              {[5, 10].map(n => (
+                <button key={n} onClick={() => { setPerPage(n); setPage(0); }} className={`font-heading text-xs px-2 py-0.5 border ${perPage === n ? 'border-primary text-primary font-bold' : 'border-border text-muted-foreground'}`}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {pagedQuestions.map((q, idx) => (
+              <QuestionCard
+                key={q.id}
+                question={q}
+                index={page * perPage + idx}
+                answer={answers[q.id]}
+                activeTab={activeTab[q.id] ?? 'gabarito'}
+                notebookItem={notebookMap.get(q.id)}
+                topicLabel={topicMap.get(q.topicId) ?? '—'}
+                user={user}
+                lessons={lessonsForQuestion(q)}
+                onConfirm={(selectedIndex) => handleConfirm(q, selectedIndex)}
+                onTabChange={(tab) => setActiveTab(prev => ({ ...prev, [q.id]: tab }))}
+                onComment={(text) => handleComment(q.id, text)}
+                onReport={(type, message) => handleReport(q, type, message)}
+                onAddNotebook={async () => {
+                  if (user) {
+                    const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
+                    setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
+                    setActiveTab(prev => ({ ...prev, [q.id]: 'caderno' }));
+                  }
+                }}
+                onSaveNotebook={async (whatIErred, ruleInsight, mastered) => {
+                  if (user) {
+                    const item = await upsertNotebookItem(user.username, q.id, { whatIErred, ruleInsight, ...(mastered ? { status: 'mastered' } : {}) });
+                    setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
+                  }
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <button disabled={page === 0} onClick={() => { setPage(page - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="font-heading text-xs border border-border px-3 py-1 disabled:opacity-40">
+              ← Anterior
+            </button>
+            <span className="font-heading text-xs text-muted-foreground">
+              {page + 1} / {totalPages}
+            </span>
+            <button disabled={page >= totalPages - 1} onClick={() => { setPage(page + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="font-heading text-xs border border-border px-3 py-1 disabled:opacity-40">
+              Próxima →
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
