@@ -888,7 +888,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
                   onCheckedChange={toggleSelectAll}
                 />
               </th>
-              {['Série','Disciplina','Dificuldade','Tópico','Enunciado','Status','Ações'].map(h => (
+              {['Série','Disciplina','Dificuldade','Tópico','Enunciado','🖼️','Status','Ações'].map(h => (
                 <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
               ))}
             </tr>
@@ -907,6 +907,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
                 <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
                 <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
                 <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
+                <td className="p-2 border border-border font-heading text-xs text-center">{q.imageUrl ? '🖼️' : '—'}</td>
                 <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
                 <td className="p-2 border border-border">
                   <div className="flex gap-1">
