@@ -685,6 +685,7 @@ export async function saveLessons(lessons: Lesson[]): Promise<Lesson[]> {
   await supabase.from('lessons').upsert(lessons.map(l => ({
     id: l.id, title: l.title, url: l.url,
     topic: l.topic, subject: l.subject, grade: l.grade,
+    visibility: l.visibility ?? 'coming_soon',
   })));
   return lessons;
 }
