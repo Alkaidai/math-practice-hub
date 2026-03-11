@@ -9,6 +9,7 @@ import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
 import { StudyTrail } from './StudyTrail';
 import { ErrorState } from './ErrorState';
+import { DiagnosticAssessment } from './DiagnosticAssessment';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
 import { Target, TrendingUp, Flame, AlertCircle, Stethoscope } from 'lucide-react';
 
