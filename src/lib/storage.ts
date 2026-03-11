@@ -698,9 +698,20 @@ export async function saveLesson(lesson: Partial<Lesson>): Promise<Lesson> {
     topic: lesson.topic ?? '',
     subject: lesson.subject ?? '',
     grade: lesson.grade ?? '',
+    visibility: lesson.visibility ?? 'coming_soon',
   };
   await supabase.from('lessons').insert(row);
   return row as Lesson;
+}
+
+export async function toggleLessonVisibility(lessonId: string): Promise<Lesson | null> {
+  const { data: current } = await supabase.from('lessons').select('visibility').eq('id', lessonId).single();
+  if (!current) return null;
+  const newVis = (current as any).visibility === 'visible' ? 'coming_soon' : 'visible';
+  const { data } = await supabase.from('lessons').update({ visibility: newVis }).eq('id', lessonId).select().single();
+  if (!data) return null;
+  const row = data as any;
+  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade, visibility: row.visibility };
 }
 
 export async function updateLesson(lessonId: string, patch: Partial<Lesson>): Promise<Lesson | null> {
