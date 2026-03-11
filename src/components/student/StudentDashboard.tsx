@@ -127,7 +127,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
   // Show diagnostic assessment inline
   if (showDiagnosticNow) {
-    const { DiagnosticAssessment } = require('./DiagnosticAssessment');
     return (
       <div className="max-w-3xl mx-auto">
         <DiagnosticAssessment onComplete={() => { setShowDiagnosticNow(false); load(); }} />
