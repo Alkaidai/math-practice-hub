@@ -989,12 +989,18 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
     onRefresh();
   };
 
+  const handleToggleVisibility = async (lessonId: string) => {
+    await toggleLessonVisibility(lessonId);
+    await loadData();
+    onRefresh();
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-sm font-bold uppercase">Aulas</h2>
       <form onSubmit={handleSubmit} className="border border-border bg-card p-3 space-y-2">
         <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Título da aula" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
-        <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Link da aula" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
+        <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Link do vídeo (ex: YouTube)" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
         <div className="grid grid-cols-3 gap-2">
           <select value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
             {Object.entries(SUBJECTS_MAP).map(([c, l]) => <option key={c} value={c}>{l}</option>)}
@@ -1010,27 +1016,43 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
 
-      <table className="w-full text-sm border-collapse">
-        <thead><tr className="bg-muted">
-          {['Título','Disciplina','Série','Tópico','Ações'].map(h => <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>)}
-        </tr></thead>
-        <tbody>
-          {lessons.map(l => (
-            <tr key={l.id}>
-              <td className="p-2 border border-border font-body text-xs">{l.title}</td>
-              <td className="p-2 border border-border font-heading text-xs">{subjectLabel(l.subject)}</td>
-              <td className="p-2 border border-border font-heading text-xs">{l.grade}</td>
-              <td className="p-2 border border-border font-heading text-xs">{topics.find(t => t.id === l.topic)?.name ?? l.topic}</td>
-              <td className="p-2 border border-border">
-                <div className="flex gap-1">
-                  <button onClick={() => { setEditingId(l.id); setForm({ title: l.title, url: l.url, subject: l.subject, grade: l.grade, topic: l.topic }); }} className="font-heading text-[10px] border border-border px-2 py-0.5">Editar</button>
-                  <button onClick={async () => { await deleteLesson(l.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <AdminPaginatedTable
+        items={lessons}
+        perPage={20}
+        renderHeader={() => (
+          <tr className="bg-muted">
+            {['Título', 'Disciplina', 'Série', 'Tópico', 'Status', 'Ações'].map(h => (
+              <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+            ))}
+          </tr>
+        )}
+        renderRow={(l) => (
+          <tr key={l.id}>
+            <td className="p-2 border border-border font-body text-xs">{l.title}</td>
+            <td className="p-2 border border-border font-heading text-xs">{subjectLabel(l.subject)}</td>
+            <td className="p-2 border border-border font-heading text-xs">{l.grade}</td>
+            <td className="p-2 border border-border font-heading text-xs">{topics.find(t => t.id === l.topic)?.name ?? l.topic}</td>
+            <td className="p-2 border border-border">
+              <button
+                onClick={() => handleToggleVisibility(l.id)}
+                className={`font-heading text-[10px] px-2 py-0.5 rounded ${
+                  l.visibility === 'visible'
+                    ? 'bg-primary/10 text-primary border border-primary/30'
+                    : 'bg-muted text-muted-foreground border border-border'
+                }`}
+              >
+                {l.visibility === 'visible' ? '✓ Visível' : '⏳ Em Breve'}
+              </button>
+            </td>
+            <td className="p-2 border border-border">
+              <div className="flex gap-1">
+                <button onClick={() => { setEditingId(l.id); setForm({ title: l.title, url: l.url, subject: l.subject, grade: l.grade, topic: l.topic }); }} className="font-heading text-[10px] border border-border px-2 py-0.5">Editar</button>
+                <button onClick={async () => { await deleteLesson(l.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
+              </div>
+            </td>
+          </tr>
+        )}
+      />
     </div>
   );
 }
