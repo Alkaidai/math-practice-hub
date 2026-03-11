@@ -58,9 +58,24 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       if (filters.difficulty && difficulty !== difficultyCode(filters.difficulty)) return false;
       if (filters.topicId && topicId !== filters.topicId) return false;
       if (filters.status && item.status !== filters.status) return false;
+
+      // Search filter
+      if (search) {
+        const needle = search.toLowerCase();
+        const topicName = allTopics.find(t => t.id === topicId)?.name ?? '';
+        const statement = q?.statement ?? '';
+        const qId = item.questionId ?? '';
+        if (
+          !qId.toLowerCase().includes(needle) &&
+          !statement.toLowerCase().includes(needle) &&
+          !topicName.toLowerCase().includes(needle) &&
+          !subjectLabel(subject).toLowerCase().includes(needle)
+        ) return false;
+      }
+
       return true;
     });
-  }, [notebookItems, filters, questionsMap]);
+  }, [notebookItems, filters, search, questionsMap, allTopics]);
 
   if (loading) return <p className="text-muted-foreground">Carregando caderno de erros...</p>;
   if (error) return <ErrorState message="Erro ao carregar o caderno de erros." onRetry={loadData} />;
