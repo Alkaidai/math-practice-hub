@@ -5,11 +5,16 @@ export function ScrollToTop() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const container = document.querySelector('main');
-    if (!container) return;
-    const handler = () => setVisible(container.scrollTop > 120);
-    container.addEventListener('scroll', handler, { passive: true });
-    return () => container.removeEventListener('scroll', handler);
+    const handler = () => {
+      const main = document.querySelector('main');
+      if (main) {
+        setVisible(main.scrollTop > 120);
+      }
+    };
+
+    // Use capture on document to catch all scroll events including on main
+    document.addEventListener('scroll', handler, { passive: true, capture: true });
+    return () => document.removeEventListener('scroll', handler, { capture: true });
   }, []);
 
   if (!visible) return null;

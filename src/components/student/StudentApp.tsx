@@ -163,10 +163,10 @@ export function StudentApp() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="h-screen flex w-full overflow-hidden">
         <StudentSidebar tab={tab} setTab={handleTabChange} user={user} onLogout={logout} />
-        <div className="flex-1 flex flex-col min-h-screen">
-          <header className="h-14 flex items-center gap-4 border-b border-border bg-card px-4 sticky top-0 z-20">
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+          <header className="h-14 flex items-center gap-4 border-b border-border bg-card px-4 shrink-0 z-20">
             <SidebarTrigger />
             <h2 className="text-sm font-semibold text-foreground">
               {NAV_ITEMS.find(n => n.key === tab)?.label ?? 'Painel'}
