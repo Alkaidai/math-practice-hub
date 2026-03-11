@@ -669,12 +669,15 @@ export async function getTrainingPlanById(planId: string): Promise<(TrainingPlan
 
 // ---- Lessons ----
 
-export async function getLessons(): Promise<Lesson[]> {
-  const { data } = await supabase.from('lessons').select('*');
+export async function getLessons(options: { visibleOnly?: boolean } = {}): Promise<Lesson[]> {
+  let query = supabase.from('lessons').select('*');
+  if (options.visibleOnly) query = query.eq('visibility', 'visible');
+  const { data } = await query;
   if (!data) return [];
   return data.map((row: any) => ({
     id: row.id, title: row.title, url: row.url,
     topic: row.topic, subject: row.subject, grade: row.grade,
+    visibility: row.visibility ?? 'coming_soon',
   }));
 }
 
@@ -682,6 +685,7 @@ export async function saveLessons(lessons: Lesson[]): Promise<Lesson[]> {
   await supabase.from('lessons').upsert(lessons.map(l => ({
     id: l.id, title: l.title, url: l.url,
     topic: l.topic, subject: l.subject, grade: l.grade,
+    visibility: l.visibility ?? 'coming_soon',
   })));
   return lessons;
 }
@@ -694,9 +698,20 @@ export async function saveLesson(lesson: Partial<Lesson>): Promise<Lesson> {
     topic: lesson.topic ?? '',
     subject: lesson.subject ?? '',
     grade: lesson.grade ?? '',
+    visibility: lesson.visibility ?? 'coming_soon',
   };
   await supabase.from('lessons').insert(row);
   return row as Lesson;
+}
+
+export async function toggleLessonVisibility(lessonId: string): Promise<Lesson | null> {
+  const { data: current } = await supabase.from('lessons').select('visibility').eq('id', lessonId).single();
+  if (!current) return null;
+  const newVis = (current as any).visibility === 'visible' ? 'coming_soon' : 'visible';
+  const { data } = await supabase.from('lessons').update({ visibility: newVis }).eq('id', lessonId).select().single();
+  if (!data) return null;
+  const row = data as any;
+  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade, visibility: row.visibility };
 }
 
 export async function updateLesson(lessonId: string, patch: Partial<Lesson>): Promise<Lesson | null> {
@@ -706,11 +721,12 @@ export async function updateLesson(lessonId: string, patch: Partial<Lesson>): Pr
   if (patch.topic !== undefined) update.topic = patch.topic;
   if (patch.subject !== undefined) update.subject = patch.subject;
   if (patch.grade !== undefined) update.grade = patch.grade;
+  if (patch.visibility !== undefined) update.visibility = patch.visibility;
 
   const { data } = await supabase.from('lessons').update(update).eq('id', lessonId).select().single();
   if (!data) return null;
   const row = data as any;
-  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade };
+  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade, visibility: row.visibility ?? 'coming_soon' };
 }
 
 export async function deleteLesson(lessonId: string): Promise<void> {

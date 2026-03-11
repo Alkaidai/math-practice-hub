@@ -4,7 +4,7 @@ import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem, getAllowe
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import { ErrorState } from './ErrorState';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Search } from 'lucide-react';
 import type { Question, Topic, NotebookItem } from '../../lib/types';
 
 export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string) => void }) {
@@ -12,6 +12,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const userId = user?.username ?? '';
 
   const [filters, setFilters] = useState({ grade: '', subject: '', difficulty: '', topicId: '', status: '' });
+  const [search, setSearch] = useState('');
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
@@ -57,9 +58,24 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       if (filters.difficulty && difficulty !== difficultyCode(filters.difficulty)) return false;
       if (filters.topicId && topicId !== filters.topicId) return false;
       if (filters.status && item.status !== filters.status) return false;
+
+      // Search filter
+      if (search) {
+        const needle = search.toLowerCase();
+        const topicName = allTopics.find(t => t.id === topicId)?.name ?? '';
+        const statement = q?.statement ?? '';
+        const qId = item.questionId ?? '';
+        if (
+          !qId.toLowerCase().includes(needle) &&
+          !statement.toLowerCase().includes(needle) &&
+          !topicName.toLowerCase().includes(needle) &&
+          !subjectLabel(subject).toLowerCase().includes(needle)
+        ) return false;
+      }
+
       return true;
     });
-  }, [notebookItems, filters, questionsMap]);
+  }, [notebookItems, filters, search, questionsMap, allTopics]);
 
   if (loading) return <p className="text-muted-foreground">Carregando caderno de erros...</p>;
   if (error) return <ErrorState message="Erro ao carregar o caderno de erros." onRetry={loadData} />;
@@ -85,9 +101,18 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-card rounded-xl shadow-sm p-4">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Filtros</h3>
+      {/* Search + Filters */}
+      <div className="bg-card rounded-xl shadow-sm p-4 space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por ID, tema, texto da questão..."
+            className="w-full rounded-lg border border-input bg-background pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Filtros</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <select value={filters.grade} onChange={e => setFilters(f => ({ ...f, grade: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
             <option value="">Todas séries</option>
