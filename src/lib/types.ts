@@ -88,6 +88,8 @@ export interface Topic {
   status: TopicStatus;
 }
 
+export type LessonVisibility = 'visible' | 'coming_soon';
+
 export interface Lesson {
   id: string;
   title: string;
@@ -95,6 +97,7 @@ export interface Lesson {
   topic: string;
   subject: string;
   grade: string;
+  visibility: LessonVisibility;
 }
 
 export interface Attempt {

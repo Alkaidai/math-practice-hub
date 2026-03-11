@@ -721,11 +721,12 @@ export async function updateLesson(lessonId: string, patch: Partial<Lesson>): Pr
   if (patch.topic !== undefined) update.topic = patch.topic;
   if (patch.subject !== undefined) update.subject = patch.subject;
   if (patch.grade !== undefined) update.grade = patch.grade;
+  if (patch.visibility !== undefined) update.visibility = patch.visibility;
 
   const { data } = await supabase.from('lessons').update(update).eq('id', lessonId).select().single();
   if (!data) return null;
   const row = data as any;
-  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade };
+  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade, visibility: row.visibility ?? 'coming_soon' };
 }
 
 export async function deleteLesson(lessonId: string): Promise<void> {
