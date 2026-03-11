@@ -101,9 +101,18 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-card rounded-xl shadow-sm p-4">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Filtros</h3>
+      {/* Search + Filters */}
+      <div className="bg-card rounded-xl shadow-sm p-4 space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por ID, tema, texto da questão..."
+            className="w-full rounded-lg border border-input bg-background pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Filtros</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <select value={filters.grade} onChange={e => setFilters(f => ({ ...f, grade: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
             <option value="">Todas séries</option>

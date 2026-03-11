@@ -178,6 +178,7 @@ export function StudentApp() {
             {tab === 'dashboard' && <StudentDashboard key={tabKey} onNavigateQuestions={() => handleTabChange('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
             {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} />}
             {tab === 'knowledgeMap' && <KnowledgeMap key={tabKey} onStartTopic={handleStartTopic} />}
+            {tab === 'lessons' && <StudentLessons key={tabKey} />}
             {tab === 'notebook' && <StudentNotebook key={tabKey} onRefazer={handleRefazer} />}
             {tab === 'ranking' && <StudentRanking key={tabKey} />}
           </main>
