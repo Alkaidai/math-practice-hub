@@ -4,7 +4,7 @@ import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem, getAllowe
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import { ErrorState } from './ErrorState';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Search } from 'lucide-react';
 import type { Question, Topic, NotebookItem } from '../../lib/types';
 
 export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string) => void }) {
@@ -12,6 +12,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const userId = user?.username ?? '';
 
   const [filters, setFilters] = useState({ grade: '', subject: '', difficulty: '', topicId: '', status: '' });
+  const [search, setSearch] = useState('');
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
