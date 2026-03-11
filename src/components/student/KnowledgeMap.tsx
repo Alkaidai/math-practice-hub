@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
+import { ErrorState } from './ErrorState';
+import { AlertTriangle, CheckCircle2, BookOpen, Clock } from 'lucide-react';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
 interface TopicDomain {
@@ -11,6 +13,7 @@ interface TopicDomain {
   total: number;
   correct: number;
   rate: number;
+  available: number;
   status: 'not_started' | 'needs_study' | 'developing' | 'mastered';
 }
 
@@ -29,21 +32,25 @@ function getDomainStatus(total: number, rate: number): TopicDomain['status'] {
 
 function statusConfig(status: TopicDomain['status']) {
   switch (status) {
-    case 'not_started': return { label: 'Não iniciado', color: 'text-muted-foreground', bg: 'bg-muted', bar: 'bg-muted-foreground/20', border: '' };
-    case 'needs_study': return { label: 'Precisa estudar', color: 'text-destructive', bg: 'bg-destructive/5', bar: 'bg-destructive', border: 'border-l-destructive' };
-    case 'developing': return { label: 'Em desenvolvimento', color: 'text-gold', bg: 'bg-gold/5', bar: 'bg-gold', border: 'border-l-gold' };
-    case 'mastered': return { label: 'Dominado', color: 'text-success', bg: 'bg-success/5', bar: 'bg-success', border: 'border-l-success' };
+    case 'not_started': return { label: 'Não iniciado', color: 'text-muted-foreground', bg: 'bg-muted', bar: 'bg-muted-foreground/20', border: '', icon: Clock };
+    case 'needs_study': return { label: 'Precisa estudar', color: 'text-destructive', bg: 'bg-destructive/5', bar: 'bg-destructive', border: 'border-l-destructive', icon: AlertTriangle };
+    case 'developing': return { label: 'Em desenvolvimento', color: 'text-gold', bg: 'bg-gold/5', bar: 'bg-gold', border: 'border-l-gold', icon: BookOpen };
+    case 'mastered': return { label: 'Dominado', color: 'text-success', bg: 'bg-success/5', bar: 'bg-success', border: 'border-l-success', icon: CheckCircle2 };
   }
 }
 
-export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {}) {
+export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?: string; onStartTopic?: (topicId: string) => void } = {}) {
   const { user } = useAuth();
   const userId = externalUserId ?? user?.username ?? '';
   const [groups, setGroups] = useState<SubjectGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [sortBy, setSortBy] = useState<'priority' | 'name' | 'rate'>('priority');
 
-  useEffect(() => {
-    async function load() {
+  const load = async () => {
+    setLoading(true);
+    setError(false);
+    try {
       const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getTopics({ activeOnly: true }),
@@ -55,6 +62,14 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
       const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
       const questionMap = new Map(questions.map(q => [q.id, q]));
+
+      // Count available questions per topic
+      const availableByTopic = new Map<string, number>();
+      questions.forEach(q => {
+        if (q.status !== 'draft' && q.topicId) {
+          availableByTopic.set(q.topicId, (availableByTopic.get(q.topicId) ?? 0) + 1);
+        }
+      });
 
       const statsByTopic = new Map<string, { total: number; correct: number }>();
       attempts.forEach(a => {
@@ -72,6 +87,7 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
         return {
           topicId: t.id, topicName: t.name, subjectSlug: t.subject,
           total: stats.total, correct: stats.correct, rate,
+          available: availableByTopic.get(t.id) ?? 0,
           status: getDomainStatus(stats.total, rate),
         };
       });
@@ -87,22 +103,27 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
         .map(([slug, topics]) => {
           const withData = topics.filter(t => t.total > 0);
           const avg = withData.length > 0 ? Math.round(withData.reduce((s, t) => s + t.rate, 0) / withData.length) : 0;
-          return {
-            subjectName: subjectMap.get(slug) ?? slug,
-            topics: topics.sort((a, b) => b.rate - a.rate),
-            averageRate: avg,
-          };
+          return { subjectName: subjectMap.get(slug) ?? slug, topics, averageRate: avg };
         })
         .filter(g => g.topics.length > 0);
 
       setGroups(result);
+    } catch {
+      setError(true);
+    } finally {
       setLoading(false);
     }
-    load();
-  }, [userId]);
+  };
 
-  if (loading) return <p className="text-muted-foreground">Carregando...</p>;
-  if (groups.length === 0) return null;
+  useEffect(() => { load(); }, [userId]);
+
+  if (loading) return <p className="text-muted-foreground">Carregando mapa de tópicos...</p>;
+  if (error) return <ErrorState message="Erro ao carregar o mapa de tópicos." onRetry={load} />;
+  if (groups.length === 0) return (
+    <div className="bg-card rounded-xl shadow-sm p-8 text-center">
+      <p className="text-muted-foreground">Nenhum tópico disponível ainda.</p>
+    </div>
+  );
 
   const allTopics = groups.flatMap(g => g.topics);
   const mastered = allTopics.filter(t => t.status === 'mastered').length;
@@ -110,20 +131,45 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
   const needsStudy = allTopics.filter(t => t.status === 'needs_study').length;
   const notStarted = allTopics.filter(t => t.status === 'not_started').length;
 
+  const sortTopics = (topics: TopicDomain[]) => {
+    const sorted = [...topics];
+    if (sortBy === 'priority') {
+      const order = { needs_study: 0, developing: 1, not_started: 2, mastered: 3 };
+      sorted.sort((a, b) => order[a.status] - order[b.status] || a.rate - b.rate);
+    } else if (sortBy === 'name') {
+      sorted.sort((a, b) => a.topicName.localeCompare(b.topicName));
+    } else {
+      sorted.sort((a, b) => b.rate - a.rate);
+    }
+    return sorted;
+  };
+
   return (
     <div className="space-y-6">
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Dominados', value: mastered, color: 'text-success', bg: 'bg-success/10' },
-          { label: 'Em desenv.', value: developing, color: 'text-gold', bg: 'bg-gold/10' },
-          { label: 'Estudar', value: needsStudy, color: 'text-destructive', bg: 'bg-destructive/10' },
-          { label: 'Não iniciados', value: notStarted, color: 'text-muted-foreground', bg: 'bg-muted' },
+          { label: 'Dominados', value: mastered, color: 'text-success', bg: 'bg-success/10', Icon: CheckCircle2 },
+          { label: 'Em desenv.', value: developing, color: 'text-gold', bg: 'bg-gold/10', Icon: BookOpen },
+          { label: 'Estudar', value: needsStudy, color: 'text-destructive', bg: 'bg-destructive/10', Icon: AlertTriangle },
+          { label: 'Não iniciados', value: notStarted, color: 'text-muted-foreground', bg: 'bg-muted', Icon: Clock },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-4 text-center`}>
+            <s.Icon className={`h-5 w-5 mx-auto mb-1 ${s.color}`} />
             <p className="text-xs text-muted-foreground">{s.label}</p>
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Sort */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Ordenar por:</span>
+        {([['priority', 'Prioridade'], ['name', 'Nome'], ['rate', 'Taxa de acerto']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setSortBy(key)}
+            className={`text-xs px-3 py-1 rounded-lg transition-colors ${sortBy === key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}>
+            {label}
+          </button>
         ))}
       </div>
 
@@ -140,15 +186,26 @@ export function KnowledgeMap({ userId: externalUserId }: { userId?: string } = {
             </div>
           </div>
           <div className="space-y-2">
-            {group.topics.map(t => {
+            {sortTopics(group.topics).map(t => {
               const config = statusConfig(t.status);
+              const IconComp = config.icon;
               return (
-                <div key={t.topicId} className={`rounded-lg border-l-4 ${config.border || 'border-l-transparent'} ${config.bg} px-4 py-3`}>
+                <div
+                  key={t.topicId}
+                  className={`rounded-lg border-l-4 ${config.border || 'border-l-transparent'} ${config.bg} px-4 py-3 ${onStartTopic ? 'cursor-pointer hover:brightness-95 transition-all' : ''}`}
+                  onClick={() => onStartTopic?.(t.topicId)}
+                >
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-foreground">{t.topicName}</p>
-                    <span className={`text-xs font-semibold ${config.color}`}>
-                      {t.total > 0 ? `${t.rate}%` : ''} {config.label}
-                    </span>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <IconComp className={`h-4 w-4 shrink-0 ${config.color}`} />
+                      <p className="text-sm font-medium text-foreground truncate">{t.topicName}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      <span className="text-xs text-muted-foreground">{t.total}/{t.available} feitas</span>
+                      <span className={`text-xs font-semibold ${config.color}`}>
+                        {t.total > 0 ? `${t.rate}%` : ''} {config.label}
+                      </span>
+                    </div>
                   </div>
                   {t.total > 0 && (
                     <div className="w-full bg-border/50 rounded-full h-1.5">

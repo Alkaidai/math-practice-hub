@@ -8,8 +8,10 @@ import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
 import { StudyTrail } from './StudyTrail';
+import { ErrorState } from './ErrorState';
+import { DiagnosticAssessment } from './DiagnosticAssessment';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
-import { Target, TrendingUp, Flame, AlertCircle } from 'lucide-react';
+import { Target, TrendingUp, Flame, AlertCircle, Stethoscope } from 'lucide-react';
 
 interface WeakTopic {
   topicId: string;
@@ -31,6 +33,7 @@ interface DashboardData {
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
   nextTopic: { topicId: string; topicName: string; count: number } | null;
+  hasDiagnostic: boolean;
 }
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
@@ -55,10 +58,12 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   const { user } = useAuth();
   const userId = user?.username ?? '';
   const [data, setData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState(false);
+  const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
+  const load = async () => {
+    setError(false);
+    try {
       const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
@@ -68,8 +73,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         getDiagnosticResult(userId),
         getAllowedSubjectSlugs(userId),
       ]);
-
-      if (cancelled) return;
 
       const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
       const filteredQuestions = allQuestions.filter(q => allowedSlugs.includes(q.subject));
@@ -111,18 +114,51 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ };
       }
 
-      setData({ answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic });
+      setData({ answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag });
+    } catch {
+      setError(true);
     }
-    load();
-    return () => { cancelled = true; };
-  }, [userId]);
+  };
 
-  if (!data) return <p className="text-muted-foreground">Carregando...</p>;
+  useEffect(() => { load(); }, [userId]);
+
+  if (error) return <ErrorState message="Erro ao carregar o painel." onRetry={load} />;
+  if (!data) return <p className="text-muted-foreground">Carregando painel...</p>;
+
+  // Show diagnostic assessment inline
+  if (showDiagnosticNow) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <DiagnosticAssessment onComplete={() => { setShowDiagnosticNow(false); load(); }} />
+      </div>
+    );
+  }
 
   const hasData = data.answered > 0;
 
   return (
     <div className="space-y-6">
+      {/* Diagnostic CTA - only if not done yet */}
+      {!data.hasDiagnostic && (
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Stethoscope className="h-5 w-5 text-primary" />
+              Diagnóstico Inicial
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Descubra seus pontos fortes e fracos em matemática para um plano de estudo personalizado.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowDiagnosticNow(true)}
+            className="shrink-0 rounded-lg bg-primary text-primary-foreground font-semibold text-sm px-5 py-2.5 hover:brightness-110 transition-all"
+          >
+            Iniciar diagnóstico
+          </button>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Target} label="Respondidas" value={String(data.answered)} color="bg-primary" />
@@ -135,16 +171,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       {data.nextTopic && (
         <div className="bg-card rounded-xl shadow-sm border-l-4 border-l-gold p-5">
           <p className="text-xs font-medium text-muted-foreground mb-1">Seu próximo passo</p>
-          <p className="text-base font-bold text-foreground">
-            Treinar {data.nextTopic.topicName}
-          </p>
-          <p className="text-xs text-muted-foreground mb-3">
-            {data.nextTopic.count} exercícios disponíveis
-          </p>
-          <button
-            onClick={() => onStartTopic(data.nextTopic!.topicId)}
-            className="rounded-lg bg-gold text-gold-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all"
-          >
+          <p className="text-base font-bold text-foreground">Treinar {data.nextTopic.topicName}</p>
+          <p className="text-xs text-muted-foreground mb-3">{data.nextTopic.count} exercícios disponíveis</p>
+          <button onClick={() => onStartTopic(data.nextTopic!.topicId)} className="rounded-lg bg-gold text-gold-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all">
             Treinar agora →
           </button>
         </div>
@@ -162,8 +191,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       {/* Study Trail */}
       <StudyTrail />
 
-      {/* Diagnostic Report */}
-      <DiagnosticReport />
+      {/* Diagnostic Report - only if completed */}
+      {data.hasDiagnostic && <DiagnosticReport />}
 
       {/* Study Plan */}
       <StudyPlan onStartTopic={onStartTopic} />
@@ -205,9 +234,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
                       </p>
                       <p className="text-xs text-muted-foreground">Erro {t.errorRate}% ({t.errors}/{t.total})</p>
                     </div>
-                    <button onClick={() => onStartTopic(t.topicId)} className="text-xs text-primary font-medium hover:underline ml-2">
-                      Treinar
-                    </button>
+                    <button onClick={() => onStartTopic(t.topicId)} className="text-xs text-primary font-medium hover:underline ml-2">Treinar</button>
                   </div>
                 ))}
               </div>
