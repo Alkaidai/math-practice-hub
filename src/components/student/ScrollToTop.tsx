@@ -7,7 +7,7 @@ export function ScrollToTop() {
   useEffect(() => {
     const container = document.querySelector('main');
     if (!container) return;
-    const handler = () => setVisible(container.scrollTop > 300);
+    const handler = () => setVisible(container.scrollTop > 120);
     container.addEventListener('scroll', handler, { passive: true });
     return () => container.removeEventListener('scroll', handler);
   }, []);
