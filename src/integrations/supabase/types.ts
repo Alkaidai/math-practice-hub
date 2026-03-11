@@ -263,6 +263,7 @@ export type Database = {
           title: string
           topic: string
           url: string
+          visibility: string
         }
         Insert: {
           grade?: string
@@ -271,6 +272,7 @@ export type Database = {
           title?: string
           topic?: string
           url?: string
+          visibility?: string
         }
         Update: {
           grade?: string
@@ -279,6 +281,7 @@ export type Database = {
           title?: string
           topic?: string
           url?: string
+          visibility?: string
         }
         Relationships: []
       }

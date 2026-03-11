@@ -1,0 +1,1 @@
+ALTER TABLE public.lessons ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'coming_soon';
