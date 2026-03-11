@@ -669,12 +669,15 @@ export async function getTrainingPlanById(planId: string): Promise<(TrainingPlan
 
 // ---- Lessons ----
 
-export async function getLessons(): Promise<Lesson[]> {
-  const { data } = await supabase.from('lessons').select('*');
+export async function getLessons(options: { visibleOnly?: boolean } = {}): Promise<Lesson[]> {
+  let query = supabase.from('lessons').select('*');
+  if (options.visibleOnly) query = query.eq('visibility', 'visible');
+  const { data } = await query;
   if (!data) return [];
   return data.map((row: any) => ({
     id: row.id, title: row.title, url: row.url,
     topic: row.topic, subject: row.subject, grade: row.grade,
+    visibility: row.visibility ?? 'coming_soon',
   }));
 }
 
