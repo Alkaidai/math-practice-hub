@@ -6,6 +6,7 @@ import { QuestionsList } from './QuestionsList';
 import { StudentNotebook } from './StudentNotebook';
 import { StudentRanking } from './StudentRanking';
 import { KnowledgeMap } from './KnowledgeMap';
+import { StudentLessons } from './StudentLessons';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { ScrollToTop } from './ScrollToTop';
 import { getDiagnosticResult, getAppSetting } from '../../lib/storage';
@@ -14,13 +15,14 @@ import {
   SidebarGroup, SidebarGroupContent, SidebarMenu,
   SidebarMenuItem, SidebarMenuButton, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap } from 'lucide-react';
 
-type Tab = 'dashboard' | 'questions' | 'knowledgeMap' | 'notebook' | 'ranking';
+type Tab = 'dashboard' | 'questions' | 'knowledgeMap' | 'notebook' | 'ranking' | 'lessons';
 
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { key: 'questions', label: 'Treinar', icon: PenLine },
+  { key: 'lessons', label: 'Aulas', icon: GraduationCap },
   { key: 'knowledgeMap', label: 'Mapa de tópicos', icon: Map },
   { key: 'notebook', label: 'Caderno de erros', icon: BookOpen },
   { key: 'ranking', label: 'Ranking', icon: Trophy },
