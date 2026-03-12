@@ -347,7 +347,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       )}
 
       {/* Achievements */}
-      <Achievements />
+      <Achievements attempts={data.allAttempts} streak={data.meta.streak} />
     </div>
   );
 }
