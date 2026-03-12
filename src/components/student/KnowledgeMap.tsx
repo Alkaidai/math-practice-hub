@@ -51,13 +51,14 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   const load = useCallback(async () => {
     await execute(async () => {
       try {
-        const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
-          getAttempts(userId),
-          getTopics({ activeOnly: true }),
-          getSubjects({ activeOnly: true }),
-          loadQuestionBank(),
-          externalUserId ? Promise.resolve([]) : getAllowedSubjectSlugs(userId),
+        // Cached static data first, then user-specific
+        const [topics, subjects, questions, allowedSlugs] = await Promise.all([
+          cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
+          cachedFetch(CACHE_KEYS.SUBJECTS, () => getSubjects({ activeOnly: true })),
+          cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
+          externalUserId ? Promise.resolve([]) : cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)),
         ]);
+        const attempts = await getAttempts(userId);
 
         const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
         const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));

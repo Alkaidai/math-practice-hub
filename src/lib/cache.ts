@@ -38,10 +38,8 @@ export function invalidateCache(key?: string): void {
 export async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   const cached = getCached<T>(key);
   if (cached !== null) {
-    console.log(`[Cache] HIT: ${key}`);
     return cached;
   }
-  console.log(`[Cache] MISS: ${key} — fetching...`);
   const data = await fetcher();
   setCache(key, data);
   return data;
@@ -51,5 +49,7 @@ export async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Pr
 export const CACHE_KEYS = {
   TOPICS: 'topics_active',
   QUESTION_BANK: 'question_bank',
+  SUBJECTS: 'subjects_active',
+  LESSONS: 'lessons_all',
   ALLOWED_SLUGS: (userId: string) => `allowed_slugs_${userId}`,
 } as const;
