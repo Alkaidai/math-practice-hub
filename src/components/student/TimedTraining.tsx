@@ -108,7 +108,7 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
     };
   }, [loadQuestions, clearRunningTimers]);
 
-  useVisibilityRefresh(loadQuestions, 120_000); // refresh after 2min hidden
+  
 
   const startTimer = useCallback(() => {
     if (loadingQuestions || !!loadError || questions.length === 0) return;
