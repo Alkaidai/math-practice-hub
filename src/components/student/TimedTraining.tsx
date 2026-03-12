@@ -59,6 +59,8 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   }, []);
 
   const finishTraining = useCallback(() => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
     clearRunningTimers();
     const { correct, total, startTime } = statsRef.current;
     const elapsed = startTime > 0 ? Math.round((Date.now() - startTime) / 1000) : 0;
