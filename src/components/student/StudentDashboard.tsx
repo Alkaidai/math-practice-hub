@@ -36,6 +36,9 @@ interface DashboardData {
   questions: Map<string, Question>;
   nextTopic: { topicId: string; topicName: string; count: number } | null;
   hasDiagnostic: boolean;
+  studyTodaySeconds: number;
+  questionsToday: number;
+  avgTimePerQuestion: number;
 }
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
