@@ -167,7 +167,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const pagedQuestions = questions.slice(page * perPage, (page + 1) * perPage);
 
   if (loading) return <p className="text-muted-foreground">Carregando questões...</p>;
-  if (error) return <ErrorState message="Erro ao carregar as questões." onRetry={loadData} />;
+  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
 
   return (
     <div className="space-y-5">
