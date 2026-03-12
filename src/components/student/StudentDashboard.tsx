@@ -208,23 +208,34 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         <StatCard icon={Flame} label="Dias estudando" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
       </div>
 
-      {/* Next Step */}
+      {/* CONTINUAR TREINO - Primary CTA */}
       {data.nextTopic && (
-        <div className="bg-card rounded-xl shadow-sm border-l-4 border-l-gold p-5">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Seu próximo passo</p>
-          <p className="text-base font-bold text-foreground">Treinar {data.nextTopic.topicName}</p>
-          <p className="text-xs text-muted-foreground mb-3">{data.nextTopic.count} exercícios disponíveis</p>
-          <button onClick={() => onStartTopic(data.nextTopic!.topicId)} className="rounded-lg bg-gold text-gold-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all">
-            Treinar agora →
-          </button>
+        <div className="bg-gradient-to-r from-primary/10 to-gold/10 border border-primary/20 rounded-xl p-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">Próximo passo recomendado</p>
+              <p className="text-lg font-bold text-foreground">{data.nextTopic.topicName}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {data.nextTopic.count} exercícios · Nível: <span className="font-semibold capitalize">{difficultyLabel(data.nextTopic.recommendedDifficulty)}</span>
+              </p>
+            </div>
+            <button
+              onClick={() => onStartTopic(data.nextTopic!.topicId, data.nextTopic!.recommendedDifficulty)}
+              className="flex items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md"
+            >
+              <Play className="h-5 w-5" />
+              CONTINUAR TREINO
+            </button>
+          </div>
         </div>
       )}
 
       {!hasData && !data.nextTopic && (
         <div className="bg-card rounded-xl shadow-sm p-6 text-center">
           <p className="text-muted-foreground mb-3">Comece respondendo questões para ver seu progresso!</p>
-          <button onClick={onNavigateQuestions} className="rounded-lg bg-primary text-primary-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all">
-            Ir para questões
+          <button onClick={onNavigateQuestions} className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md">
+            <Play className="h-5 w-5" />
+            COMEÇAR A TREINAR
           </button>
         </div>
       )}
