@@ -615,6 +615,27 @@ export type Database = {
         }
         Relationships: []
       }
+      topic_prerequisites: {
+        Row: {
+          created_at: string
+          id: number
+          prerequisite_topic_id: string
+          topic_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          prerequisite_topic_id: string
+          topic_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          prerequisite_topic_id?: string
+          topic_id?: string
+        }
+        Relationships: []
+      }
       topics: {
         Row: {
           grade: string
