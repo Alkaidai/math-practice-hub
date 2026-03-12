@@ -187,27 +187,43 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     const loadId = ++loadIdRef.current;
     const stale = () => !mountedRef.current || loadId !== loadIdRef.current;
 
+    console.log(`[Dashboard] load() called (loadId=${loadId})`);
+
     // Wait for auth to be ready (no-op if gate is already resolved)
     try {
+      console.log('[Dashboard] waitForAuthReady entered');
       await waitForAuthReady();
+      console.log('[Dashboard] waitForAuthReady resolved ✅');
     } catch {
-      // auth gate failed, continue anyway
+      console.warn('[Dashboard] waitForAuthReady failed');
     }
-    if (stale()) return;
+    if (stale()) { console.log('[Dashboard] stale after auth wait, aborting'); return; }
 
     // ─── PHASE 1: Essential data (4 queries, max concurrency = 4) ───
     setPhase1Loading(true);
     setPhase1Error(null);
 
+    // Safety timeout: if Phase 1 takes >25s, force-exit loading
+    const safetyTimer = setTimeout(() => {
+      if (stale()) return;
+      console.error('[Dashboard] ⚠️ PHASE 1 SAFETY TIMEOUT (25s) — forcing loading=false');
+      setPhase1Loading(false);
+      setPhase2Loading(false);
+      setPhase1Error('Não foi possível carregar os dados. Verifique sua conexão.');
+    }, 25_000);
+
     try {
       console.log('[Dashboard] Phase 1 started — 4 essential queries');
+      const t0 = Date.now();
       const [attempts, notebook, meta, dailyStats] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
         getStudentDashboardMeta(userId),
         getDailyStudyStats(userId),
       ]);
+      console.log(`[Dashboard] Phase 1 queries done in ${Date.now() - t0}ms`);
 
+      clearTimeout(safetyTimer);
       if (stale()) return;
 
       const answered = attempts.length;
@@ -258,8 +274,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       console.log('[Dashboard] Phase 2 done ✅');
 
     } catch (err: any) {
+      clearTimeout(safetyTimer);
       if (stale()) return;
-      console.error('[Dashboard] Load error:', err?.message);
+      console.error('[Dashboard] ❌ Load error:', err?.message);
       setPhase1Error(err?.message === 'TIMEOUT'
         ? 'Não foi possível carregar os dados. Verifique sua conexão.'
         : 'Ocorreu um erro ao carregar os dados.');

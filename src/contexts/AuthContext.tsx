@@ -63,16 +63,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    console.log('[AuthContext] 🔄 init started — calling getSession()');
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (cancelled) return;
+      console.log('[AuthContext] getSession result:', session ? `user=${session.user.id}` : 'no session');
       if (session?.user) {
+        console.log('[AuthContext] loading profile for', session.user.id);
         await loadProfile(session.user.id);
+        console.log('[AuthContext] profile loaded, user state:', user ? 'set' : 'null');
       }
       if (!cancelled) {
+        console.log('[AuthContext] ✅ init complete — setting loading=false, initialized=true');
         setLoading(false);
         setInitialized(true);
       }
-    }).catch(() => {
+    }).catch((err) => {
+      console.error('[AuthContext] ❌ init failed:', err);
       if (!cancelled) {
         setLoading(false);
         setInitialized(true);

@@ -140,11 +140,14 @@ export function StudentApp() {
     setTabKey(k => k + 1);
   };
 
-  if (authLoading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <p className="text-muted-foreground">Carregando...</p>
-    </div>
-  );
+  if (authLoading) {
+    console.log('[StudentApp] ⏳ authLoading=true — waiting for AuthContext');
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    );
+  }
 
   if (!user) return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
