@@ -79,6 +79,21 @@ export function useLoadWithTimeout(options: UseLoadWithTimeoutOptions = {}): Use
     };
   }, [clearSafetyTimer]);
 
+  useEffect(() => {
+    if (!loading) return;
+
+    const initialSafetyTimer = setTimeout(() => {
+      if (!mountedRef.current) return;
+      if (requestIdRef.current !== 0) return;
+
+      setLoading(false);
+      setTimedOut(true);
+      setError(TIMEOUT_MESSAGE);
+    }, ABSOLUTE_MAX_MS);
+
+    return () => clearTimeout(initialSafetyTimer);
+  }, [loading]);
+
   const execute = useCallback(async (fn: () => Promise<void>) => {
     if (!mountedRef.current) return;
 
