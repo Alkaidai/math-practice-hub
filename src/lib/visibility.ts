@@ -28,23 +28,23 @@ function handleVisibilityChange() {
   if (typeof document === 'undefined') return;
 
   if (document.visibilityState === 'hidden') {
-    // Clear any pending debounce (e.g. user switched away before debounce fired)
     if (debounceTimer) {
       clearTimeout(debounceTimer);
       debounceTimer = null;
     }
     hiddenAt = Date.now();
+    console.log('[Visibility] tab hidden');
     notify({ state: 'hidden', hiddenDurationMs: 0 });
     return;
   }
 
-  // Debounce the 'visible' event to avoid thundering herd on rapid tab switches
   if (debounceTimer) clearTimeout(debounceTimer);
 
   debounceTimer = setTimeout(() => {
     debounceTimer = null;
     const elapsed = hiddenAt ? Date.now() - hiddenAt : 0;
     hiddenAt = null;
+    console.log(`[Visibility] tab visible — was hidden for ${Math.round(elapsed / 1000)}s (subscribers: ${subscribers.size})`);
     notify({ state: 'visible', hiddenDurationMs: elapsed });
   }, DEBOUNCE_MS);
 }

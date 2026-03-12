@@ -30,6 +30,7 @@ export function useSessionTracker(userId: string | null) {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
       inactivityTimerRef.current = null;
+      console.log('[SessionTracker] inactivity timer cleared');
     }
   }, []);
 
@@ -44,6 +45,7 @@ export function useSessionTracker(userId: string | null) {
     const sid = sessionIdRef.current;
     if (!sid) return;
 
+    console.log('[SessionTracker] endSession called, sid:', sid);
     sessionIdRef.current = null;
     startingSessionRef.current = null;
 
@@ -84,9 +86,11 @@ export function useSessionTracker(userId: string | null) {
   const startSession = useCallback(async () => {
     if (!userId || sessionIdRef.current) return;
     if (startingSessionRef.current) {
+      console.log('[SessionTracker] startSession already in progress, waiting...');
       await startingSessionRef.current;
       return;
     }
+    console.log('[SessionTracker] startSession called');
 
     const run = (async () => {
       const now = new Date();
@@ -116,6 +120,7 @@ export function useSessionTracker(userId: string | null) {
   const resetInactivityTimer = useCallback(() => {
     stopInactivityTimer();
     inactivityTimerRef.current = setTimeout(() => {
+      console.warn('[SessionTracker] ⚠️ INACTIVITY TIMEOUT FIRED (5 min) — ending study session');
       void endSession();
     }, INACTIVITY_TIMEOUT_MS);
   }, [endSession, stopInactivityTimer]);
@@ -185,19 +190,22 @@ export function useSessionTracker(userId: string | null) {
     const handler = () => recordActivity();
     events.forEach(e => document.addEventListener(e, handler, { passive: true }));
 
-    const unsubscribeVisibility = subscribeVisibilityChange(async ({ state }) => {
+    const unsubscribeVisibility = subscribeVisibilityChange(async ({ state, hiddenDurationMs }) => {
       if (state === 'hidden') {
+        console.log('[SessionTracker] tab hidden — ending session');
         stopHeartbeat();
         stopInactivityTimer();
         void endSession();
         return;
       }
 
+      console.log(`[SessionTracker] tab visible — hidden for ${Math.round(hiddenDurationMs / 1000)}s, waiting for auth...`);
       // Tab became visible — wait for auth refresh before starting session
       try {
         await waitForAuthRef.current();
+        console.log('[SessionTracker] auth ready, starting session');
       } catch {
-        // Continue even if auth refresh fails
+        console.warn('[SessionTracker] auth wait failed, continuing anyway');
       }
 
       if (!alive) return;

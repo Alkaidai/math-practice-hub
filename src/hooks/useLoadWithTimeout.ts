@@ -100,32 +100,41 @@ export function useLoadWithTimeout(options: UseLoadWithTimeoutOptions = {}): Use
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
+    console.log(`[LoadWithTimeout] execute started (reqId=${requestId})`);
     setLoading(true);
     setError(null);
     setTimedOut(false);
 
     clearSafetyTimer();
     safetyTimerRef.current = setTimeout(() => {
+      console.warn(`[LoadWithTimeout] ⚠️ ABSOLUTE SAFETY TIMEOUT (${ABSOLUTE_MAX_MS}ms) fired (reqId=${requestId})`);
       finishRequest(requestId, { loading: false, error: TIMEOUT_MESSAGE, timedOut: true });
     }, ABSOLUTE_MAX_MS);
 
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
       try {
         await withTimeout(fn, timeoutMs);
+        console.log(`[LoadWithTimeout] execute success (reqId=${requestId}, attempt=${attempt})`);
         finishRequest(requestId, { loading: false, error: null, timedOut: false });
         return;
       } catch (err: any) {
-        if (!mountedRef.current || requestId !== requestIdRef.current) return;
+        if (!mountedRef.current || requestId !== requestIdRef.current) {
+          console.log(`[LoadWithTimeout] request stale or unmounted (reqId=${requestId})`);
+          return;
+        }
 
         if (isAuthError(err)) {
+          console.warn(`[LoadWithTimeout] auth error detected (reqId=${requestId}):`, err?.message);
           finishRequest(requestId, { loading: false, error: 'session_expired', timedOut: false });
           return;
         }
 
         const isLastAttempt = attempt >= maxRetries;
+        const timeoutError = err?.message === 'TIMEOUT';
+        console.warn(`[LoadWithTimeout] attempt ${attempt} failed (reqId=${requestId}): ${timeoutError ? 'TIMEOUT' : err?.message}`);
+
         if (!isLastAttempt) continue;
 
-        const timeoutError = err?.message === 'TIMEOUT';
         finishRequest(requestId, {
           loading: false,
           error: timeoutError ? TIMEOUT_MESSAGE : GENERIC_MESSAGE,

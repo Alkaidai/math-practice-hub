@@ -107,25 +107,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (state !== 'visible') return;
 
       if (hiddenDurationMs >= MIN_HIDDEN_MS) {
+        console.log(`[AuthContext] ⚠️ tab was hidden for ${Math.round(hiddenDurationMs / 1000)}s (>= ${MIN_HIDDEN_MS / 1000}s) — refreshing session`);
         // Create a new auth-ready gate that blocks data fetches until refresh completes
         let resolve: () => void;
         authReadyPromiseRef.current = new Promise<void>((r) => { resolve = r; });
         authReadyResolveRef.current = resolve!;
 
         try {
+          console.log('[AuthContext] auth refresh started');
           const { data, error: refreshError } = await supabase.auth.refreshSession();
           if (refreshError || !data.session) {
+            console.error('[AuthContext] auth refresh failed:', refreshError?.message ?? 'no session');
             logoutStorage();
             setUser(null);
             setError('Sua sessão expirou. Faça login novamente.');
+          } else {
+            console.log('[AuthContext] auth refresh completed successfully');
           }
-        } catch {
-          // Network error — don't force logout
+        } catch (err) {
+          console.error('[AuthContext] auth refresh network error:', err);
         } finally {
-          // Signal that auth is ready — unblock data fetches
+          console.log('[AuthContext] auth gate released — unblocking data fetches');
           authReadyResolveRef.current?.();
           authReadyResolveRef.current = null;
         }
+      } else {
+        console.log(`[AuthContext] tab visible, hidden for ${Math.round(hiddenDurationMs / 1000)}s (< ${MIN_HIDDEN_MS / 1000}s) — skipping refresh`);
       }
       // If hidden < 5 min, auth-ready promise stays resolved (no blocking)
     });
