@@ -215,6 +215,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
     try {
       console.log('[Dashboard] Phase 1 started — 4 essential queries');
+      acquireRefreshLock();
+      console.log('[Dashboard] 🔒 refresh lock acquired');
       const t0 = Date.now();
 
       const timedQuery = async <T,>(name: string, fn: () => Promise<T>): Promise<T> => {
