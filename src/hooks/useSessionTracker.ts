@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribeVisibilityChange } from '../lib/visibility';
 
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
@@ -8,7 +9,7 @@ const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
  * Tracks user study sessions.
  * - Creates a session on mount
  * - Updates last_activity on user interactions
- * - Auto-ends session after 5min inactivity
+ * - Auto-ends session after inactivity
  * - Ends session on unmount / tab close
  */
 export function useSessionTracker(userId: string | null) {
@@ -17,11 +18,28 @@ export function useSessionTracker(userId: string | null) {
   const lastActivityRef = useRef<number>(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startingSessionRef = useRef<Promise<void> | null>(null);
+
+  const stopInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+  }, []);
+
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatTimerRef.current) {
+      clearInterval(heartbeatTimerRef.current);
+      heartbeatTimerRef.current = null;
+    }
+  }, []);
 
   const endSession = useCallback(async () => {
     const sid = sessionIdRef.current;
     if (!sid) return;
+
     sessionIdRef.current = null;
+    startingSessionRef.current = null;
 
     const now = new Date();
     const durationSeconds = Math.round((now.getTime() - startTimeRef.current) / 1000);
@@ -33,7 +51,6 @@ export function useSessionTracker(userId: string | null) {
         duration_seconds: durationSeconds,
       } as any).eq('id', sid);
 
-      // Update daily study stats
       if (userId && durationSeconds > 0) {
         const today = now.toISOString().split('T')[0];
         const { data: existing } = await supabase
@@ -54,47 +71,77 @@ export function useSessionTracker(userId: string | null) {
         }
       }
     } catch {
-      // Best effort - don't block UI
+      // Best effort
     }
   }, [userId]);
 
   const startSession = useCallback(async () => {
     if (!userId || sessionIdRef.current) return;
-
-    const now = new Date();
-    startTimeRef.current = now.getTime();
-    lastActivityRef.current = now.getTime();
-
-    try {
-      const { data } = await supabase.from('user_sessions')
-        .insert({ user_id: userId, start_time: now.toISOString(), last_activity: now.toISOString() } as any)
-        .select('id')
-        .single();
-      if (data) {
-        sessionIdRef.current = (data as any).id;
-      }
-    } catch {
-      // Best effort
+    if (startingSessionRef.current) {
+      await startingSessionRef.current;
+      return;
     }
+
+    const run = (async () => {
+      const now = new Date();
+      startTimeRef.current = now.getTime();
+      lastActivityRef.current = now.getTime();
+
+      try {
+        const { data } = await supabase.from('user_sessions')
+          .insert({ user_id: userId, start_time: now.toISOString(), last_activity: now.toISOString() } as any)
+          .select('id')
+          .single();
+
+        if (data) {
+          sessionIdRef.current = (data as any).id;
+        }
+      } catch {
+        // Best effort
+      } finally {
+        startingSessionRef.current = null;
+      }
+    })();
+
+    startingSessionRef.current = run;
+    await run;
   }, [userId]);
+
+  const resetInactivityTimer = useCallback(() => {
+    stopInactivityTimer();
+    inactivityTimerRef.current = setTimeout(() => {
+      void endSession();
+    }, INACTIVITY_TIMEOUT_MS);
+  }, [endSession, stopInactivityTimer]);
+
+  const startHeartbeat = useCallback(() => {
+    stopHeartbeat();
+
+    heartbeatTimerRef.current = setInterval(async () => {
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+
+      try {
+        await supabase.from('user_sessions')
+          .update({ last_activity: new Date(lastActivityRef.current).toISOString() } as any)
+          .eq('id', sid);
+      } catch {
+        // Best effort
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }, [stopHeartbeat]);
 
   const recordActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
+    resetInactivityTimer();
+  }, [resetInactivityTimer]);
 
-    // Reset inactivity timer
-    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-    inactivityTimerRef.current = setTimeout(async () => {
-      await endSession();
-      // Start a new session when activity resumes
-    }, INACTIVITY_TIMEOUT_MS);
-  }, [endSession]);
-
-  // Increment daily questions count
   const recordQuestionAnswered = useCallback(async () => {
     if (!userId) return;
-    recordActivity();
 
+    recordActivity();
     const today = new Date().toISOString().split('T')[0];
+
     try {
       const { data: existing } = await supabase
         .from('daily_study_stats')
@@ -120,78 +167,63 @@ export function useSessionTracker(userId: string | null) {
   useEffect(() => {
     if (!userId) return;
 
-    startSession();
+    let alive = true;
 
-    // Listen to user interactions for activity tracking
+    void startSession().then(() => {
+      if (!alive) return;
+      startHeartbeat();
+      resetInactivityTimer();
+    });
+
     const events = ['click', 'keydown', 'scroll', 'touchstart'] as const;
     const handler = () => recordActivity();
     events.forEach(e => document.addEventListener(e, handler, { passive: true }));
 
-    // Start inactivity timer
-    inactivityTimerRef.current = setTimeout(() => {
-      endSession();
-    }, INACTIVITY_TIMEOUT_MS);
-
-    // Heartbeat: periodically update last_activity in DB
-    heartbeatTimerRef.current = setInterval(async () => {
-      const sid = sessionIdRef.current;
-      if (!sid) return;
-      try {
-        await supabase.from('user_sessions')
-          .update({ last_activity: new Date(lastActivityRef.current).toISOString() } as any)
-          .eq('id', sid);
-      } catch { /* best effort */ }
-    }, HEARTBEAT_INTERVAL_MS);
-
-    // Visibility change: end session when hidden, start new when visible
-    const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        endSession();
-        if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
-        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      } else {
-        startSession();
-        inactivityTimerRef.current = setTimeout(() => endSession(), INACTIVITY_TIMEOUT_MS);
-        heartbeatTimerRef.current = setInterval(async () => {
-          const sid = sessionIdRef.current;
-          if (!sid) return;
-          try {
-            await supabase.from('user_sessions')
-              .update({ last_activity: new Date(lastActivityRef.current).toISOString() } as any)
-              .eq('id', sid);
-          } catch { /* best effort */ }
-        }, HEARTBEAT_INTERVAL_MS);
+    const unsubscribeVisibility = subscribeVisibilityChange(({ state }) => {
+      if (state === 'hidden') {
+        stopHeartbeat();
+        stopInactivityTimer();
+        void endSession();
+        return;
       }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
 
-    // End session on page unload
+      lastActivityRef.current = Date.now();
+      void startSession().then(() => {
+        if (!alive) return;
+        startHeartbeat();
+        resetInactivityTimer();
+      });
+    });
+
     const handleUnload = () => {
       const sid = sessionIdRef.current;
       if (!sid || !userId) return;
+
       const durationSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
       const body = JSON.stringify({
         end_time: new Date().toISOString(),
         last_activity: new Date(lastActivityRef.current).toISOString(),
         duration_seconds: durationSeconds,
       });
-      // Use sendBeacon for reliability on page close
+
       navigator.sendBeacon?.(
         `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_sessions?id=eq.${sid}`,
-        new Blob([body], { type: 'application/json' })
+        new Blob([body], { type: 'application/json' }),
       );
     };
+
     window.addEventListener('beforeunload', handleUnload);
 
     return () => {
+      alive = false;
       events.forEach(e => document.removeEventListener(e, handler));
-      document.removeEventListener('visibilitychange', handleVisibility);
+      unsubscribeVisibility();
       window.removeEventListener('beforeunload', handleUnload);
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
-      endSession();
+      stopInactivityTimer();
+      stopHeartbeat();
+      void endSession();
     };
-  }, [userId, startSession, endSession, recordActivity]);
+  }, [userId, startSession, endSession, recordActivity, resetInactivityTimer, startHeartbeat, stopInactivityTimer, stopHeartbeat]);
 
   return { recordActivity, recordQuestionAnswered };
 }
