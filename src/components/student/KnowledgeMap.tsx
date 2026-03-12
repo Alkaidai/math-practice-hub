@@ -48,10 +48,8 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   const { loading, error: loadError, execute } = useLoadWithTimeout();
   const [sortBy, setSortBy] = useState<'priority' | 'name' | 'rate'>('priority');
 
-  const load = async () => {
-    setLoading(true);
-    setError(false);
-    try {
+  const load = useCallback(async () => {
+    await execute(async () => {
       const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getTopics({ activeOnly: true }),
