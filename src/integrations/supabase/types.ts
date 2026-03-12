@@ -126,6 +126,42 @@ export type Database = {
           },
         ]
       }
+      daily_missions: {
+        Row: {
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          current_value: number
+          date: string
+          id: number
+          mission_type: string
+          target_value: number
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          current_value?: number
+          date?: string
+          id?: never
+          mission_type: string
+          target_value?: number
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          current_value?: number
+          date?: string
+          id?: never
+          mission_type?: string
+          target_value?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_study_stats: {
         Row: {
           date: string
@@ -612,6 +648,27 @@ export type Database = {
           id?: string
           metadata?: Json | null
           reason?: string
+        }
+        Relationships: []
+      }
+      topic_prerequisites: {
+        Row: {
+          created_at: string
+          id: number
+          prerequisite_topic_id: string
+          topic_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          prerequisite_topic_id: string
+          topic_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          prerequisite_topic_id?: string
+          topic_id?: string
         }
         Relationships: []
       }

@@ -7,8 +7,9 @@ import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useQuestionTimer } from '../../hooks/useQuestionTimer';
-import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson } from '../../lib/types';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { detectCognitiveBlock, getTopicPrerequisites, buildPrerequisiteMap } from '../../lib/adaptive';
+import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson, Attempt } from '../../lib/types';
+import { CheckCircle2, XCircle, AlertTriangle, BookOpen } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AnswerState {
@@ -49,6 +50,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
   const [allLessons, setAllLessons] = useState<Lesson[]>([]);
   const [allowedSlugs, setAllowedSlugs] = useState<string[]>([]);
+  const [cognitiveBlock, setCognitiveBlock] = useState<ReturnType<typeof detectCognitiveBlock>>(null);
   const [loading, setLoading] = useState(true);
   const { error: loadError, execute } = useLoadWithTimeout();
 
@@ -58,12 +60,14 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   const loadData = useCallback(async () => {
     setLoading(true);
     await execute(async () => {
-      const [topics, questions, notebook, lessons, slugs] = await Promise.all([
+      const [topics, questions, notebook, lessons, slugs, attempts, prereqs] = await Promise.all([
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
         userId ? getNotebook(userId) : Promise.resolve([]),
         getLessons(),
         userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
+        userId ? getAttempts(userId) : Promise.resolve([]),
+        getTopicPrerequisites(),
       ]);
       const filteredTopics = topics.filter(t => slugs.includes(t.subject));
       const filteredQuestions = questions.filter(q => slugs.includes(q.subject));
@@ -72,6 +76,12 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
       setNotebookItems(notebook);
       setAllLessons(lessons);
       setAllowedSlugs(slugs);
+
+      // Detect cognitive block
+      const qMap = new Map(filteredQuestions.map(q => [q.id, { topicId: q.topicId }]));
+      const tMap = new Map(filteredTopics.map(t => [t.id, t.name]));
+      const prereqMap = buildPrerequisiteMap(prereqs);
+      setCognitiveBlock(detectCognitiveBlock(attempts, qMap, tMap, prereqMap));
 
       const newShuffled: Record<string, { options: string[]; correctIndex: number }> = {};
       filteredQuestions.forEach(q => {
@@ -225,6 +235,40 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
           <input value={filters.search} onChange={e => handleFilter('search', e.target.value)} placeholder="Buscar..." className="rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground" />
         </div>
       </div>
+
+      {/* Cognitive Block Alert */}
+      {cognitiveBlock && (
+        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              Possível travamento detectado em "{cognitiveBlock.topicName}"
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Você errou {cognitiveBlock.consecutiveErrors} questões seguidas nesse tópico.
+              {cognitiveBlock.prerequisiteTopicName
+                ? ` Recomendamos revisar "${cognitiveBlock.prerequisiteTopicName}" antes de continuar.`
+                : ' Tente revisar o conteúdo ou assistir uma aula sobre o tópico.'}
+            </p>
+            <div className="flex gap-2 mt-3">
+              {cognitiveBlock.prerequisiteTopicId && (
+                <button
+                  onClick={() => handleFilter('topicId', cognitiveBlock.prerequisiteTopicId!)}
+                  className="rounded-lg text-xs font-medium bg-primary text-primary-foreground px-4 py-1.5 hover:brightness-110 transition-all flex items-center gap-1"
+                >
+                  <BookOpen className="h-3.5 w-3.5" /> Revisar pré-requisito
+                </button>
+              )}
+              <button
+                onClick={() => setCognitiveBlock(null)}
+                className="rounded-lg text-xs font-medium border border-border px-4 py-1.5 hover:bg-muted transition-all"
+              >
+                Continuar mesmo assim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {questions.length === 0 ? (
         <div className="bg-card rounded-xl shadow-sm p-8 text-center">
