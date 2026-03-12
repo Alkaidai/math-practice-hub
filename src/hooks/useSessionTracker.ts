@@ -120,6 +120,7 @@ export function useSessionTracker(userId: string | null) {
   const resetInactivityTimer = useCallback(() => {
     stopInactivityTimer();
     inactivityTimerRef.current = setTimeout(() => {
+      console.warn('[SessionTracker] ⚠️ INACTIVITY TIMEOUT FIRED (5 min) — ending study session');
       void endSession();
     }, INACTIVITY_TIMEOUT_MS);
   }, [endSession, stopInactivityTimer]);
