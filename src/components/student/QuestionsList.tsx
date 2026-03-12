@@ -76,6 +76,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useVisibilityRefresh(loadData);
 
   const topicMap = useMemo(() => new Map(allTopics.map(t => [t.id, t.name])), [allTopics]);
 
