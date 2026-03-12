@@ -3,7 +3,6 @@ import { getRanking, getAppSetting } from '../../lib/storage';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 export function StudentRanking() {
   const { user } = useAuth();
