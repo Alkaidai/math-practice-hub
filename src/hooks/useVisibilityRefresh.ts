@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
  * Calls `onVisible` when the browser tab regains focus after being hidden,
  * but only if it's been hidden for at least `minHiddenMs` (default 60s).
  */
-export function useVisibilityRefresh(onVisible: () => void, minHiddenMs = 60_000) {
+export function useVisibilityRefresh(onVisible: () => void, minHiddenMs = 300_000) {
   const hiddenAtRef = useRef<number | null>(null);
   const callbackRef = useRef(onVisible);
   callbackRef.current = onVisible;
