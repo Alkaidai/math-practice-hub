@@ -923,6 +923,29 @@ export async function initStorageFromSeeds(): Promise<void> {
   // Data is already in the database, no seeding needed
 }
 
+export async function getDailyStudyStats(userId: string, date?: string): Promise<{ totalSeconds: number; questionsAnswered: number } | null> {
+  const d = date ?? new Date().toISOString().split('T')[0];
+  const { data } = await supabase
+    .from('daily_study_stats')
+    .select('total_seconds, questions_answered')
+    .eq('user_id', userId)
+    .eq('date', d)
+    .single();
+  if (!data) return null;
+  return { totalSeconds: (data as any).total_seconds ?? 0, questionsAnswered: (data as any).questions_answered ?? 0 };
+}
+
+export async function getAverageTimePerQuestion(userId: string): Promise<number> {
+  const { data } = await supabase
+    .from('attempts')
+    .select('time_spent_seconds')
+    .eq('user_id', userId)
+    .gt('time_spent_seconds', 0);
+  if (!data || data.length === 0) return 0;
+  const total = data.reduce((sum: number, r: any) => sum + (r.time_spent_seconds ?? 0), 0);
+  return Math.round(total / data.length);
+}
+
 export async function resetToSeed(): Promise<void> {
   // no-op
 }
