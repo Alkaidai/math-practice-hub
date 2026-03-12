@@ -78,8 +78,8 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
 
     await execute(async () => {
       const [allQuestions, allowedSlugs] = await Promise.all([
-        loadQuestionBank(),
-        userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
+        cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
+        userId ? cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)) : Promise.resolve([]),
       ]);
 
       const filtered = allQuestions.filter(

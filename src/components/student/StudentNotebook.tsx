@@ -47,20 +47,19 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
 
   const loadData = useCallback(async () => {
     await execute(async () => {
-      const [questions, topics, notebook, allowedSlugs] = await Promise.all([
-        loadQuestionBank(),
-        getTopics({ activeOnly: true }),
-        getNotebook(userId),
-        getAllowedSubjectSlugs(userId),
+      const [questions, topics, allowedSlugs] = await Promise.all([
+        cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
+        cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
+        cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)),
       ]);
-      setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
-      setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
+      const notebook = await getNotebook(userId);
+      setAllQuestions(questions.filter((q: any) => allowedSlugs.includes(q.subject)));
+      setAllTopics(topics.filter((t: any) => allowedSlugs.includes(t.subject)));
       setNotebookItems(notebook);
     });
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData, 60_000); // refresh after 1min hidden
 
   const questionsMap = useMemo(() => new Map(allQuestions.map(q => [q.id, q])), [allQuestions]);
 

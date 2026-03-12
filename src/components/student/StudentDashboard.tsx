@@ -286,7 +286,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   }, [userId, waitForAuthReady]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load, 30_000);
+  useVisibilityRefresh(load, 60_000); // only dashboard refreshes on tab return (60s threshold)
 
   // ─── Render states ───
 
