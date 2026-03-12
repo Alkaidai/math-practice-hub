@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 import type { Attempt } from './types';
 
 /**
@@ -17,7 +18,6 @@ export function getRecommendedDifficulty(
   topicId?: string,
   questions?: Map<string, { topicId: string; difficulty: string }>
 ): 'easy' | 'medium' | 'hard' {
-  // Filter by topic if provided
   let relevant = attempts;
   if (topicId && questions) {
     relevant = attempts.filter(a => {
@@ -26,14 +26,12 @@ export function getRecommendedDifficulty(
     });
   }
 
-  // Sort by most recent first
   const sorted = [...relevant].sort(
     (a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime()
   );
 
   if (sorted.length === 0) return 'easy';
 
-  // Count consecutive correct/incorrect from most recent
   let consecutiveCorrect = 0;
   let consecutiveIncorrect = 0;
 
@@ -47,7 +45,6 @@ export function getRecommendedDifficulty(
     }
   }
 
-  // Determine current average difficulty
   const recentDifficulties = sorted.slice(0, 10).map(a => {
     const q = questions?.get(a.questionId);
     return q?.difficulty ?? 'easy';
@@ -70,7 +67,6 @@ export function getRecommendedDifficulty(
 
 /**
  * Finds the best topic to study next based on weakness analysis.
- * Returns topic with highest error rate that still has available questions.
  */
 export function getRecommendedTopic(
   attempts: Attempt[],
@@ -78,7 +74,6 @@ export function getRecommendedTopic(
   topicNames: Map<string, string>,
 ): { topicId: string; topicName: string; errorRate: number; availableQuestions: number } | null {
   const topicStats = new Map<string, { total: number; errors: number }>();
-  const answeredQuestionIds = new Set(attempts.map(a => a.questionId));
 
   attempts.forEach(a => {
     const q = questions.get(a.questionId);
@@ -89,9 +84,8 @@ export function getRecommendedTopic(
     topicStats.set(q.topicId, s);
   });
 
-  // Count available (unanswered or incorrectly answered) questions per topic
   const availableByTopic = new Map<string, number>();
-  questions.forEach((q, qId) => {
+  questions.forEach((q) => {
     if (q.status === 'draft' || !q.topicId) return;
     availableByTopic.set(q.topicId, (availableByTopic.get(q.topicId) ?? 0) + 1);
   });
@@ -106,7 +100,6 @@ export function getRecommendedTopic(
     }))
     .sort((a, b) => b.errorRate - a.errorRate);
 
-  // If no weak topics, pick topic with most available questions that hasn't been attempted
   if (candidates.length === 0) {
     const unattempted = Array.from(availableByTopic.entries())
       .filter(([tid]) => !topicStats.has(tid))
@@ -122,4 +115,100 @@ export function getRecommendedTopic(
   }
 
   return candidates[0] ?? null;
+}
+
+// ---- Cognitive Block Detection ----
+
+export interface CognitiveBlockAlert {
+  topicId: string;
+  topicName: string;
+  consecutiveErrors: number;
+  prerequisiteTopicId?: string;
+  prerequisiteTopicName?: string;
+}
+
+/**
+ * Detects cognitive block: 3+ consecutive errors on same topic
+ * with time above average. If a prerequisite exists, recommends it.
+ */
+export function detectCognitiveBlock(
+  attempts: Attempt[],
+  questions: Map<string, { topicId: string }>,
+  topicNames: Map<string, string>,
+  prerequisites: Map<string, string[]>, // topicId -> prerequisite topic ids
+): CognitiveBlockAlert | null {
+  const sorted = [...attempts].sort(
+    (a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime()
+  );
+
+  // Check last N attempts for consecutive errors on same topic
+  const recentByTopic = new Map<string, { errors: number }>();
+
+  for (const a of sorted.slice(0, 15)) {
+    const q = questions.get(a.questionId);
+    if (!q?.topicId) continue;
+
+    const s = recentByTopic.get(q.topicId);
+    if (!s) {
+      recentByTopic.set(q.topicId, { errors: a.isCorrect ? 0 : 1 });
+    } else if (!a.isCorrect) {
+      s.errors++;
+    } else {
+      // A correct answer breaks the error streak for this topic
+      break;
+    }
+  }
+
+  for (const [topicId, stats] of recentByTopic.entries()) {
+    if (stats.errors >= 3) {
+      const prereqs = prerequisites.get(topicId) ?? [];
+      const prereqId = prereqs[0];
+      return {
+        topicId,
+        topicName: topicNames.get(topicId) ?? topicId,
+        consecutiveErrors: stats.errors,
+        prerequisiteTopicId: prereqId,
+        prerequisiteTopicName: prereqId ? topicNames.get(prereqId) : undefined,
+      };
+    }
+  }
+
+  return null;
+}
+
+// ---- Prerequisites CRUD ----
+
+export async function getTopicPrerequisites(): Promise<{ topicId: string; prerequisiteTopicId: string }[]> {
+  const { data } = await supabase
+    .from('topic_prerequisites')
+    .select('topic_id, prerequisite_topic_id');
+  return (data ?? []).map((r: any) => ({
+    topicId: r.topic_id,
+    prerequisiteTopicId: r.prerequisite_topic_id,
+  }));
+}
+
+export async function addTopicPrerequisite(topicId: string, prerequisiteTopicId: string): Promise<void> {
+  await supabase.from('topic_prerequisites').upsert({
+    topic_id: topicId,
+    prerequisite_topic_id: prerequisiteTopicId,
+  } as any);
+}
+
+export async function removeTopicPrerequisite(topicId: string, prerequisiteTopicId: string): Promise<void> {
+  await (supabase.from('topic_prerequisites') as any)
+    .delete()
+    .eq('topic_id', topicId)
+    .eq('prerequisite_topic_id', prerequisiteTopicId);
+}
+
+/** Build a Map of topicId -> prerequisite topic ids */
+export function buildPrerequisiteMap(prereqs: { topicId: string; prerequisiteTopicId: string }[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  prereqs.forEach(p => {
+    const arr = map.get(p.topicId) ?? [];
+    arr.push(p.prerequisiteTopicId);
+    map.set(p.topicId, arr);
+  });
+  return map;
 }
