@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
 import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess, toggleLessonVisibility } from '../../lib/storage';
+import { AdminAnalytics } from './AdminAnalytics';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem, SubjectItem } from '../../lib/types';
@@ -15,10 +16,10 @@ import {
 import {
   LayoutDashboard, FileText, BookOpen, GraduationCap, Folder, Upload, Download,
   Trophy, BarChart3, Users, MessageSquare, Notebook, AlertTriangle, Settings,
-  ArrowLeft, LogOut, ImageIcon, X, Trash2,
+  ArrowLeft, LogOut, ImageIcon, X, Trash2, Activity,
 } from 'lucide-react';
 
-type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
+type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'analytics' | 'settings';
 
 // Reusable paginated table component for admin lists
 function AdminPaginatedTable<T>({ items, perPage, renderHeader, renderRow }: {
@@ -62,6 +63,7 @@ const ADMIN_NAV = [
   { id: 'export' as Panel, label: 'Exportar', icon: Download, group: 'Conteúdo' },
   { id: 'ranking' as Panel, label: 'Ranking', icon: Trophy, group: 'Análise' },
   { id: 'topic-stats' as Panel, label: 'Estatísticas', icon: BarChart3, group: 'Análise' },
+  { id: 'analytics' as Panel, label: 'Engajamento', icon: Activity, group: 'Análise' },
   { id: 'users' as Panel, label: 'Usuários', icon: Users, group: 'Pessoas' },
   { id: 'comments' as Panel, label: 'Comentários', icon: MessageSquare, group: 'Pessoas' },
   { id: 'notebook' as Panel, label: 'Caderno', icon: Notebook, group: 'Pessoas' },
@@ -187,6 +189,7 @@ export function AdminApp() {
             {panel === 'export' && <AdminExport />}
             {panel === 'ranking' && <AdminRanking key={refreshKey} />}
             {panel === 'topic-stats' && <AdminTopicStats key={refreshKey} />}
+            {panel === 'analytics' && <AdminAnalytics key={refreshKey} />}
             {panel === 'settings' && <AdminSettings key={refreshKey} />}
           </main>
         </div>
