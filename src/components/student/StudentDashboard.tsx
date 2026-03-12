@@ -36,6 +36,11 @@ interface DashboardData {
   weakTopics: WeakTopic[];
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
+  allQuestions: Question[];
+  allTopics: { id: string; name: string; subject: string; grade: string; status: string }[];
+  allAttempts: Attempt[];
+  diagnosticResult: any | null;
+  diagnosticAccuracy: number;
   nextTopic: { topicId: string; topicName: string; count: number; recommendedDifficulty: string } | null;
   hasDiagnostic: boolean;
   recommendedDifficulty: string;
