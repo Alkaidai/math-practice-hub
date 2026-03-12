@@ -293,19 +293,19 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       }
 
       // If it's a refresh with partial failure, use previous values for failed queries
-      const attempts = attemptsR.ok ? attemptsR.value : (hasPreviousData ? phase1!.allAttempts : attemptsR.value);
+      const attempts = attemptsR.ok ? attemptsR.value : (hasPreviousData ? prevPhase1!.allAttempts : attemptsR.value);
       const notebook = notebookR.ok ? notebookR.value : (hasPreviousData ? (() => { console.log('[Dashboard] skipping empty fallback for notebook — using previous data'); return null; })() : notebookR.value);
-      const meta = metaR.ok ? metaR.value : (hasPreviousData ? phase1!.meta : metaR.value);
-      const dailyStats = dailyR.ok ? dailyR.value : (hasPreviousData ? { totalSeconds: phase1!.studyTodaySeconds, questionsAnswered: phase1!.questionsToday } : dailyR.value);
+      const meta = metaR.ok ? metaR.value : (hasPreviousData ? prevPhase1!.meta : metaR.value);
+      const dailyStats = dailyR.ok ? dailyR.value : (hasPreviousData ? { totalSeconds: prevPhase1!.studyTodaySeconds, questionsAnswered: prevPhase1!.questionsToday } : dailyR.value);
 
       // For notebook, if we're reusing previous data, reuse the counts
       const usePreviousNotebook = !notebookR.ok && hasPreviousData;
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;
       const rate = answered ? Math.round((correct / answered) * 100) : 0;
-      const pendingCount = usePreviousNotebook ? phase1!.pendingCount : (notebook ? notebook.filter((i: any) => i.status === 'pending').length : 0);
-      const masteredCount = usePreviousNotebook ? phase1!.masteredCount : (notebook ? notebook.filter((i: any) => i.status === 'mastered').length : 0);
-      const totalReviewed = usePreviousNotebook ? phase1!.totalReviewed : (notebook ? notebook.length : 0);
+      const pendingCount = usePreviousNotebook ? prevPhase1!.pendingCount : (notebook ? notebook.filter((i: any) => i.status === 'pending').length : 0);
+      const masteredCount = usePreviousNotebook ? prevPhase1!.masteredCount : (notebook ? notebook.filter((i: any) => i.status === 'mastered').length : 0);
+      const totalReviewed = usePreviousNotebook ? prevPhase1!.totalReviewed : (notebook ? notebook.length : 0);
 
       setPhase1({
         answered, correct, rate, pendingCount, masteredCount, totalReviewed,
