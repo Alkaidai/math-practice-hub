@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getLessons, getTopics, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel } from '../../lib/ui-utils';
-import { ErrorState } from './ErrorState';
+import { LoadingTimeout } from './LoadingTimeout';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { Search, PlayCircle, Clock } from 'lucide-react';
 import type { Lesson, Topic } from '../../lib/types';
 
@@ -29,15 +31,14 @@ export function StudentLessons() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const { error: loadError, execute } = useLoadWithTimeout();
   const [search, setSearch] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    setError(false);
-    try {
+    await execute(async () => {
       const [allLessons, allTopics, allowedSlugs] = await Promise.all([
         getLessons(),
         getTopics({ activeOnly: true }),
@@ -45,14 +46,12 @@ export function StudentLessons() {
       ]);
       setLessons(allLessons.filter(l => allowedSlugs.includes(l.subject)));
       setTopics(allTopics.filter(t => allowedSlugs.includes(t.subject)));
-    } catch {
-      setError(true);
-    } finally {
       setLoading(false);
-    }
-  }, [userId]);
+    });
+  }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useVisibilityRefresh(loadData);
 
   const topicsMap = useMemo(() => new Map(topics.map(t => [t.id, t])), [topics]);
 
@@ -81,7 +80,7 @@ export function StudentLessons() {
   const comingSoonLessons = filtered.filter(l => l.visibility === 'coming_soon');
 
   if (loading) return <p className="text-muted-foreground">Carregando aulas...</p>;
-  if (error) return <ErrorState message="Erro ao carregar aulas." onRetry={loadData} />;
+  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
 
   return (
     <div className="space-y-5">
