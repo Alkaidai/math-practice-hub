@@ -208,7 +208,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
     // ─── PHASE 1: Essential data (4 queries, max concurrency = 4) ───
     const isRefresh = !isInitialLoadRef.current; // already have data?
-    const hasPreviousData = phase1 !== null;
+    const hasPreviousData = phase1Ref.current !== null;
+    const prevPhase1 = phase1Ref.current;
 
     if (!isRefresh) {
       setPhase1Loading(true);
