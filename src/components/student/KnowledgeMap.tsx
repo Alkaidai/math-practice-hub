@@ -45,8 +45,7 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   const { user } = useAuth();
   const userId = externalUserId ?? user?.username ?? '';
   const [groups, setGroups] = useState<SubjectGroup[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const { loading, error: loadError, execute } = useLoadWithTimeout();
   const [sortBy, setSortBy] = useState<'priority' | 'name' | 'rate'>('priority');
 
   const load = async () => {
