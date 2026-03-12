@@ -69,7 +69,7 @@ function formatStudyTime(seconds: number): string {
 export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic }: {
   onNavigateQuestions: () => void;
   onRefazer: (questionId: string) => void;
-  onStartTopic: (topicId: string) => void;
+  onStartTopic: (topicId: string, difficulty?: string) => void;
 }) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
