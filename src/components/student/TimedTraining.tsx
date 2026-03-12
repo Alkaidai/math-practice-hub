@@ -164,8 +164,10 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
     } catch (error) {
       console.error('[TimedTraining] erro ao salvar tentativa:', error);
     } finally {
+      if (finishedRef.current) return;
       if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
       autoAdvanceRef.current = setTimeout(() => {
+        if (finishedRef.current) return;
         if (currentIdx + 1 >= questions.length) {
           finishTraining();
         } else {
