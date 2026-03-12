@@ -63,9 +63,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   const { loading, error, execute } = useLoadWithTimeout();
   const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
 
-  const load = async () => {
-    setError(false);
-    try {
+  const load = useCallback(async () => {
+    await execute(async () => {
       const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
