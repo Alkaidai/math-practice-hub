@@ -36,6 +36,7 @@ interface DashboardData {
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
   nextTopic: { topicId: string; topicName: string; count: number; recommendedDifficulty: string } | null;
+  hasDiagnostic: boolean;
   recommendedDifficulty: string;
   studyTodaySeconds: number;
   questionsToday: number;
