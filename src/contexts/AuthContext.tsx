@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Revalidate session when tab regains focus after inactivity
   useEffect(() => {
     let hiddenAt: number | null = null;
-    const MIN_HIDDEN_MS = 60_000; // 1 minute
+    const MIN_HIDDEN_MS = 300_000; // 5 minutes
 
     async function handleVisibility() {
       if (document.visibilityState === 'hidden') {
