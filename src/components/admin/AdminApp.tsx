@@ -368,6 +368,8 @@ function AdminRanking() {
 
 function AdminTopicStats() {
   const [data, setData] = useState<{ topics: Topic[]; attempts: Attempt[]; questions: Question[] } | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const students = useStudentList();
 
   useEffect(() => {
     Promise.all([getTopics(), getAttempts(), loadQuestionBank()]).then(([topics, attempts, questions]) => {
@@ -377,7 +379,8 @@ function AdminTopicStats() {
 
   if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
-  const { topics, attempts, questions } = data;
+  const { topics, questions } = data;
+  const attempts = selectedStudent ? data.attempts.filter(a => a.userId === selectedStudent) : data.attempts;
   const questionMap = new Map(questions.map(q => [q.id, q]));
 
   const stats = new Map<string, { total: number; correct: number; errors: number }>();
@@ -404,7 +407,10 @@ function AdminTopicStats() {
 
   return (
     <div className="space-y-4">
-      <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
+        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
+      </div>
 
       {topicStats.length === 0 ? (
         <p className="font-body text-sm text-muted-foreground">Nenhum tópico encontrado.</p>
