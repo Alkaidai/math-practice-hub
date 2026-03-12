@@ -50,6 +50,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
   const [allLessons, setAllLessons] = useState<Lesson[]>([]);
   const [allowedSlugs, setAllowedSlugs] = useState<string[]>([]);
+  const [cognitiveBlock, setCognitiveBlock] = useState<ReturnType<typeof detectCognitiveBlock>>(null);
   const [loading, setLoading] = useState(true);
   const { error: loadError, execute } = useLoadWithTimeout();
 
@@ -59,12 +60,14 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   const loadData = useCallback(async () => {
     setLoading(true);
     await execute(async () => {
-      const [topics, questions, notebook, lessons, slugs] = await Promise.all([
+      const [topics, questions, notebook, lessons, slugs, attempts, prereqs] = await Promise.all([
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
         userId ? getNotebook(userId) : Promise.resolve([]),
         getLessons(),
         userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
+        userId ? getAttempts(userId) : Promise.resolve([]),
+        getTopicPrerequisites(),
       ]);
       const filteredTopics = topics.filter(t => slugs.includes(t.subject));
       const filteredQuestions = questions.filter(q => slugs.includes(q.subject));
@@ -73,6 +76,12 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
       setNotebookItems(notebook);
       setAllLessons(lessons);
       setAllowedSlugs(slugs);
+
+      // Detect cognitive block
+      const qMap = new Map(filteredQuestions.map(q => [q.id, { topicId: q.topicId }]));
+      const tMap = new Map(filteredTopics.map(t => [t.id, t.name]));
+      const prereqMap = buildPrerequisiteMap(prereqs);
+      setCognitiveBlock(detectCognitiveBlock(attempts, qMap, tMap, prereqMap));
 
       const newShuffled: Record<string, { options: string[]; correctIndex: number }> = {};
       filteredQuestions.forEach(q => {
