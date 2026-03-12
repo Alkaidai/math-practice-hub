@@ -91,7 +91,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData);
+  useVisibilityRefresh(loadData, 60_000); // refresh after 1min hidden
 
   const topicMap = useMemo(() => new Map(allTopics.map(t => [t.id, t.name])), [allTopics]);
 

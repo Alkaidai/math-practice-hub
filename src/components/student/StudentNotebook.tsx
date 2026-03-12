@@ -60,7 +60,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData);
+  useVisibilityRefresh(loadData, 60_000); // refresh after 1min hidden
 
   const questionsMap = useMemo(() => new Map(allQuestions.map(q => [q.id, q])), [allQuestions]);
 

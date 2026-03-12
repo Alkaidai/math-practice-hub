@@ -48,7 +48,7 @@ export function StudentLessons() {
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData);
+  useVisibilityRefresh(loadData, 120_000); // refresh after 2min hidden (static data)
 
   const topicsMap = useMemo(() => new Map(topics.map(t => [t.id, t])), [topics]);
 
