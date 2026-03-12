@@ -62,6 +62,7 @@ const ADMIN_NAV = [
   { id: 'export' as Panel, label: 'Exportar', icon: Download, group: 'Conteúdo' },
   { id: 'ranking' as Panel, label: 'Ranking', icon: Trophy, group: 'Análise' },
   { id: 'topic-stats' as Panel, label: 'Estatísticas', icon: BarChart3, group: 'Análise' },
+  { id: 'analytics' as Panel, label: 'Engajamento', icon: Activity, group: 'Análise' },
   { id: 'users' as Panel, label: 'Usuários', icon: Users, group: 'Pessoas' },
   { id: 'comments' as Panel, label: 'Comentários', icon: MessageSquare, group: 'Pessoas' },
   { id: 'notebook' as Panel, label: 'Caderno', icon: Notebook, group: 'Pessoas' },
