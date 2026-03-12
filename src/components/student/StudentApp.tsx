@@ -7,6 +7,7 @@ import { TimedTraining } from './TimedTraining';
 import { StudentNotebook } from './StudentNotebook';
 import { StudentRanking } from './StudentRanking';
 import { KnowledgeMap } from './KnowledgeMap';
+import { LearningTrails } from './LearningTrails';
 import { StudentLessons } from './StudentLessons';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { ScrollToTop } from './ScrollToTop';
