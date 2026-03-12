@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 
 const DEFAULT_TIMEOUT_MS = 12000; // 12 seconds
 const MAX_RETRIES = 1;
+// Safety: absolute max time before force-ending loading state
+const ABSOLUTE_MAX_MS = 20000;
 
 interface UseLoadWithTimeoutOptions {
   timeoutMs?: number;
@@ -23,14 +25,30 @@ export function useLoadWithTimeout(options: UseLoadWithTimeoutOptions = {}): Use
   const [timedOut, setTimedOut] = useState(false);
   const mountedRef = useRef(true);
   const retryCountRef = useRef(0);
+  const executingRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+    
+    // Safety: if loading is still true after ABSOLUTE_MAX_MS and no execute is running,
+    // force end loading to prevent infinite loading states
+    const safetyTimer = setTimeout(() => {
+      if (mountedRef.current && loading && !executingRef.current) {
+        setLoading(false);
+        setTimedOut(true);
+        setError('Não foi possível carregar os dados. Verifique sua conexão.');
+      }
+    }, ABSOLUTE_MAX_MS);
+
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(safetyTimer);
+    };
+  }, [loading]);
 
   const execute = useCallback(async (fn: () => Promise<void>) => {
     if (!mountedRef.current) return;
+    executingRef.current = true;
     setLoading(true);
     setError(null);
     setTimedOut(false);
@@ -80,6 +98,7 @@ export function useLoadWithTimeout(options: UseLoadWithTimeoutOptions = {}): Use
           : 'Ocorreu um erro ao carregar os dados.');
       } finally {
         clearTimeout(timer);
+        executingRef.current = false;
       }
     };
 
@@ -89,6 +108,7 @@ export function useLoadWithTimeout(options: UseLoadWithTimeoutOptions = {}): Use
 
   const reset = useCallback(() => {
     retryCountRef.current = 0;
+    executingRef.current = false;
     setLoading(true);
     setError(null);
     setTimedOut(false);
