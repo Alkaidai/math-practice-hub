@@ -120,7 +120,12 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ };
       }
 
-      setData({ answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag });
+      setData({
+        answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag,
+        studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
+        questionsToday: dailyStats?.questionsAnswered ?? 0,
+        avgTimePerQuestion: avgTime,
+      });
     });
   }, [userId, execute]);
 
