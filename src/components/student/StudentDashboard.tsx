@@ -244,6 +244,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       {/* Study Trail */}
       <StudyTrail />
 
+      {/* Daily Missions */}
+      <DailyMissions />
+
       {/* Diagnostic Report - only if completed */}
       {data.hasDiagnostic && <DiagnosticReport />}
 
