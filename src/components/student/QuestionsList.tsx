@@ -5,9 +5,9 @@ import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, optionLette
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useQuestionTimer } from '../../hooks/useQuestionTimer';
 import { detectCognitiveBlock, getTopicPrerequisites, buildPrerequisiteMap } from '../../lib/adaptive';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson, Attempt } from '../../lib/types';
 import { CheckCircle2, XCircle, AlertTriangle, BookOpen } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -58,40 +58,45 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
 
   const loadData = useCallback(async () => {
     await execute(async () => {
-      const [topics, questions, notebook, lessons, slugs, attempts, prereqs] = await Promise.all([
-        getTopics({ activeOnly: true }),
-        loadQuestionBank(),
-        userId ? getNotebook(userId) : Promise.resolve([]),
-        getLessons(),
-        userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
-        userId ? getAttempts(userId) : Promise.resolve([]),
-        getTopicPrerequisites(),
+      // Phase 1: cached/static data (instant from cache) + user notebook
+      const [topics, questions, slugs, lessons] = await Promise.all([
+        cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
+        cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
+        userId ? cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)) : Promise.resolve([]),
+        cachedFetch(CACHE_KEYS.LESSONS, () => getLessons()),
       ]);
-      const filteredTopics = topics.filter(t => slugs.includes(t.subject));
-      const filteredQuestions = questions.filter(q => slugs.includes(q.subject));
+
+      const filteredTopics = topics.filter((t: any) => slugs.includes(t.subject));
+      const filteredQuestions = questions.filter((q: any) => slugs.includes(q.subject));
       setAllTopics(filteredTopics);
       setAllQuestions(filteredQuestions);
-      setNotebookItems(notebook);
       setAllLessons(lessons);
       setAllowedSlugs(slugs);
 
-      // Detect cognitive block
-      const qMap = new Map(filteredQuestions.map(q => [q.id, { topicId: q.topicId }]));
-      const tMap = new Map(filteredTopics.map(t => [t.id, t.name]));
-      const prereqMap = buildPrerequisiteMap(prereqs);
-      setCognitiveBlock(detectCognitiveBlock(attempts, qMap, tMap, prereqMap));
-
       const newShuffled: Record<string, { options: string[]; correctIndex: number }> = {};
-      filteredQuestions.forEach(q => {
+      filteredQuestions.forEach((q: any) => {
         const { shuffled, newCorrectIndex } = shuffleOptions(q.options, q.correctIndex);
         newShuffled[q.id] = { options: shuffled, correctIndex: newCorrectIndex };
       });
       setShuffledMap(newShuffled);
+
+      // Phase 2: user-specific data (sequential to avoid auth lock contention)
+      const [notebook, attempts, prereqs] = await Promise.all([
+        userId ? getNotebook(userId) : Promise.resolve([]),
+        userId ? getAttempts(userId) : Promise.resolve([]),
+        getTopicPrerequisites(),
+      ]);
+      setNotebookItems(notebook);
+
+      // Detect cognitive block
+      const qMap = new Map(filteredQuestions.map((q: any) => [q.id, { topicId: q.topicId }]));
+      const tMap = new Map(filteredTopics.map((t: any) => [t.id, t.name]));
+      const prereqMap = buildPrerequisiteMap(prereqs);
+      setCognitiveBlock(detectCognitiveBlock(attempts, qMap, tMap, prereqMap));
     });
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData, 60_000); // refresh after 1min hidden
 
   const topicMap = useMemo(() => new Map(allTopics.map(t => [t.id, t.name])), [allTopics]);
 

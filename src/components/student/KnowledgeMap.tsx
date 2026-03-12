@@ -4,7 +4,7 @@ import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjec
 import { Progress } from '../ui/progress';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import { AlertTriangle, CheckCircle2, BookOpen, Clock } from 'lucide-react';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
@@ -51,13 +51,14 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   const load = useCallback(async () => {
     await execute(async () => {
       try {
-        const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
-          getAttempts(userId),
-          getTopics({ activeOnly: true }),
-          getSubjects({ activeOnly: true }),
-          loadQuestionBank(),
-          externalUserId ? Promise.resolve([]) : getAllowedSubjectSlugs(userId),
+        // Cached static data first, then user-specific
+        const [topics, subjects, questions, allowedSlugs] = await Promise.all([
+          cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
+          cachedFetch(CACHE_KEYS.SUBJECTS, () => getSubjects({ activeOnly: true })),
+          cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
+          externalUserId ? Promise.resolve([]) : cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)),
         ]);
+        const attempts = await getAttempts(userId);
 
         const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
         const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
@@ -116,7 +117,7 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   }, [userId, execute, externalUserId]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load, 60_000); // refresh after 1min hidden
+  
 
   if (loading) return <p className="text-muted-foreground">Carregando mapa de tópicos...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;

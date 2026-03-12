@@ -3,7 +3,6 @@ import { getRanking, getAppSetting } from '../../lib/storage';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 export function StudentRanking() {
   const { user } = useAuth();
@@ -24,7 +23,6 @@ export function StudentRanking() {
   }, [execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load, 60_000); // refresh after 1min hidden
 
   if (loading) return <p className="text-muted-foreground">Carregando...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;

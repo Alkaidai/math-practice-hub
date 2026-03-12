@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { LoadingTimeout } from './LoadingTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import { CheckCircle2, Lock, Play, Circle, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { Progress } from '../ui/progress';
 import type { Topic, Attempt } from '../../lib/types';
@@ -185,13 +185,13 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
 
   const load = useCallback(async () => {
     await execute(async () => {
-      const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
-        getAttempts(userId),
-        getTopics({ activeOnly: true }),
-        getSubjects({ activeOnly: true }),
-        loadQuestionBank(),
-        getAllowedSubjectSlugs(userId),
+      const [topics, subjects, questions, allowedSlugs] = await Promise.all([
+        cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
+        cachedFetch(CACHE_KEYS.SUBJECTS, () => getSubjects({ activeOnly: true })),
+        cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
+        cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)),
       ]);
+      const attempts = await getAttempts(userId);
 
       const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
@@ -256,7 +256,7 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
   }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load, 60_000); // refresh after 1min hidden
+  
 
   if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
   if (loading) return <p className="text-muted-foreground">Carregando trilhas...</p>;

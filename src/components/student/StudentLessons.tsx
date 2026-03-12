@@ -4,7 +4,7 @@ import { getLessons, getTopics, getAllowedSubjectSlugs } from '../../lib/storage
 import { subjectLabel } from '../../lib/ui-utils';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import { Search, PlayCircle, Clock } from 'lucide-react';
 import type { Lesson, Topic } from '../../lib/types';
 
@@ -38,17 +38,16 @@ export function StudentLessons() {
   const loadData = useCallback(async () => {
     await execute(async () => {
       const [allLessons, allTopics, allowedSlugs] = await Promise.all([
-        getLessons(),
-        getTopics({ activeOnly: true }),
-        getAllowedSubjectSlugs(userId),
+        cachedFetch(CACHE_KEYS.LESSONS, () => getLessons()),
+        cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
+        cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)),
       ]);
-      setLessons(allLessons.filter(l => allowedSlugs.includes(l.subject)));
-      setTopics(allTopics.filter(t => allowedSlugs.includes(t.subject)));
+      setLessons(allLessons.filter((l: any) => allowedSlugs.includes(l.subject)));
+      setTopics(allTopics.filter((t: any) => allowedSlugs.includes(t.subject)));
     });
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData, 120_000); // refresh after 2min hidden (static data)
 
   const topicsMap = useMemo(() => new Map(topics.map(t => [t.id, t])), [topics]);
 

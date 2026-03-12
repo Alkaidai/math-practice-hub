@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds (safety fallback)
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 const MAX_RETRIES = 1;
-const ABSOLUTE_MAX_MS = 20000;
+const ABSOLUTE_MAX_MS = 35000; // Must be > DEFAULT_TIMEOUT_MS to avoid premature kills
 
 interface UseLoadWithTimeoutOptions {
   timeoutMs?: number;

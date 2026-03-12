@@ -5,7 +5,6 @@ import { Progress } from '../ui/progress';
 import { CheckCircle2 } from 'lucide-react';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 export function DailyMissions() {
   const { user } = useAuth();
@@ -25,7 +24,6 @@ export function DailyMissions() {
   }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load, 60_000); // refresh after 1min hidden
 
   if (error) return <LoadingTimeout error={error} onRetry={load} />;
   if (loading || missions.length === 0) return null;

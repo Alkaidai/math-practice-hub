@@ -4,7 +4,7 @@ import { loadQuestionBank, addAttempt, getAllowedSubjectSlugs } from '../../lib/
 import { difficultyLabel } from '../../lib/ui-utils';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import type { Question } from '../../lib/types';
 import { Timer, CheckCircle2, XCircle, Play, Square, RefreshCw } from 'lucide-react';
 
@@ -78,8 +78,8 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
 
     await execute(async () => {
       const [allQuestions, allowedSlugs] = await Promise.all([
-        loadQuestionBank(),
-        userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
+        cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
+        userId ? cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)) : Promise.resolve([]),
       ]);
 
       const filtered = allQuestions.filter(
@@ -108,7 +108,7 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
     };
   }, [loadQuestions, clearRunningTimers]);
 
-  useVisibilityRefresh(loadQuestions, 120_000); // refresh after 2min hidden
+  
 
   const startTimer = useCallback(() => {
     if (loadingQuestions || !!loadError || questions.length === 0) return;
