@@ -110,7 +110,8 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
     });
   }, [userId, execute, externalUserId]);
 
-  useEffect(() => { load(); }, [userId]);
+  useEffect(() => { load(); }, [load]);
+  useVisibilityRefresh(load);
 
   if (loading) return <p className="text-muted-foreground">Carregando mapa de tópicos...</p>;
   if (error) return <ErrorState message="Erro ao carregar o mapa de tópicos." onRetry={load} />;
