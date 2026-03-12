@@ -116,10 +116,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       }
 
       setData({ answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag });
-    } catch {
-      setError(true);
-    }
-  };
+    });
+  }, [userId, execute]);
 
   useEffect(() => { load(); }, [userId]);
 
