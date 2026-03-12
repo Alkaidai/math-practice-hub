@@ -158,8 +158,10 @@ export function AdminAnalytics() {
   }
 
   async function loadPedagogical() {
+    let attemptsQ = supabase.from('attempts').select('question_id, topic_id, is_correct, time_spent_seconds, attempt_number, user_id');
+    if (selectedStudent) attemptsQ = attemptsQ.eq('user_id', selectedStudent);
     const [attemptsRes, questionsRes, topicsRes] = await Promise.all([
-      supabase.from('attempts').select('question_id, topic_id, is_correct, time_spent_seconds, attempt_number, user_id'),
+      attemptsQ,
       supabase.from('questions').select('id, statement').eq('status', 'published'),
       supabase.from('topics').select('id, name'),
     ]);
