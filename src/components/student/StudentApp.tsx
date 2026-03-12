@@ -113,6 +113,7 @@ export function StudentApp() {
   const handleTabChange = (t: Tab) => {
     setTab(t);
     setTopicFilter(null);
+    setDifficultyFilter(null);
     setTabKey(k => k + 1);
   };
 
