@@ -61,6 +61,7 @@ const ADMIN_NAV = [
   { id: 'subjects' as Panel, label: 'Disciplinas', icon: BookOpen, group: 'Conteúdo' },
   { id: 'lessons' as Panel, label: 'Aulas', icon: GraduationCap, group: 'Conteúdo' },
   { id: 'cadastros' as Panel, label: 'Tópicos', icon: Folder, group: 'Conteúdo' },
+  { id: 'prerequisites' as Panel, label: 'Pré-requisitos', icon: Link2, group: 'Conteúdo' },
   { id: 'import' as Panel, label: 'Importar', icon: Upload, group: 'Conteúdo' },
   { id: 'export' as Panel, label: 'Exportar', icon: Download, group: 'Conteúdo' },
   { id: 'ranking' as Panel, label: 'Ranking', icon: Trophy, group: 'Análise' },
