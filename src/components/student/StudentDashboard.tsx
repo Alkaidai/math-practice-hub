@@ -68,7 +68,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
   const load = useCallback(async () => {
     await execute(async () => {
-      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
+      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs, dailyStats, avgTime] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
         getStudentDashboardMeta(userId),
@@ -76,6 +76,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         getTopics({ activeOnly: true }),
         getDiagnosticResult(userId),
         getAllowedSubjectSlugs(userId),
+        getDailyStudyStats(userId),
+        getAverageTimePerQuestion(userId),
       ]);
 
       const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
