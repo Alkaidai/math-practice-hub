@@ -5,7 +5,7 @@ import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import { CheckCircle2, Search, CalendarClock } from 'lucide-react';
 import type { Question, Topic, NotebookItem } from '../../lib/types';
 
