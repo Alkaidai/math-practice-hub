@@ -43,11 +43,9 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { error: loadError, execute } = useLoadWithTimeout();
+  const { loading, error: loadError, execute } = useLoadWithTimeout();
 
   const loadData = useCallback(async () => {
-    setLoading(true);
     await execute(async () => {
       const [questions, topics, notebook, allowedSlugs] = await Promise.all([
         loadQuestionBank(),
@@ -58,7 +56,6 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
       setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
       setNotebookItems(notebook);
-      setLoading(false);
     });
   }, [userId, execute]);
 

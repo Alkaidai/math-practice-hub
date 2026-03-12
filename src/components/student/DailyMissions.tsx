@@ -3,23 +3,31 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getDailyMissions, getMissionLabel, getMissionEmoji, type DailyMission } from '../../lib/missions';
 import { Progress } from '../ui/progress';
 import { CheckCircle2 } from 'lucide-react';
+import { LoadingTimeout } from './LoadingTimeout';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 export function DailyMissions() {
   const { user } = useAuth();
   const userId = user?.username ?? '';
   const [missions, setMissions] = useState<DailyMission[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { loading, error, execute } = useLoadWithTimeout();
 
   const load = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    const m = await getDailyMissions(userId);
-    setMissions(m);
-    setLoading(false);
-  }, [userId]);
+    await execute(async () => {
+      if (!userId) {
+        setMissions([]);
+        return;
+      }
+      const m = await getDailyMissions(userId);
+      setMissions(m);
+    });
+  }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
+  useVisibilityRefresh(load);
 
+  if (error) return <LoadingTimeout error={error} onRetry={load} />;
   if (loading || missions.length === 0) return null;
 
   const completedCount = missions.filter(m => m.completed).length;

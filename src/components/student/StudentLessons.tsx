@@ -30,14 +30,12 @@ export function StudentLessons() {
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { error: loadError, execute } = useLoadWithTimeout();
+  const { loading, error: loadError, execute } = useLoadWithTimeout();
   const [search, setSearch] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
 
   const loadData = useCallback(async () => {
-    setLoading(true);
     await execute(async () => {
       const [allLessons, allTopics, allowedSlugs] = await Promise.all([
         getLessons(),
@@ -46,7 +44,6 @@ export function StudentLessons() {
       ]);
       setLessons(allLessons.filter(l => allowedSlugs.includes(l.subject)));
       setTopics(allTopics.filter(t => allowedSlugs.includes(t.subject)));
-      setLoading(false);
     });
   }, [userId, execute]);
 
