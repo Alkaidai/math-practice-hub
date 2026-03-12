@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Activity, AlertTriangle, Brain, Clock, Target, TrendingUp, Users } from 'lucide-react';
+import { StudentSelector, useStudentList } from './StudentSelector';
 
 interface EngagementData {
   avgSessionSeconds: number;
