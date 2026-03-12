@@ -239,6 +239,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         timedQuery('getDailyStudyStats', () => getDailyStudyStats(userId)),
       ]);
       console.log(`[Dashboard] Phase 1 ALL done in ${Date.now() - t0}ms`);
+      releaseRefreshLock();
+      console.log('[Dashboard] 🔓 refresh lock released');
 
       clearTimeout(safetyTimer);
       if (stale()) return;
