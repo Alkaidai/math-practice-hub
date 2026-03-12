@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs, getDailyStudyStats, getAverageTimePerQuestion } from '../../lib/storage';
-import { subjectLabel, formatDate } from '../../lib/ui-utils';
+import { subjectLabel, difficultyLabel, formatDate } from '../../lib/ui-utils';
 import { Progress } from '../ui/progress';
 import { DiagnosticReport } from './DiagnosticReport';
 import { StudyPlan } from './StudyPlan';
