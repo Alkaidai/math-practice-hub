@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 
 const DEFAULT_TIMEOUT_MS = 12000; // 12 seconds
 const MAX_RETRIES = 1;
-// Safety: absolute max time before force-ending loading state
 const ABSOLUTE_MAX_MS = 20000;
 
 interface UseLoadWithTimeoutOptions {
@@ -18,101 +17,117 @@ interface UseLoadWithTimeoutReturn {
   reset: () => void;
 }
 
+const TIMEOUT_MESSAGE = 'Não foi possível carregar os dados. Verifique sua conexão.';
+const GENERIC_MESSAGE = 'Ocorreu um erro ao carregar os dados.';
+
+function isAuthError(err: any): boolean {
+  return (
+    err?.status === 401 ||
+    err?.status === 403 ||
+    err?.message?.includes('JWT') ||
+    err?.message?.includes('token') ||
+    err?.message?.includes('refresh_token')
+  );
+}
+
+function withTimeout(task: () => Promise<void>, timeoutMs: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
+
+    Promise.resolve()
+      .then(task)
+      .then(resolve)
+      .catch(reject)
+      .finally(() => clearTimeout(timer));
+  });
+}
+
 export function useLoadWithTimeout(options: UseLoadWithTimeoutOptions = {}): UseLoadWithTimeoutReturn {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, maxRetries = MAX_RETRIES } = options;
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+
   const mountedRef = useRef(true);
-  const retryCountRef = useRef(0);
-  const executingRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSafetyTimer = useCallback(() => {
+    if (safetyTimerRef.current) {
+      clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
+  }, []);
+
+  const finishRequest = useCallback((requestId: number, next: { loading: boolean; error: string | null; timedOut: boolean }) => {
+    if (!mountedRef.current) return;
+    if (requestId !== requestIdRef.current) return;
+
+    clearSafetyTimer();
+    setLoading(next.loading);
+    setError(next.error);
+    setTimedOut(next.timedOut);
+  }, [clearSafetyTimer]);
 
   useEffect(() => {
     mountedRef.current = true;
-    
-    // Safety: if loading is still true after ABSOLUTE_MAX_MS and no execute is running,
-    // force end loading to prevent infinite loading states
-    const safetyTimer = setTimeout(() => {
-      if (mountedRef.current && loading && !executingRef.current) {
-        setLoading(false);
-        setTimedOut(true);
-        setError('Não foi possível carregar os dados. Verifique sua conexão.');
-      }
-    }, ABSOLUTE_MAX_MS);
 
     return () => {
       mountedRef.current = false;
-      clearTimeout(safetyTimer);
+      clearSafetyTimer();
     };
-  }, [loading]);
+  }, [clearSafetyTimer]);
 
   const execute = useCallback(async (fn: () => Promise<void>) => {
     if (!mountedRef.current) return;
-    executingRef.current = true;
+
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     setLoading(true);
     setError(null);
     setTimedOut(false);
 
-    const attempt = async (): Promise<void> => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
+    clearSafetyTimer();
+    safetyTimerRef.current = setTimeout(() => {
+      finishRequest(requestId, { loading: false, error: TIMEOUT_MESSAGE, timedOut: true });
+    }, ABSOLUTE_MAX_MS);
 
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
       try {
-        await Promise.race([
-          fn(),
-          new Promise<never>((_, reject) => {
-            controller.signal.addEventListener('abort', () =>
-              reject(new Error('TIMEOUT'))
-            );
-          }),
-        ]);
-        if (mountedRef.current) {
-          retryCountRef.current = 0;
-          setLoading(false);
-          setError(null);
-        }
+        await withTimeout(fn, timeoutMs);
+        finishRequest(requestId, { loading: false, error: null, timedOut: false });
+        return;
       } catch (err: any) {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || requestId !== requestIdRef.current) return;
 
-        const isTimeout = err?.message === 'TIMEOUT';
-        const isAuthError = err?.status === 401 || err?.status === 403 ||
-          err?.message?.includes('JWT') || err?.message?.includes('token') ||
-          err?.message?.includes('refresh_token');
-
-        if (isAuthError) {
-          setLoading(false);
-          setError('session_expired');
+        if (isAuthError(err)) {
+          finishRequest(requestId, { loading: false, error: 'session_expired', timedOut: false });
           return;
         }
 
-        if (retryCountRef.current < maxRetries) {
-          retryCountRef.current += 1;
-          clearTimeout(timer);
-          return attempt();
-        }
+        const isLastAttempt = attempt >= maxRetries;
+        if (!isLastAttempt) continue;
 
-        setLoading(false);
-        setTimedOut(isTimeout);
-        setError(isTimeout
-          ? 'Não foi possível carregar os dados. Verifique sua conexão.'
-          : 'Ocorreu um erro ao carregar os dados.');
-      } finally {
-        clearTimeout(timer);
-        executingRef.current = false;
+        const timeoutError = err?.message === 'TIMEOUT';
+        finishRequest(requestId, {
+          loading: false,
+          error: timeoutError ? TIMEOUT_MESSAGE : GENERIC_MESSAGE,
+          timedOut: timeoutError,
+        });
+        return;
       }
-    };
-
-    retryCountRef.current = 0;
-    await attempt();
-  }, [timeoutMs, maxRetries]);
+    }
+  }, [clearSafetyTimer, finishRequest, maxRetries, timeoutMs]);
 
   const reset = useCallback(() => {
-    retryCountRef.current = 0;
-    executingRef.current = false;
+    requestIdRef.current += 1;
+    clearSafetyTimer();
     setLoading(true);
     setError(null);
     setTimedOut(false);
-  }, []);
+  }, [clearSafetyTimer]);
 
   return { loading, error, timedOut, execute, reset };
 }

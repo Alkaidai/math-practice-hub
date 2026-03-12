@@ -1,27 +1,22 @@
 import { useEffect, useRef } from 'react';
+import { subscribeVisibilityChange } from '../lib/visibility';
 
 /**
- * Calls `onVisible` when the browser tab regains focus after being hidden,
- * but only if it's been hidden for at least `minHiddenMs` (default 60s).
+ * Calls `onVisible` when the browser tab becomes visible again.
+ * Uses a single global visibility listener to avoid duplicated listeners.
  */
-export function useVisibilityRefresh(onVisible: () => void, minHiddenMs = 300_000) {
-  const hiddenAtRef = useRef<number | null>(null);
+export function useVisibilityRefresh(onVisible: () => void, minHiddenMs = 0) {
   const callbackRef = useRef(onVisible);
   callbackRef.current = onVisible;
 
   useEffect(() => {
-    function handler() {
-      if (document.visibilityState === 'hidden') {
-        hiddenAtRef.current = Date.now();
-      } else if (document.visibilityState === 'visible' && hiddenAtRef.current) {
-        const elapsed = Date.now() - hiddenAtRef.current;
-        hiddenAtRef.current = null;
-        if (elapsed >= minHiddenMs) {
-          callbackRef.current();
-        }
+    const thresholdMs = Math.max(0, minHiddenMs);
+
+    return subscribeVisibilityChange(({ state, hiddenDurationMs }) => {
+      if (state !== 'visible') return;
+      if (hiddenDurationMs >= thresholdMs) {
+        callbackRef.current();
       }
-    }
-    document.addEventListener('visibilitychange', handler);
-    return () => document.removeEventListener('visibilitychange', handler);
+    });
   }, [minHiddenMs]);
 }
