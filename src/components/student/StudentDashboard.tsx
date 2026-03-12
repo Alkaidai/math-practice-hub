@@ -371,8 +371,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
   // ─── Render states ───
 
-  if (phase1Error) return <LoadingTimeout error={phase1Error} onRetry={load} />;
-  if (phase1Loading || !phase1) return <p className="text-muted-foreground">Carregando painel...</p>;
+  // Only show full error screen on initial load (no previous data)
+  if (phase1Error && !phase1) return <LoadingTimeout error={phase1Error} onRetry={load} />;
+  if (phase1Loading && !phase1) return <p className="text-muted-foreground">Carregando painel...</p>;
 
   if (showDiagnosticNow) {
     return (
@@ -382,11 +383,20 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     );
   }
 
-  const hasData = phase1.answered > 0;
+  const hasData = phase1!.answered > 0;
   const hasDiagnostic = phase2?.hasDiagnostic ?? false;
 
   return (
     <div className="space-y-6">
+      {/* Refresh warning — subtle banner, not blocking */}
+      {refreshWarning && (
+        <div className="bg-gold/10 border border-gold/30 rounded-lg px-4 py-2.5 flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">{refreshWarning}</p>
+          <button onClick={() => { setRefreshWarning(null); load(); }} className="text-xs text-primary font-medium hover:underline ml-3 shrink-0">
+            Tentar novamente
+          </button>
+        </div>
+      )}
       {/* Diagnostic CTA - only if not done yet */}
       {!phase2Loading && !hasDiagnostic && (
         <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
