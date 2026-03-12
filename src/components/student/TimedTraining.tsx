@@ -4,7 +4,7 @@ import { loadQuestionBank, addAttempt, getAllowedSubjectSlugs } from '../../lib/
 import { difficultyLabel } from '../../lib/ui-utils';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import type { Question } from '../../lib/types';
 import { Timer, CheckCircle2, XCircle, Play, Square, RefreshCw } from 'lucide-react';
 
