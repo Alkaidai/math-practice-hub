@@ -23,8 +23,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    setError(false);
-    try {
+    await execute(async () => {
       const [questions, topics, notebook, allowedSlugs] = await Promise.all([
         loadQuestionBank(),
         getTopics({ activeOnly: true }),
@@ -34,12 +33,9 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
       setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
       setNotebookItems(notebook);
-    } catch {
-      setError(true);
-    } finally {
       setLoading(false);
-    }
-  }, [userId]);
+    });
+  }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
