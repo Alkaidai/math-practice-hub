@@ -80,7 +80,7 @@ export function StudentLessons() {
   const comingSoonLessons = filtered.filter(l => l.visibility === 'coming_soon');
 
   if (loading) return <p className="text-muted-foreground">Carregando aulas...</p>;
-  if (error) return <ErrorState message="Erro ao carregar aulas." onRetry={loadData} />;
+  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
 
   return (
     <div className="space-y-5">
