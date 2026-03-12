@@ -24,6 +24,7 @@ type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'notebook' | '
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { key: 'questions', label: 'Treinar', icon: PenLine },
+  { key: 'timed', label: 'Cronômetro', icon: Timer },
   { key: 'lessons', label: 'Aulas', icon: GraduationCap },
   { key: 'knowledgeMap', label: 'Mapa de tópicos', icon: Map },
   { key: 'notebook', label: 'Caderno de erros', icon: BookOpen },
