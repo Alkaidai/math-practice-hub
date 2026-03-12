@@ -110,16 +110,39 @@ export function QuestionsList({ initialQuestionId, initialTopicId, onQuestionAns
 
   const handleConfirm = async (q: Question, selectedIndex: number) => {
     if (!user) return;
-    // Map shuffled index back to original for storage
     const shuffled = shuffledMap[q.id];
-    const originalCorrectIndex = q.correctIndex;
     const isCorrect = shuffled ? selectedIndex === shuffled.correctIndex : selectedIndex === q.correctIndex;
+
+    // Get timing data from question timer
+    const timing = stopQuestion(q.id);
+
+    // Calculate attempt number
+    const { data: prevAttempts } = await supabase
+      .from('attempts')
+      .select('id')
+      .eq('user_id', user.username)
+      .eq('question_id', q.id);
+    const attemptNumber = (prevAttempts?.length ?? 0) + 1;
 
     setAnswers(prev => ({ ...prev, [q.id]: { selectedIndex, isCorrect } }));
     setActiveTab(prev => ({ ...prev, [q.id]: 'gabarito' }));
 
-    // Store the original selected index for the attempt
-    await addAttempt({ userId: user.username, questionId: q.id, selectedIndex, isCorrect, answeredAt: new Date().toISOString(), topicId: q.topicId });
+    await addAttempt({
+      userId: user.username,
+      questionId: q.id,
+      selectedIndex,
+      isCorrect,
+      answeredAt: new Date().toISOString(),
+      topicId: q.topicId,
+      timeSpentSeconds: timing.timeSpentSeconds,
+      possibleGuess: timing.possibleGuess,
+      difficultyDetected: timing.difficultyDetected,
+      attemptNumber,
+    });
+
+    // Notify session tracker
+    onQuestionAnswered?.();
+
     if (!isCorrect) {
       const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
       setNotebookItems(prev => {
