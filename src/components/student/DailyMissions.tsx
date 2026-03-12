@@ -5,7 +5,6 @@ import { Progress } from '../ui/progress';
 import { CheckCircle2 } from 'lucide-react';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 export function DailyMissions() {
   const { user } = useAuth();
