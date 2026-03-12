@@ -114,7 +114,7 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   useVisibilityRefresh(load);
 
   if (loading) return <p className="text-muted-foreground">Carregando mapa de tópicos...</p>;
-  if (error) return <ErrorState message="Erro ao carregar o mapa de tópicos." onRetry={load} />;
+  if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
   if (groups.length === 0) return (
     <div className="bg-card rounded-xl shadow-sm p-8 text-center">
       <p className="text-muted-foreground">Nenhum tópico disponível ainda.</p>
