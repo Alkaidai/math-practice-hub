@@ -263,7 +263,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       <DailyMissions />
 
       {/* Diagnostic Report - only if completed */}
-      {data.hasDiagnostic && <DiagnosticReport />}
+      {data.hasDiagnostic && <DiagnosticReport diagnosticResult={data.diagnosticResult} attempts={data.allAttempts} />}
 
       {/* Study Plan */}
       <StudyPlan
