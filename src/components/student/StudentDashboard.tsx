@@ -245,7 +245,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         });
       };
 
-      const defaultMeta: DashboardMeta = { streak: 0, lastAttemptDate: null, lastFilters: {} };
+      const defaultMeta: DashboardMeta = { streak: 0, lastAttemptDate: null, lastFilters: { grade: '', subject: '', difficulty: '', topicId: '', search: '' } };
 
       const [attemptsR, notebookR, metaR, dailyR] = await Promise.all([
         timedQuery('getAttempts', () => getAttempts(userId), [] as Attempt[]),
