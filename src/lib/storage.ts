@@ -502,7 +502,15 @@ export async function getAttempts(userId?: string): Promise<Attempt[]> {
   }));
 }
 
-export async function addAttempt(attempt: Partial<Attempt> & { topicId?: string }): Promise<Attempt> {
+export async function addAttempt(attempt: Partial<Attempt> & {
+  topicId?: string;
+  timeSpentSeconds?: number;
+  possibleGuess?: boolean;
+  difficultyDetected?: boolean;
+  questionAbandoned?: boolean;
+  questionSkipped?: boolean;
+  attemptNumber?: number;
+}): Promise<Attempt> {
   const row: any = {
     user_id: attempt.userId ?? '',
     question_id: attempt.questionId ?? '',
@@ -510,6 +518,12 @@ export async function addAttempt(attempt: Partial<Attempt> & { topicId?: string 
     is_correct: attempt.isCorrect ?? false,
     answered_at: attempt.answeredAt ?? nowIso(),
     topic_id: attempt.topicId ?? null,
+    time_spent_seconds: attempt.timeSpentSeconds ?? 0,
+    possible_guess: attempt.possibleGuess ?? false,
+    difficulty_detected: attempt.difficultyDetected ?? false,
+    question_abandoned: attempt.questionAbandoned ?? false,
+    question_skipped: attempt.questionSkipped ?? false,
+    attempt_number: attempt.attemptNumber ?? 1,
   };
   const { data } = await supabase.from('attempts').insert(row).select().single();
   const d = (data ?? row) as any;
