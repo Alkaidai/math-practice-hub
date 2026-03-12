@@ -942,11 +942,24 @@ export async function getDailyStudyStats(userId: string, date?: string): Promise
 }
 
 export async function getAverageTimePerQuestion(userId: string): Promise<number> {
+  // Use count + sum approach to avoid fetching all rows
+  const { count } = await supabase
+    .from('attempts')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gt('time_spent_seconds', 0);
+
+  if (!count || count === 0) return 0;
+
+  // Fetch only the aggregation we need (limited to recent 200 for performance)
   const { data } = await supabase
     .from('attempts')
     .select('time_spent_seconds')
     .eq('user_id', userId)
-    .gt('time_spent_seconds', 0);
+    .gt('time_spent_seconds', 0)
+    .order('answered_at', { ascending: false })
+    .limit(200);
+
   if (!data || data.length === 0) return 0;
   const total = data.reduce((sum: number, r: any) => sum + (r.time_spent_seconds ?? 0), 0);
   return Math.round(total / data.length);
