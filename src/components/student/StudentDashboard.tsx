@@ -364,7 +364,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         setPhase2Loading(false);
       }
     }
-  }, [userId, waitForAuthReady, phase1]);
+  }, [userId, waitForAuthReady]);
 
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load, 60_000); // only dashboard refreshes on tab return (60s threshold)
