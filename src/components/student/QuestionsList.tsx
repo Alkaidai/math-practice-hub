@@ -206,8 +206,8 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   const totalPages = Math.max(1, Math.ceil(questions.length / perPage));
   const pagedQuestions = questions.slice(page * perPage, (page + 1) * perPage);
 
-  if (loading) return <p className="text-muted-foreground">Carregando questões...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (loading) return <p className="text-muted-foreground">Carregando questões...</p>;
 
   return (
     <div className="space-y-5">
