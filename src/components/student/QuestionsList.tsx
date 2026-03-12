@@ -7,8 +7,9 @@ import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useQuestionTimer } from '../../hooks/useQuestionTimer';
-import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson } from '../../lib/types';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { detectCognitiveBlock, getTopicPrerequisites, buildPrerequisiteMap } from '../../lib/adaptive';
+import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson, Attempt } from '../../lib/types';
+import { CheckCircle2, XCircle, AlertTriangle, BookOpen } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AnswerState {
