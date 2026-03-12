@@ -193,6 +193,7 @@ export function AdminApp() {
             {panel === 'ranking' && <AdminRanking key={refreshKey} />}
             {panel === 'topic-stats' && <AdminTopicStats key={refreshKey} />}
             {panel === 'analytics' && <AdminAnalytics key={refreshKey} />}
+            {panel === 'prerequisites' && <AdminPrerequisites key={refreshKey} />}
             {panel === 'settings' && <AdminSettings key={refreshKey} />}
           </main>
         </div>
