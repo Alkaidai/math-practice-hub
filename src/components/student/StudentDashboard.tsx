@@ -352,11 +352,17 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       clearTimeout(safetyTimer);
       if (stale()) return;
       console.error('[Dashboard] ❌ Load error:', err?.message);
-      setPhase1Error(err?.message === 'TIMEOUT'
-        ? 'Não foi possível carregar os dados. Verifique sua conexão.'
-        : 'Ocorreu um erro ao carregar os dados.');
-      setPhase1Loading(false);
-      setPhase2Loading(false);
+      if (hasPreviousData) {
+        console.log('[Dashboard] partial refresh failed, preserving current UI');
+        setRefreshWarning('Ocorreu um erro ao atualizar. Mostrando última versão.');
+        setPhase1Loading(false);
+      } else {
+        setPhase1Error(err?.message === 'TIMEOUT'
+          ? 'Não foi possível carregar os dados. Verifique sua conexão.'
+          : 'Ocorreu um erro ao carregar os dados.');
+        setPhase1Loading(false);
+        setPhase2Loading(false);
+      }
     }
   }, [userId, waitForAuthReady]);
 
