@@ -60,7 +60,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   const { user } = useAuth();
   const userId = user?.username ?? '';
   const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState(false);
+  const { loading, error, execute } = useLoadWithTimeout();
   const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
 
   const load = async () => {
