@@ -50,63 +50,68 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
 
   const load = useCallback(async () => {
     await execute(async () => {
-      const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
-        getAttempts(userId),
-        getTopics({ activeOnly: true }),
-        getSubjects({ activeOnly: true }),
-        loadQuestionBank(),
-        externalUserId ? Promise.resolve([]) : getAllowedSubjectSlugs(userId),
-      ]);
+      try {
+        const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
+          getAttempts(userId),
+          getTopics({ activeOnly: true }),
+          getSubjects({ activeOnly: true }),
+          loadQuestionBank(),
+          externalUserId ? Promise.resolve([]) : getAllowedSubjectSlugs(userId),
+        ]);
 
-      const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
-      const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
-      const questionMap = new Map(questions.map(q => [q.id, q]));
+        const filteredTopics = externalUserId ? topics : topics.filter(t => allowedSlugs.includes(t.subject));
+        const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
+        const questionMap = new Map(questions.map(q => [q.id, q]));
 
-      // Count available questions per topic
-      const availableByTopic = new Map<string, number>();
-      questions.forEach(q => {
-        if (q.status !== 'draft' && q.topicId) {
-          availableByTopic.set(q.topicId, (availableByTopic.get(q.topicId) ?? 0) + 1);
-        }
-      });
+        // Count available questions per topic
+        const availableByTopic = new Map<string, number>();
+        questions.forEach(q => {
+          if (q.status !== 'draft' && q.topicId) {
+            availableByTopic.set(q.topicId, (availableByTopic.get(q.topicId) ?? 0) + 1);
+          }
+        });
 
-      const statsByTopic = new Map<string, { total: number; correct: number }>();
-      attempts.forEach(a => {
-        const q = questionMap.get(a.questionId);
-        if (!q?.topicId) return;
-        const prev = statsByTopic.get(q.topicId) ?? { total: 0, correct: 0 };
-        prev.total += 1;
-        if (a.isCorrect) prev.correct += 1;
-        statsByTopic.set(q.topicId, prev);
-      });
+        const statsByTopic = new Map<string, { total: number; correct: number }>();
+        attempts.forEach(a => {
+          const q = questionMap.get(a.questionId);
+          if (!q?.topicId) return;
+          const prev = statsByTopic.get(q.topicId) ?? { total: 0, correct: 0 };
+          prev.total += 1;
+          if (a.isCorrect) prev.correct += 1;
+          statsByTopic.set(q.topicId, prev);
+        });
 
-      const domains: TopicDomain[] = filteredTopics.map(t => {
-        const stats = statsByTopic.get(t.id) ?? { total: 0, correct: 0 };
-        const rate = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
-        return {
-          topicId: t.id, topicName: t.name, subjectSlug: t.subject,
-          total: stats.total, correct: stats.correct, rate,
-          available: availableByTopic.get(t.id) ?? 0,
-          status: getDomainStatus(stats.total, rate),
-        };
-      });
+        const domains: TopicDomain[] = filteredTopics.map(t => {
+          const stats = statsByTopic.get(t.id) ?? { total: 0, correct: 0 };
+          const rate = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+          return {
+            topicId: t.id, topicName: t.name, subjectSlug: t.subject,
+            total: stats.total, correct: stats.correct, rate,
+            available: availableByTopic.get(t.id) ?? 0,
+            status: getDomainStatus(stats.total, rate),
+          };
+        });
 
-      const groupMap = new Map<string, TopicDomain[]>();
-      domains.forEach(d => {
-        const arr = groupMap.get(d.subjectSlug) ?? [];
-        arr.push(d);
-        groupMap.set(d.subjectSlug, arr);
-      });
+        const groupMap = new Map<string, TopicDomain[]>();
+        domains.forEach(d => {
+          const arr = groupMap.get(d.subjectSlug) ?? [];
+          arr.push(d);
+          groupMap.set(d.subjectSlug, arr);
+        });
 
-      const result: SubjectGroup[] = [...groupMap.entries()]
-        .map(([slug, topics]) => {
-          const withData = topics.filter(t => t.total > 0);
-          const avg = withData.length > 0 ? Math.round(withData.reduce((s, t) => s + t.rate, 0) / withData.length) : 0;
-          return { subjectName: subjectMap.get(slug) ?? slug, topics, averageRate: avg };
-        })
-        .filter(g => g.topics.length > 0);
+        const result: SubjectGroup[] = [...groupMap.entries()]
+          .map(([slug, topics]) => {
+            const withData = topics.filter(t => t.total > 0);
+            const avg = withData.length > 0 ? Math.round(withData.reduce((s, t) => s + t.rate, 0) / withData.length) : 0;
+            return { subjectName: subjectMap.get(slug) ?? slug, topics, averageRate: avg };
+          })
+          .filter(g => g.topics.length > 0);
 
-      setGroups(result);
+        setGroups(result);
+      } catch (err) {
+        console.error('[KnowledgeMap] load error:', err);
+        throw err;
+      }
     });
   }, [userId, execute, externalUserId]);
 
