@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
 import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess, toggleLessonVisibility } from '../../lib/storage';
 import { AdminAnalytics } from './AdminAnalytics';
+import { StudentSelector, useStudentList } from './StudentSelector';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem, SubjectItem } from '../../lib/types';
@@ -275,6 +276,8 @@ function AdminRanking() {
   const [ranking, setRanking] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [diagnostics, setDiagnostics] = useState<any[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const students = useStudentList();
 
   useEffect(() => {
     Promise.all([getRanking(), getAllDiagnosticResults()]).then(([r, d]) => {
@@ -286,12 +289,18 @@ function AdminRanking() {
 
   if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
+  const filteredRanking = selectedStudent ? ranking.filter(r => r.username === selectedStudent) : ranking;
+  const filteredDiagnostics = selectedStudent ? diagnostics.filter((d: any) => d.user_id === selectedStudent) : diagnostics;
+
   return (
     <div className="space-y-4">
-      <h2 className="font-heading text-sm font-bold uppercase">🏆 Ranking de Alunos</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="font-heading text-sm font-bold uppercase">🏆 Ranking de Alunos</h2>
+        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
+      </div>
 
-      {ranking.length === 0 ? (
-        <p className="font-body text-sm text-muted-foreground">Nenhum dado de ranking ainda.</p>
+      {filteredRanking.length === 0 ? (
+        <p className="font-body text-sm text-muted-foreground">Nenhum dado de ranking {selectedStudent ? 'para este aluno' : 'ainda'}.</p>
       ) : (
         <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
           <table className="w-full text-sm border-collapse">
@@ -303,24 +312,27 @@ function AdminRanking() {
               </tr>
             </thead>
             <tbody>
-              {ranking.map((r, i) => (
-                <tr key={r.userId} className="hover:bg-muted/50">
-                  <td className="p-2 border border-border font-heading text-xs font-bold">
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
-                  </td>
-                  <td className="p-2 border border-border font-heading text-xs font-bold">{r.username}</td>
-                  <td className="p-2 border border-border font-heading text-xs">{r.total}</td>
-                  <td className="p-2 border border-border font-heading text-xs">{r.correct}</td>
-                  <td className="p-2 border border-border font-heading text-xs">{r.rate}%</td>
-                  <td className="p-2 border border-border font-heading text-xs">{r.streak} dia{r.streak === 1 ? '' : 's'}</td>
-                </tr>
-              ))}
+              {filteredRanking.map((r, i) => {
+                const globalIndex = ranking.indexOf(r);
+                return (
+                  <tr key={r.userId} className="hover:bg-muted/50">
+                    <td className="p-2 border border-border font-heading text-xs font-bold">
+                      {globalIndex === 0 ? '🥇' : globalIndex === 1 ? '🥈' : globalIndex === 2 ? '🥉' : globalIndex + 1}
+                    </td>
+                    <td className="p-2 border border-border font-heading text-xs font-bold">{r.username}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{r.total}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{r.correct}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{r.rate}%</td>
+                    <td className="p-2 border border-border font-heading text-xs">{r.streak} dia{r.streak === 1 ? '' : 's'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {diagnostics.length > 0 && (
+      {filteredDiagnostics.length > 0 && (
         <div>
           <h3 className="font-heading text-sm font-bold uppercase mt-4 mb-2">📊 Diagnósticos Realizados</h3>
           <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
@@ -333,7 +345,7 @@ function AdminRanking() {
                 </tr>
               </thead>
               <tbody>
-                {diagnostics.map((d: any) => (
+                {filteredDiagnostics.map((d: any) => (
                   <tr key={d.id} className="hover:bg-muted/50">
                     <td className="p-2 border border-border font-heading text-xs font-bold">{d.user_id}</td>
                     <td className="p-2 border border-border font-heading text-xs">{formatDate(d.completed_at)}</td>
@@ -357,6 +369,8 @@ function AdminRanking() {
 
 function AdminTopicStats() {
   const [data, setData] = useState<{ topics: Topic[]; attempts: Attempt[]; questions: Question[] } | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const students = useStudentList();
 
   useEffect(() => {
     Promise.all([getTopics(), getAttempts(), loadQuestionBank()]).then(([topics, attempts, questions]) => {
@@ -366,7 +380,8 @@ function AdminTopicStats() {
 
   if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
-  const { topics, attempts, questions } = data;
+  const { topics, questions } = data;
+  const attempts = selectedStudent ? data.attempts.filter(a => a.userId === selectedStudent) : data.attempts;
   const questionMap = new Map(questions.map(q => [q.id, q]));
 
   const stats = new Map<string, { total: number; correct: number; errors: number }>();
@@ -393,7 +408,10 @@ function AdminTopicStats() {
 
   return (
     <div className="space-y-4">
-      <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
+        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
+      </div>
 
       {topicStats.length === 0 ? (
         <p className="font-body text-sm text-muted-foreground">Nenhum tópico encontrado.</p>

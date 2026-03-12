@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Activity, AlertTriangle, Brain, Clock, Target, TrendingUp, Users } from 'lucide-react';
+import { StudentSelector, useStudentList } from './StudentSelector';
 
 interface EngagementData {
   avgSessionSeconds: number;
@@ -59,10 +60,12 @@ export function AdminAnalytics() {
   const [behavior, setBehavior] = useState<BehaviorData | null>(null);
   const [pedagogical, setPedagogical] = useState<PedagogicalData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const students = useStudentList();
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [selectedStudent]);
 
   async function loadAll() {
     setLoading(true);
@@ -74,11 +77,16 @@ export function AdminAnalytics() {
     const today = new Date().toISOString().split('T')[0];
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-    const [sessionsRes, todaySessionsRes, weekSessionsRes] = await Promise.all([
-      supabase.from('user_sessions').select('duration_seconds, user_id').not('duration_seconds', 'is', null).gt('duration_seconds', 0),
-      supabase.from('user_sessions').select('user_id').gte('start_time', today),
-      supabase.from('user_sessions').select('user_id').gte('start_time', weekAgo),
-    ]);
+    let sessionsQ = supabase.from('user_sessions').select('duration_seconds, user_id').not('duration_seconds', 'is', null).gt('duration_seconds', 0);
+    let todayQ = supabase.from('user_sessions').select('user_id').gte('start_time', today);
+    let weekQ = supabase.from('user_sessions').select('user_id').gte('start_time', weekAgo);
+    if (selectedStudent) {
+      sessionsQ = sessionsQ.eq('user_id', selectedStudent);
+      todayQ = todayQ.eq('user_id', selectedStudent);
+      weekQ = weekQ.eq('user_id', selectedStudent);
+    }
+
+    const [sessionsRes, todaySessionsRes, weekSessionsRes] = await Promise.all([sessionsQ, todayQ, weekQ]);
 
     const sessions = sessionsRes.data ?? [];
     const totalDuration = sessions.reduce((s: number, r: any) => s + (r.duration_seconds ?? 0), 0);
@@ -100,8 +108,10 @@ export function AdminAnalytics() {
   }
 
   async function loadBehavior() {
+    let attemptsQ = supabase.from('attempts').select('topic_id, is_correct, possible_guess, question_abandoned, time_spent_seconds');
+    if (selectedStudent) attemptsQ = attemptsQ.eq('user_id', selectedStudent);
     const [attemptsRes, topicsRes] = await Promise.all([
-      supabase.from('attempts').select('topic_id, is_correct, possible_guess, question_abandoned, time_spent_seconds'),
+      attemptsQ,
       supabase.from('topics').select('id, name'),
     ]);
 
@@ -148,8 +158,10 @@ export function AdminAnalytics() {
   }
 
   async function loadPedagogical() {
+    let attemptsQ = supabase.from('attempts').select('question_id, topic_id, is_correct, time_spent_seconds, attempt_number, user_id');
+    if (selectedStudent) attemptsQ = attemptsQ.eq('user_id', selectedStudent);
     const [attemptsRes, questionsRes, topicsRes] = await Promise.all([
-      supabase.from('attempts').select('question_id, topic_id, is_correct, time_spent_seconds, attempt_number, user_id'),
+      attemptsQ,
       supabase.from('questions').select('id, statement').eq('status', 'published'),
       supabase.from('topics').select('id, name'),
     ]);
@@ -228,6 +240,9 @@ export function AdminAnalytics() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
+      </div>
       <Tabs defaultValue="engagement">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="engagement">Engajamento</TabsTrigger>
