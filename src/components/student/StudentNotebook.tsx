@@ -19,7 +19,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const { error: loadError, execute } = useLoadWithTimeout();
 
   const loadData = useCallback(async () => {
     setLoading(true);
