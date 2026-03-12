@@ -569,6 +569,8 @@ export async function upsertNotebookItem(userId: string, questionId: string, pat
     rule_insight: patch.ruleInsight ?? '',
     updated_at: nowIso(),
   };
+  if (patch.nextReviewAt !== undefined) row.next_review_at = patch.nextReviewAt;
+  if (patch.reviewCount !== undefined) row.review_count = patch.reviewCount;
 
   const { data } = await supabase
     .from('notebook_items')
