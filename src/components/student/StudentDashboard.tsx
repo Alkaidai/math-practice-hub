@@ -55,6 +55,15 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
+function formatStudyTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const remainMins = mins % 60;
+  return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
+}
+
 export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic }: {
   onNavigateQuestions: () => void;
   onRefazer: (questionId: string) => void;
