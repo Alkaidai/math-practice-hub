@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-const DEFAULT_TIMEOUT_MS = 12000; // 12 seconds
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds (safety fallback)
 const MAX_RETRIES = 1;
 const ABSOLUTE_MAX_MS = 20000;
 
