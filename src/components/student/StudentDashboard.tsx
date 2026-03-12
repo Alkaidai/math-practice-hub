@@ -252,7 +252,12 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       )}
 
       {/* Study Trail */}
-      <StudyTrail />
+      <StudyTrail
+        hasDiagnostic={data.hasDiagnostic}
+        diagnosticAccuracy={data.diagnosticAccuracy}
+        attempts={data.allAttempts}
+        pendingNotebookCount={data.pendingCount}
+      />
 
       {/* Daily Missions */}
       <DailyMissions />
@@ -261,10 +266,16 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       {data.hasDiagnostic && <DiagnosticReport />}
 
       {/* Study Plan */}
-      <StudyPlan onStartTopic={onStartTopic} />
+      <StudyPlan
+        attempts={data.allAttempts}
+        questions={data.allQuestions}
+        topics={data.allTopics as any}
+        diagnosticResult={data.diagnosticResult}
+        onStartTopic={onStartTopic}
+      />
 
       {/* Evolution Chart */}
-      <EvolutionChart />
+      <EvolutionChart attempts={data.allAttempts} />
 
       {hasData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
