@@ -12,8 +12,9 @@ import { LoadingTimeout } from './LoadingTimeout';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { getRecommendedDifficulty, getRecommendedTopic } from '../../lib/adaptive';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
-import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer } from 'lucide-react';
+import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer, Play } from 'lucide-react';
 
 interface WeakTopic {
   topicId: string;
