@@ -141,7 +141,6 @@ export function StudentApp() {
   };
 
   if (authLoading) {
-    console.log('[StudentApp] ⏳ authLoading=true — waiting for AuthContext');
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">Carregando...</p>
