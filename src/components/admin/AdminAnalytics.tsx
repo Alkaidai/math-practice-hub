@@ -240,6 +240,9 @@ export function AdminAnalytics() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
+      </div>
       <Tabs defaultValue="engagement">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="engagement">Engajamento</TabsTrigger>
