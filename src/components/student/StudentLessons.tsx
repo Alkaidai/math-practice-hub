@@ -38,8 +38,7 @@ export function StudentLessons() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    setError(false);
-    try {
+    await execute(async () => {
       const [allLessons, allTopics, allowedSlugs] = await Promise.all([
         getLessons(),
         getTopics({ activeOnly: true }),
@@ -47,12 +46,9 @@ export function StudentLessons() {
       ]);
       setLessons(allLessons.filter(l => allowedSlugs.includes(l.subject)));
       setTopics(allTopics.filter(t => allowedSlugs.includes(t.subject)));
-    } catch {
-      setError(true);
-    } finally {
       setLoading(false);
-    }
-  }, [userId]);
+    });
+  }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
