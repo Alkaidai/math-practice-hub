@@ -84,6 +84,7 @@ function StudentSidebar({ tab, setTab, user, onLogout }: {
 
 export function StudentApp() {
   const { user, loading: authLoading, error: authError, logout } = useAuth();
+  const { recordActivity, recordQuestionAnswered } = useSessionTracker(user?.username ?? null);
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
