@@ -220,37 +220,60 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       console.log('[Dashboard] 🔒 refresh lock acquired');
       const t0 = Date.now();
 
-      const timedQuery = async <T,>(name: string, fn: () => Promise<T>): Promise<T> => {
+      const QUERY_TIMEOUT = 15_000; // 15s per individual query
+
+      const timedQuery = <T,>(name: string, fn: () => Promise<T>, fallback: T): Promise<{ name: string; value: T; ok: boolean }> => {
         const start = Date.now();
         console.log(`[Dashboard][Phase1] ⏱ ${name} — START`);
-        try {
-          const result = await fn();
-          console.log(`[Dashboard][Phase1] ✅ ${name} — OK in ${Date.now() - start}ms`);
-          return result;
-        } catch (err: any) {
-          console.error(`[Dashboard][Phase1] ❌ ${name} — FAIL in ${Date.now() - start}ms:`, err?.message);
-          throw err;
-        }
+        return new Promise((resolve) => {
+          const timer = setTimeout(() => {
+            console.error(`[Dashboard][Phase1] ⏰ ${name} — TIMEOUT after ${QUERY_TIMEOUT}ms, using fallback`);
+            resolve({ name, value: fallback, ok: false });
+          }, QUERY_TIMEOUT);
+
+          fn()
+            .then((result) => {
+              clearTimeout(timer);
+              console.log(`[Dashboard][Phase1] ✅ ${name} — OK in ${Date.now() - start}ms`);
+              resolve({ name, value: result, ok: true });
+            })
+            .catch((err: any) => {
+              clearTimeout(timer);
+              console.error(`[Dashboard][Phase1] ❌ ${name} — FAIL in ${Date.now() - start}ms:`, err?.message);
+              resolve({ name, value: fallback, ok: false });
+            });
+        });
       };
 
-      const [attempts, notebook, meta, dailyStats] = await Promise.all([
-        timedQuery('getAttempts', () => getAttempts(userId)),
-        timedQuery('getNotebook', () => getNotebook(userId)),
-        timedQuery('getStudentDashboardMeta', () => getStudentDashboardMeta(userId)),
-        timedQuery('getDailyStudyStats', () => getDailyStudyStats(userId)),
+      const defaultMeta: DashboardMeta = { streak: 0, lastAttemptDate: null, lastFilters: {} };
+
+      const [attemptsR, notebookR, metaR, dailyR] = await Promise.all([
+        timedQuery('getAttempts', () => getAttempts(userId), [] as Attempt[]),
+        timedQuery('getNotebook', () => getNotebook(userId), []),
+        timedQuery('getStudentDashboardMeta', () => getStudentDashboardMeta(userId), defaultMeta),
+        timedQuery('getDailyStudyStats', () => getDailyStudyStats(userId), null),
       ]);
-      console.log(`[Dashboard] Phase 1 ALL done in ${Date.now() - t0}ms`);
+
+      const allOk = [attemptsR, notebookR, metaR, dailyR].every(r => r.ok);
+      const failedNames = [attemptsR, notebookR, metaR, dailyR].filter(r => !r.ok).map(r => r.name);
+      console.log(`[Dashboard] Phase 1 done in ${Date.now() - t0}ms — ${allOk ? 'ALL OK ✅' : `⚠️ fallback used for: ${failedNames.join(', ')}`}`);
+
       releaseRefreshLock();
       console.log('[Dashboard] 🔓 refresh lock released');
 
       clearTimeout(safetyTimer);
       if (stale()) return;
 
+      const attempts = attemptsR.value;
+      const notebook = notebookR.value;
+      const meta = metaR.value;
+      const dailyStats = dailyR.value;
+
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;
       const rate = answered ? Math.round((correct / answered) * 100) : 0;
-      const pendingCount = notebook.filter(i => i.status === 'pending').length;
-      const masteredCount = notebook.filter(i => i.status === 'mastered').length;
+      const pendingCount = notebook.filter((i: any) => i.status === 'pending').length;
+      const masteredCount = notebook.filter((i: any) => i.status === 'mastered').length;
       const totalReviewed = notebook.length;
 
       setPhase1({
@@ -261,6 +284,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         questionsToday: dailyStats?.questionsAnswered ?? 0,
       });
       setPhase1Loading(false);
+      if (!allOk) {
+        console.warn(`[Dashboard] Phase 1 partial — failed: ${failedNames.join(', ')}. Showing available data.`);
+      }
       console.log('[Dashboard] Phase 1 done ✅ — rendering main UI');
 
       // ─── PHASE 2: Secondary data (5 queries, cached where possible) ───
