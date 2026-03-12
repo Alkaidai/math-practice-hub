@@ -584,6 +584,8 @@ export async function upsertNotebookItem(userId: string, questionId: string, pat
     grade: d.grade, subject: d.subject, difficulty: d.difficulty, topicId: d.topic_id,
     status: d.status, whatIErred: d.what_i_erred, ruleInsight: d.rule_insight,
     updatedAt: d.updated_at,
+    nextReviewAt: d.next_review_at ?? null,
+    reviewCount: d.review_count ?? 0,
   };
 }
 
