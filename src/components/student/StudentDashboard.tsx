@@ -35,8 +35,8 @@ interface DashboardData {
   weakTopics: WeakTopic[];
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
-  nextTopic: { topicId: string; topicName: string; count: number } | null;
-  hasDiagnostic: boolean;
+  nextTopic: { topicId: string; topicName: string; count: number; recommendedDifficulty: string } | null;
+  recommendedDifficulty: string;
   studyTodaySeconds: number;
   questionsToday: number;
   avgTimePerQuestion: number;
