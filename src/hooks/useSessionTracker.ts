@@ -190,19 +190,22 @@ export function useSessionTracker(userId: string | null) {
     const handler = () => recordActivity();
     events.forEach(e => document.addEventListener(e, handler, { passive: true }));
 
-    const unsubscribeVisibility = subscribeVisibilityChange(async ({ state }) => {
+    const unsubscribeVisibility = subscribeVisibilityChange(async ({ state, hiddenDurationMs }) => {
       if (state === 'hidden') {
+        console.log('[SessionTracker] tab hidden — ending session');
         stopHeartbeat();
         stopInactivityTimer();
         void endSession();
         return;
       }
 
+      console.log(`[SessionTracker] tab visible — hidden for ${Math.round(hiddenDurationMs / 1000)}s, waiting for auth...`);
       // Tab became visible — wait for auth refresh before starting session
       try {
         await waitForAuthRef.current();
+        console.log('[SessionTracker] auth ready, starting session');
       } catch {
-        // Continue even if auth refresh fails
+        console.warn('[SessionTracker] auth wait failed, continuing anyway');
       }
 
       if (!alive) return;

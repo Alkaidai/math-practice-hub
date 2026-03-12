@@ -22,13 +22,18 @@ export function useVisibilityRefresh(onVisible: () => void, minHiddenMs = 30_000
 
     return subscribeVisibilityChange(async ({ state, hiddenDurationMs }) => {
       if (state !== 'visible') return;
-      if (hiddenDurationMs < thresholdMs) return;
+      if (hiddenDurationMs < thresholdMs) {
+        console.log(`[VisibilityRefresh] hidden ${Math.round(hiddenDurationMs / 1000)}s < threshold ${thresholdMs / 1000}s — skipping`);
+        return;
+      }
 
+      console.log(`[VisibilityRefresh] hidden ${Math.round(hiddenDurationMs / 1000)}s >= threshold ${thresholdMs / 1000}s — waiting for auth...`);
       // Wait for auth token refresh to complete before fetching data
       try {
         await waitRef.current();
+        console.log('[VisibilityRefresh] auth ready — calling refresh callback');
       } catch {
-        // Auth refresh failed — still try the callback (it may handle errors itself)
+        console.warn('[VisibilityRefresh] auth wait failed — calling refresh callback anyway');
       }
 
       callbackRef.current();
