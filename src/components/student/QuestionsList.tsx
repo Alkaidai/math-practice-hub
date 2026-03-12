@@ -42,7 +42,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const [allLessons, setAllLessons] = useState<Lesson[]>([]);
   const [allowedSlugs, setAllowedSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const { error: loadError, execute } = useLoadWithTimeout();
 
   // Store shuffled options per question
   const [shuffledMap, setShuffledMap] = useState<Record<string, { options: string[]; correctIndex: number }>>({});
