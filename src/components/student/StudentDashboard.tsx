@@ -175,9 +175,11 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   const [phase1Loading, setPhase1Loading] = useState(true);
   const [phase2Loading, setPhase2Loading] = useState(true);
   const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const loadIdRef = useRef(0);
+  const isInitialLoadRef = useRef(true); // true until first successful phase1
 
   useEffect(() => {
     mountedRef.current = true;
