@@ -17,6 +17,7 @@ import { LoadingTimeout } from './LoadingTimeout';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { getRecommendedDifficulty, getRecommendedTopic } from '../../lib/adaptive';
+import { acquireRefreshLock, releaseRefreshLock } from '../../lib/refreshLock';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
 import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer, Play } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
@@ -207,6 +208,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     const safetyTimer = setTimeout(() => {
       if (stale()) return;
       console.error('[Dashboard] ⚠️ PHASE 1 SAFETY TIMEOUT (25s) — forcing loading=false');
+      releaseRefreshLock();
       setPhase1Loading(false);
       setPhase2Loading(false);
       setPhase1Error('Não foi possível carregar os dados. Verifique sua conexão.');
@@ -214,6 +216,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
     try {
       console.log('[Dashboard] Phase 1 started — 4 essential queries');
+      acquireRefreshLock();
+      console.log('[Dashboard] 🔒 refresh lock acquired');
       const t0 = Date.now();
 
       const timedQuery = async <T,>(name: string, fn: () => Promise<T>): Promise<T> => {
@@ -236,6 +240,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         timedQuery('getDailyStudyStats', () => getDailyStudyStats(userId)),
       ]);
       console.log(`[Dashboard] Phase 1 ALL done in ${Date.now() - t0}ms`);
+      releaseRefreshLock();
+      console.log('[Dashboard] 🔓 refresh lock released');
 
       clearTimeout(safetyTimer);
       if (stale()) return;
@@ -288,6 +294,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       console.log('[Dashboard] Phase 2 done ✅');
 
     } catch (err: any) {
+      releaseRefreshLock();
       clearTimeout(safetyTimer);
       if (stale()) return;
       console.error('[Dashboard] ❌ Load error:', err?.message);

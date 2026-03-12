@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribeVisibilityChange } from '../lib/visibility';
 import { useAuth } from '../contexts/AuthContext';
+import { waitForRefreshLock, isRefreshLocked } from '../lib/refreshLock';
 
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
@@ -203,9 +204,18 @@ export function useSessionTracker(userId: string | null) {
       // Tab became visible — wait for auth refresh before starting session
       try {
         await waitForAuthRef.current();
-        console.log('[SessionTracker] auth ready, starting session');
+        console.log('[SessionTracker] auth ready');
       } catch {
         console.warn('[SessionTracker] auth wait failed, continuing anyway');
+      }
+
+      if (!alive) return;
+
+      // Wait for dashboard refresh to finish before starting session
+      if (isRefreshLocked()) {
+        console.log('[SessionTracker] ⏳ startSession blocked — waiting for dashboard refresh lock');
+        await waitForRefreshLock();
+        console.log('[SessionTracker] 🔓 refresh lock released — proceeding with startSession');
       }
 
       if (!alive) return;
