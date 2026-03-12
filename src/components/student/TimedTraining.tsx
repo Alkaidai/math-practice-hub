@@ -92,6 +92,7 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   }, [userId, execute]);
 
   useEffect(() => {
+    finishedRef.current = false;
     clearRunningTimers();
     setPhase('setup');
     setResult(null);
