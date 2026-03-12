@@ -7,6 +7,7 @@ import { DiagnosticReport } from './DiagnosticReport';
 import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
+import { DailyMissions } from './DailyMissions';
 import { StudyTrail } from './StudyTrail';
 import { LoadingTimeout } from './LoadingTimeout';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
