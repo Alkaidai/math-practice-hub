@@ -30,6 +30,7 @@ export function useSessionTracker(userId: string | null) {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
       inactivityTimerRef.current = null;
+      console.log('[SessionTracker] inactivity timer cleared');
     }
   }, []);
 
