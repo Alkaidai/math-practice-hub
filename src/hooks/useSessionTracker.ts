@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribeVisibilityChange } from '../lib/visibility';
 import { useAuth } from '../contexts/AuthContext';
+import { waitForRefreshLock, isRefreshLocked } from '../lib/refreshLock';
 
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
