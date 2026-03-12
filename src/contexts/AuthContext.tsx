@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { AuthUser } from '../lib/types';
 import { supabase } from '@/integrations/supabase/client';
 import { getProfileByAuthId, setCurrentUser, logout as logoutStorage } from '../lib/storage';
@@ -11,6 +11,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<AuthUser | null>;
   logout: () => void;
   requestPasswordReset: (email: string) => Promise<{ error?: string }>;
+  /** Resolves when auth is ready after a tab return. Components should await this before fetching data. */
+  waitForAuthReady: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => null,
   logout: () => {},
   requestPasswordReset: async () => ({}),
+  waitForAuthReady: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -27,6 +30,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+
+  // Auth-ready gate: a promise that resolves when auth refresh is done after tab return
+  const authReadyResolveRef = useRef<(() => void) | null>(null);
+  const authReadyPromiseRef = useRef<Promise<void>>(Promise.resolve());
+
+  const waitForAuthReady = useCallback((): Promise<void> => {
+    return authReadyPromiseRef.current;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,23 +99,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [initialized]);
 
+  // Visibility-based auth refresh with gate
   useEffect(() => {
     const MIN_HIDDEN_MS = 300_000; // 5 minutes
 
     return subscribeVisibilityChange(async ({ state, hiddenDurationMs }) => {
       if (state !== 'visible') return;
-      if (hiddenDurationMs < MIN_HIDDEN_MS) return;
 
-      try {
-        const { data, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !data.session) {
-          logoutStorage();
-          setUser(null);
-          setError('Sua sessão expirou. Faça login novamente.');
+      if (hiddenDurationMs >= MIN_HIDDEN_MS) {
+        // Create a new auth-ready gate that blocks data fetches until refresh completes
+        let resolve: () => void;
+        authReadyPromiseRef.current = new Promise<void>((r) => { resolve = r; });
+        authReadyResolveRef.current = resolve!;
+
+        try {
+          const { data, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError || !data.session) {
+            logoutStorage();
+            setUser(null);
+            setError('Sua sessão expirou. Faça login novamente.');
+          }
+        } catch {
+          // Network error — don't force logout
+        } finally {
+          // Signal that auth is ready — unblock data fetches
+          authReadyResolveRef.current?.();
+          authReadyResolveRef.current = null;
         }
-      } catch {
-        // Network error — don't force logout, let component-level fetches handle transient failures.
       }
+      // If hidden < 5 min, auth-ready promise stays resolved (no blocking)
     });
   }, []);
 
@@ -157,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, logout, requestPasswordReset }}>
+    <AuthContext.Provider value={{ user, loading, error, login, logout, requestPasswordReset, waitForAuthReady }}>
       {children}
     </AuthContext.Provider>
   );

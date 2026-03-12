@@ -163,7 +163,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  useVisibilityRefresh(load, 30_000); // refresh after 30s hidden
 
   if (error) return <LoadingTimeout error={error} onRetry={load} />;
   if (loading || !data) return <p className="text-muted-foreground">Carregando painel...</p>;

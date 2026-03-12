@@ -116,7 +116,7 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   }, [userId, execute, externalUserId]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  useVisibilityRefresh(load, 60_000); // refresh after 1min hidden
 
   if (loading) return <p className="text-muted-foreground">Carregando mapa de tópicos...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;

@@ -256,7 +256,7 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
   }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  useVisibilityRefresh(load, 60_000); // refresh after 1min hidden
 
   if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
   if (loading) return <p className="text-muted-foreground">Carregando trilhas...</p>;

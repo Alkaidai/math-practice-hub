@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribeVisibilityChange } from '../lib/visibility';
+import { useAuth } from '../contexts/AuthContext';
 
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
@@ -11,8 +12,13 @@ const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
  * - Updates last_activity on user interactions
  * - Auto-ends session after inactivity
  * - Ends session on unmount / tab close
+ * - Waits for auth readiness before starting sessions on tab return
  */
 export function useSessionTracker(userId: string | null) {
+  const { waitForAuthReady } = useAuth();
+  const waitForAuthRef = useRef(waitForAuthReady);
+  waitForAuthRef.current = waitForAuthReady;
+
   const sessionIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(0);
   const lastActivityRef = useRef<number>(Date.now());
@@ -179,13 +185,22 @@ export function useSessionTracker(userId: string | null) {
     const handler = () => recordActivity();
     events.forEach(e => document.addEventListener(e, handler, { passive: true }));
 
-    const unsubscribeVisibility = subscribeVisibilityChange(({ state }) => {
+    const unsubscribeVisibility = subscribeVisibilityChange(async ({ state }) => {
       if (state === 'hidden') {
         stopHeartbeat();
         stopInactivityTimer();
         void endSession();
         return;
       }
+
+      // Tab became visible — wait for auth refresh before starting session
+      try {
+        await waitForAuthRef.current();
+      } catch {
+        // Continue even if auth refresh fails
+      }
+
+      if (!alive) return;
 
       lastActivityRef.current = Date.now();
       void startSession().then(() => {
