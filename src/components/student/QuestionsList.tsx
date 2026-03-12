@@ -49,8 +49,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    setError(false);
-    try {
+    await execute(async () => {
       const [topics, questions, notebook, lessons, slugs] = await Promise.all([
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
@@ -66,19 +65,15 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
       setAllLessons(lessons);
       setAllowedSlugs(slugs);
 
-      // Shuffle options for all questions
       const newShuffled: Record<string, { options: string[]; correctIndex: number }> = {};
       filteredQuestions.forEach(q => {
         const { shuffled, newCorrectIndex } = shuffleOptions(q.options, q.correctIndex);
         newShuffled[q.id] = { options: shuffled, correctIndex: newCorrectIndex };
       });
       setShuffledMap(newShuffled);
-    } catch {
-      setError(true);
-    } finally {
       setLoading(false);
-    }
-  }, [userId]);
+    });
+  }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
