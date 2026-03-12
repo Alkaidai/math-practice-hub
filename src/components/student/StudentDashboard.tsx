@@ -124,18 +124,30 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
         .slice(0, 5);
 
+      // Build question map for adaptive logic
+      const qMap = new Map(filteredQuestions.map(q => [q.id, { topicId: q.topicId, difficulty: q.difficulty, status: q.status }]));
+
+      // Compute adaptive recommendation
+      const recommended = getRecommendedTopic(attempts, qMap, topicMap);
       let nextTopic: DashboardData['nextTopic'] = null;
-      if (weakTopics.length > 0) {
+      if (recommended) {
+        const recDiff = getRecommendedDifficulty(attempts, recommended.topicId, qMap);
+        nextTopic = { topicId: recommended.topicId, topicName: recommended.topicName, count: recommended.availableQuestions, recommendedDifficulty: recDiff };
+      } else if (weakTopics.length > 0) {
         const top = weakTopics[0];
         const availableQ = filteredQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
-        nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ };
+        const recDiff = getRecommendedDifficulty(attempts, top.topicId, qMap);
+        nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ, recommendedDifficulty: recDiff };
       }
+
+      const globalDifficulty = getRecommendedDifficulty(attempts, undefined, qMap);
 
       setData({
         answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag,
         studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
         questionsToday: dailyStats?.questionsAnswered ?? 0,
         avgTimePerQuestion: avgTime,
+        recommendedDifficulty: globalDifficulty,
       });
     });
   }, [userId, execute]);
