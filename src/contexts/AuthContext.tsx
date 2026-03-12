@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import type { AuthUser } from '../lib/types';
 import { supabase } from '@/integrations/supabase/client';
 import { getProfileByAuthId, setCurrentUser, logout as logoutStorage } from '../lib/storage';
-import { subscribeVisibilityChange } from '../lib/visibility';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -11,8 +10,6 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<AuthUser | null>;
   logout: () => void;
   requestPasswordReset: (email: string) => Promise<{ error?: string }>;
-  /** Resolves when auth is ready after a tab return. Components should await this before fetching data. */
-  waitForAuthReady: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -22,7 +19,6 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => null,
   logout: () => {},
   requestPasswordReset: async () => ({}),
-  waitForAuthReady: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -30,14 +26,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
-
-  // Auth-ready gate: a promise that resolves when auth refresh is done after tab return
-  const authReadyResolveRef = useRef<(() => void) | null>(null);
-  const authReadyPromiseRef = useRef<Promise<void>>(Promise.resolve());
-
-  const waitForAuthReady = useCallback((): Promise<void> => {
-    return authReadyPromiseRef.current;
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,22 +51,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    console.log('[AuthContext] 🔄 init started — calling getSession()');
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (cancelled) return;
-      console.log('[AuthContext] getSession result:', session ? `user=${session.user.id}` : 'no session');
       if (session?.user) {
-        console.log('[AuthContext] loading profile for', session.user.id);
         await loadProfile(session.user.id);
-        console.log('[AuthContext] profile loaded, user state:', user ? 'set' : 'null');
       }
       if (!cancelled) {
-        console.log('[AuthContext] ✅ init complete — setting loading=false, initialized=true');
         setLoading(false);
         setInitialized(true);
       }
-    }).catch((err) => {
-      console.error('[AuthContext] ❌ init failed:', err);
+    }).catch(() => {
       if (!cancelled) {
         setLoading(false);
         setInitialized(true);
@@ -104,45 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [initialized]);
-
-  // Visibility-based auth refresh with gate
-  useEffect(() => {
-    const MIN_HIDDEN_MS = 300_000; // 5 minutes
-
-    return subscribeVisibilityChange(async ({ state, hiddenDurationMs }) => {
-      if (state !== 'visible') return;
-
-      if (hiddenDurationMs >= MIN_HIDDEN_MS) {
-        console.log(`[AuthContext] ⚠️ tab was hidden for ${Math.round(hiddenDurationMs / 1000)}s (>= ${MIN_HIDDEN_MS / 1000}s) — refreshing session`);
-        // Create a new auth-ready gate that blocks data fetches until refresh completes
-        let resolve: () => void;
-        authReadyPromiseRef.current = new Promise<void>((r) => { resolve = r; });
-        authReadyResolveRef.current = resolve!;
-
-        try {
-          console.log('[AuthContext] auth refresh started');
-          const { data, error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshError || !data.session) {
-            console.error('[AuthContext] auth refresh failed:', refreshError?.message ?? 'no session');
-            logoutStorage();
-            setUser(null);
-            setError('Sua sessão expirou. Faça login novamente.');
-          } else {
-            console.log('[AuthContext] auth refresh completed successfully');
-          }
-        } catch (err) {
-          console.error('[AuthContext] auth refresh network error:', err);
-        } finally {
-          console.log('[AuthContext] auth gate released — unblocking data fetches');
-          authReadyResolveRef.current?.();
-          authReadyResolveRef.current = null;
-        }
-      } else {
-        console.log(`[AuthContext] tab visible, hidden for ${Math.round(hiddenDurationMs / 1000)}s (< ${MIN_HIDDEN_MS / 1000}s) — skipping refresh`);
-      }
-      // If hidden < 5 min, auth-ready promise stays resolved (no blocking)
-    });
-  }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser | null> => {
     setError(null);
@@ -193,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, logout, requestPasswordReset, waitForAuthReady }}>
+    <AuthContext.Provider value={{ user, loading, error, login, logout, requestPasswordReset }}>
       {children}
     </AuthContext.Provider>
   );
