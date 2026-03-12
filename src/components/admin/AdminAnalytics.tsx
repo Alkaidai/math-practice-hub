@@ -60,10 +60,12 @@ export function AdminAnalytics() {
   const [behavior, setBehavior] = useState<BehaviorData | null>(null);
   const [pedagogical, setPedagogical] = useState<PedagogicalData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const students = useStudentList();
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [selectedStudent]);
 
   async function loadAll() {
     setLoading(true);
