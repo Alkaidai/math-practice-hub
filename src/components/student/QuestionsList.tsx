@@ -245,43 +245,38 @@ export function QuestionsList({ initialQuestionId, initialTopicId, onQuestionAns
             </div>
           </div>
 
-          <div className="space-y-4">
-            {pagedQuestions.map((q, idx) => {
-              const sq = shuffledMap[q.id];
-              return (
-                <QuestionCard
-                  key={q.id}
-                  question={q}
-                  shuffledOptions={sq?.options ?? q.options}
-                  shuffledCorrectIndex={sq?.correctIndex ?? q.correctIndex}
-                  index={page * perPage + idx}
-                  answer={answers[q.id]}
-                  activeTab={activeTab[q.id] ?? 'gabarito'}
-                  notebookItem={notebookMap.get(q.id)}
-                  topicLabel={topicMap.get(q.topicId) ?? '—'}
-                  user={user}
-                  lessons={lessonsForQuestion(q)}
-                  onConfirm={(selectedIndex) => handleConfirm(q, selectedIndex)}
-                  onTabChange={(tab) => setActiveTab(prev => ({ ...prev, [q.id]: tab }))}
-                  onComment={(text) => handleComment(q.id, text)}
-                  onReport={(type, message) => handleReport(q, type, message)}
-                  onAddNotebook={async () => {
-                    if (user) {
-                      const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
-                      setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
-                      setActiveTab(prev => ({ ...prev, [q.id]: 'caderno' }));
-                    }
-                  }}
-                  onSaveNotebook={async (whatIErred, ruleInsight) => {
-                    if (user) {
-                      const item = await upsertNotebookItem(user.username, q.id, { whatIErred, ruleInsight });
-                      setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
+          {/* Start timers for visible questions */}
+          <QuestionsWithTimer
+            questions={pagedQuestions}
+            shuffledMap={shuffledMap}
+            page={page}
+            perPage={perPage}
+            answers={answers}
+            activeTab={activeTab}
+            notebookMap={notebookMap}
+            topicMap={topicMap}
+            user={user}
+            allLessons={allLessons}
+            lessonsForQuestion={lessonsForQuestion}
+            startQuestion={startQuestion}
+            onConfirm={handleConfirm}
+            onTabChange={(qId, tab) => setActiveTab(prev => ({ ...prev, [qId]: tab }))}
+            onComment={handleComment}
+            onReport={handleReport}
+            onAddNotebook={async (qId) => {
+              if (user) {
+                const item = await upsertNotebookItem(user.username, qId, { status: 'pending' });
+                setNotebookItems(prev => [...prev.filter(n => n.questionId !== qId), item]);
+                setActiveTab(prev => ({ ...prev, [qId]: 'caderno' }));
+              }
+            }}
+            onSaveNotebook={async (qId, whatIErred, ruleInsight) => {
+              if (user) {
+                const item = await upsertNotebookItem(user.username, qId, { whatIErred, ruleInsight });
+                setNotebookItems(prev => [...prev.filter(n => n.questionId !== qId), item]);
+              }
+            }}
+          />
 
           <div className="flex items-center justify-center gap-3 pt-2">
             <button disabled={page === 0} onClick={() => { setPage(page - 1); document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-lg text-sm border border-border px-4 py-2 disabled:opacity-40 hover:bg-muted transition-colors">
