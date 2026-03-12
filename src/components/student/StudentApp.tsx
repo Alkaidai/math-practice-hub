@@ -20,12 +20,13 @@ import {
 } from '@/components/ui/sidebar';
 import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap, Timer, Route } from 'lucide-react';
 
-type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'notebook' | 'ranking' | 'lessons';
+type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'trails' | 'notebook' | 'ranking' | 'lessons';
 
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { key: 'questions', label: 'Treinar', icon: PenLine },
   { key: 'timed', label: 'Cronômetro', icon: Timer },
+  { key: 'trails', label: 'Trilhas', icon: Route },
   { key: 'lessons', label: 'Aulas', icon: GraduationCap },
   { key: 'knowledgeMap', label: 'Mapa de tópicos', icon: Map },
   { key: 'notebook', label: 'Caderno de erros', icon: BookOpen },
