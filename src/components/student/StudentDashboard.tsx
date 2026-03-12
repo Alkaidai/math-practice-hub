@@ -1,6 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs, getDailyStudyStats, getAverageTimePerQuestion } from '../../lib/storage';
+import {
+  getAttempts, getNotebook, getStudentDashboardMeta, getTopics,
+  loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs,
+  getDailyStudyStats, getAverageTimePerQuestion,
+} from '../../lib/storage';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import { subjectLabel, difficultyLabel, formatDate } from '../../lib/ui-utils';
 import { DiagnosticReport } from './DiagnosticReport';
 import { StudyPlan } from './StudyPlan';
@@ -10,11 +15,13 @@ import { DailyMissions } from './DailyMissions';
 import { StudyTrail } from './StudyTrail';
 import { LoadingTimeout } from './LoadingTimeout';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
-import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { getRecommendedDifficulty, getRecommendedTopic } from '../../lib/adaptive';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
 import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer, Play } from 'lucide-react';
+import { Skeleton } from '../ui/skeleton';
+
+// ─── Types ───
 
 interface WeakTopic {
   topicId: string;
@@ -24,7 +31,7 @@ interface WeakTopic {
   errorRate: number;
 }
 
-interface DashboardData {
+interface Phase1Data {
   answered: number;
   correct: number;
   rate: number;
@@ -32,21 +39,26 @@ interface DashboardData {
   masteredCount: number;
   totalReviewed: number;
   meta: DashboardMeta;
+  allAttempts: Attempt[];
+  studyTodaySeconds: number;
+  questionsToday: number;
+}
+
+interface Phase2Data {
   weakTopics: WeakTopic[];
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
   allQuestions: Question[];
   allTopics: { id: string; name: string; subject: string; grade: string; status: string }[];
-  allAttempts: Attempt[];
   diagnosticResult: any | null;
   diagnosticAccuracy: number;
   nextTopic: { topicId: string; topicName: string; count: number; recommendedDifficulty: string } | null;
   hasDiagnostic: boolean;
   recommendedDifficulty: string;
-  studyTodaySeconds: number;
-  questionsToday: number;
   avgTimePerQuestion: number;
 }
+
+// ─── Helpers ───
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
   return (
@@ -62,6 +74,15 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
+function SkeletonCard() {
+  return (
+    <div className="bg-card rounded-xl shadow-sm p-5">
+      <Skeleton className="h-4 w-24 mb-3" />
+      <Skeleton className="h-20 w-full" />
+    </div>
+  );
+}
+
 function formatStudyTime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   const mins = Math.floor(seconds / 60);
@@ -71,33 +92,123 @@ function formatStudyTime(seconds: number): string {
   return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
 }
 
+// ─── Phase 2 computation (pure function) ───
+
+function computePhase2(
+  attempts: Attempt[],
+  allQuestions: Question[],
+  allTopics: { id: string; name: string; subject: string; grade: string; status: string }[],
+  diagnosticResult: any | null,
+  avgTimePerQuestion: number,
+): Phase2Data {
+  const questions = new Map(allQuestions.map(q => [q.id, q]));
+  const topicMap = new Map(allTopics.map(t => [t.id, t.name]));
+
+  // Weak topics aggregation
+  const agg = new Map<string, { topicId: string; label: string; total: number; errors: number }>();
+  attempts.forEach(a => {
+    const q = questions.get(a.questionId);
+    if (!q?.topicId) return;
+    const prev = agg.get(q.topicId) ?? { topicId: q.topicId, label: topicMap.get(q.topicId) ?? q.topicId, total: 0, errors: 0 };
+    prev.total += 1;
+    if (!a.isCorrect) prev.errors += 1;
+    agg.set(q.topicId, prev);
+  });
+
+  const weakTopics: WeakTopic[] = [...agg.values()]
+    .filter(x => x.total > 0)
+    .map(x => ({ ...x, errorRate: Math.round((x.errors / x.total) * 100) }))
+    .sort((a, b) => b.errorRate - a.errorRate || b.errors - a.errors)
+    .slice(0, 5);
+
+  const wrongLatest = attempts
+    .filter(a => !a.isCorrect)
+    .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
+    .slice(0, 5);
+
+  // Adaptive recommendation
+  const qMap = new Map(allQuestions.map(q => [q.id, { topicId: q.topicId, difficulty: q.difficulty, status: q.status }]));
+  const recommended = getRecommendedTopic(attempts, qMap, topicMap);
+  let nextTopic: Phase2Data['nextTopic'] = null;
+  if (recommended) {
+    const recDiff = getRecommendedDifficulty(attempts, recommended.topicId, qMap);
+    nextTopic = { topicId: recommended.topicId, topicName: recommended.topicName, count: recommended.availableQuestions, recommendedDifficulty: recDiff };
+  } else if (weakTopics.length > 0) {
+    const top = weakTopics[0];
+    const availableQ = allQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
+    const recDiff = getRecommendedDifficulty(attempts, top.topicId, qMap);
+    nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ, recommendedDifficulty: recDiff };
+  }
+
+  const globalDifficulty = getRecommendedDifficulty(attempts, undefined, qMap);
+  const diagAccuracy = diagnosticResult ? (diagnosticResult.accuracy_rate ?? diagnosticResult.accuracyRate ?? 0) : 0;
+
+  return {
+    weakTopics,
+    wrongLatest,
+    questions,
+    allQuestions,
+    allTopics,
+    diagnosticResult,
+    diagnosticAccuracy: diagAccuracy,
+    nextTopic,
+    hasDiagnostic: !!diagnosticResult,
+    recommendedDifficulty: globalDifficulty,
+    avgTimePerQuestion,
+  };
+}
+
+// ─── Main Component ───
+
 export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic }: {
   onNavigateQuestions: () => void;
   onRefazer: (questionId: string) => void;
   onStartTopic: (topicId: string, difficulty?: string) => void;
 }) {
-  const { user } = useAuth();
+  const { user, waitForAuthReady } = useAuth();
   const userId = user?.username ?? '';
-  const [data, setData] = useState<DashboardData | null>(null);
-  const { loading, error, execute } = useLoadWithTimeout();
+
+  const [phase1, setPhase1] = useState<Phase1Data | null>(null);
+  const [phase2, setPhase2] = useState<Phase2Data | null>(null);
+  const [phase1Error, setPhase1Error] = useState<string | null>(null);
+  const [phase1Loading, setPhase1Loading] = useState(true);
+  const [phase2Loading, setPhase2Loading] = useState(true);
   const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
 
+  const mountedRef = useRef(true);
+  const loadIdRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   const load = useCallback(async () => {
-    await execute(async () => {
-      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs, dailyStats, avgTime] = await Promise.all([
+    const loadId = ++loadIdRef.current;
+    const stale = () => !mountedRef.current || loadId !== loadIdRef.current;
+
+    // Wait for auth to be ready (no-op if gate is already resolved)
+    try {
+      await waitForAuthReady();
+    } catch {
+      // auth gate failed, continue anyway
+    }
+    if (stale()) return;
+
+    // ─── PHASE 1: Essential data (4 queries, max concurrency = 4) ───
+    setPhase1Loading(true);
+    setPhase1Error(null);
+
+    try {
+      console.log('[Dashboard] Phase 1 started — 4 essential queries');
+      const [attempts, notebook, meta, dailyStats] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
         getStudentDashboardMeta(userId),
-        loadQuestionBank(),
-        getTopics({ activeOnly: true }),
-        getDiagnosticResult(userId),
-        getAllowedSubjectSlugs(userId),
         getDailyStudyStats(userId),
-        getAverageTimePerQuestion(userId),
       ]);
 
-      const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
-      const filteredQuestions = allQuestions.filter(q => allowedSlugs.includes(q.subject));
+      if (stale()) return;
 
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;
@@ -105,70 +216,66 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       const pendingCount = notebook.filter(i => i.status === 'pending').length;
       const masteredCount = notebook.filter(i => i.status === 'mastered').length;
       const totalReviewed = notebook.length;
-      const questions = new Map(filteredQuestions.map(q => [q.id, q]));
-      const topicMap = new Map(filteredTopics.map(t => [t.id, t.name]));
 
-      const agg = new Map<string, { topicId: string; label: string; total: number; errors: number }>();
-      attempts.forEach(a => {
-        const q = questions.get(a.questionId);
-        if (!q?.topicId) return;
-        const prev = agg.get(q.topicId) ?? { topicId: q.topicId, label: topicMap.get(q.topicId) ?? q.topicId, total: 0, errors: 0 };
-        prev.total += 1;
-        if (!a.isCorrect) prev.errors += 1;
-        agg.set(q.topicId, prev);
-      });
-
-      const weakTopics: WeakTopic[] = [...agg.values()]
-        .filter(x => x.total > 0)
-        .map(x => ({ ...x, errorRate: Math.round((x.errors / x.total) * 100) }))
-        .sort((a, b) => b.errorRate - a.errorRate || b.errors - a.errors)
-        .slice(0, 5);
-
-      const wrongLatest = attempts
-        .filter(a => !a.isCorrect)
-        .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
-        .slice(0, 5);
-
-      // Build question map for adaptive logic
-      const qMap = new Map(filteredQuestions.map(q => [q.id, { topicId: q.topicId, difficulty: q.difficulty, status: q.status }]));
-
-      // Compute adaptive recommendation
-      const recommended = getRecommendedTopic(attempts, qMap, topicMap);
-      let nextTopic: DashboardData['nextTopic'] = null;
-      if (recommended) {
-        const recDiff = getRecommendedDifficulty(attempts, recommended.topicId, qMap);
-        nextTopic = { topicId: recommended.topicId, topicName: recommended.topicName, count: recommended.availableQuestions, recommendedDifficulty: recDiff };
-      } else if (weakTopics.length > 0) {
-        const top = weakTopics[0];
-        const availableQ = filteredQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
-        const recDiff = getRecommendedDifficulty(attempts, top.topicId, qMap);
-        nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ, recommendedDifficulty: recDiff };
-      }
-
-      const globalDifficulty = getRecommendedDifficulty(attempts, undefined, qMap);
-
-      const diagAccuracy = diag ? ((diag as any).accuracy_rate ?? (diag as any).accuracyRate ?? 0) : 0;
-
-      setData({
-        answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions,
-        allQuestions: filteredQuestions, allTopics: filteredTopics, allAttempts: attempts,
-        diagnosticResult: diag, diagnosticAccuracy: diagAccuracy,
-        nextTopic, hasDiagnostic: !!diag,
+      setPhase1({
+        answered, correct, rate, pendingCount, masteredCount, totalReviewed,
+        meta,
+        allAttempts: attempts,
         studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
         questionsToday: dailyStats?.questionsAnswered ?? 0,
-        avgTimePerQuestion: avgTime,
-        recommendedDifficulty: globalDifficulty,
       });
-    });
-  }, [userId, execute]);
+      setPhase1Loading(false);
+      console.log('[Dashboard] Phase 1 done ✅ — rendering main UI');
+
+      // ─── PHASE 2: Secondary data (5 queries, cached where possible) ───
+      console.log('[Dashboard] Phase 2 started — secondary/cached queries');
+
+      // Group into 2 batches to limit concurrency
+      // Batch A: cached data (topics + questions + slugs) — likely instant from cache
+      const [allTopics, allQuestions, allowedSlugs] = await Promise.all([
+        cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
+        cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
+        cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)),
+      ]);
+
+      if (stale()) return;
+
+      // Batch B: remaining user-specific data (2 queries)
+      const [diagResult, avgTime] = await Promise.all([
+        getDiagnosticResult(userId),
+        getAverageTimePerQuestion(userId),
+      ]);
+
+      if (stale()) return;
+
+      // Filter by allowed subjects
+      const filteredTopics = allTopics.filter((t: any) => allowedSlugs.includes(t.subject));
+      const filteredQuestions = allQuestions.filter((q: any) => allowedSlugs.includes(q.subject));
+
+      const p2 = computePhase2(attempts, filteredQuestions, filteredTopics as any, diagResult, avgTime);
+      setPhase2(p2);
+      setPhase2Loading(false);
+      console.log('[Dashboard] Phase 2 done ✅');
+
+    } catch (err: any) {
+      if (stale()) return;
+      console.error('[Dashboard] Load error:', err?.message);
+      setPhase1Error(err?.message === 'TIMEOUT'
+        ? 'Não foi possível carregar os dados. Verifique sua conexão.'
+        : 'Ocorreu um erro ao carregar os dados.');
+      setPhase1Loading(false);
+      setPhase2Loading(false);
+    }
+  }, [userId, waitForAuthReady]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load, 30_000); // refresh after 30s hidden
+  useVisibilityRefresh(load, 30_000);
 
-  if (error) return <LoadingTimeout error={error} onRetry={load} />;
-  if (loading || !data) return <p className="text-muted-foreground">Carregando painel...</p>;
+  // ─── Render states ───
 
-  // Show diagnostic assessment inline
+  if (phase1Error) return <LoadingTimeout error={phase1Error} onRetry={load} />;
+  if (phase1Loading || !phase1) return <p className="text-muted-foreground">Carregando painel...</p>;
+
   if (showDiagnosticNow) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -177,12 +284,13 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     );
   }
 
-  const hasData = data.answered > 0;
+  const hasData = phase1.answered > 0;
+  const hasDiagnostic = phase2?.hasDiagnostic ?? false;
 
   return (
     <div className="space-y-6">
       {/* Diagnostic CTA - only if not done yet */}
-      {!data.hasDiagnostic && (
+      {!phase2Loading && !hasDiagnostic && (
         <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -202,35 +310,44 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       )}
 
-      {/* Stats Cards */}
+      {/* Stats Cards — Phase 1 data (always available) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Target} label="Respondidas" value={String(data.answered)} color="bg-primary" />
-        <StatCard icon={TrendingUp} label="Acertos" value={`${data.rate}%`} color="bg-success" />
-        <StatCard icon={Flame} label="Sequência" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
-        <StatCard icon={AlertCircle} label="Pendências" value={String(data.pendingCount)} color="bg-destructive" />
+        <StatCard icon={Target} label="Respondidas" value={String(phase1.answered)} color="bg-primary" />
+        <StatCard icon={TrendingUp} label="Acertos" value={`${phase1.rate}%`} color="bg-success" />
+        <StatCard icon={Flame} label="Sequência" value={`${phase1.meta.streak} dia${phase1.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
+        <StatCard icon={AlertCircle} label="Pendências" value={String(phase1.pendingCount)} color="bg-destructive" />
       </div>
 
       {/* Today's Study Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(data.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
-        <StatCard icon={BookOpen} label="Questões hoje" value={String(data.questionsToday)} color="bg-[hsl(var(--accent))]" />
-        <StatCard icon={Timer} label="Tempo médio/questão" value={data.avgTimePerQuestion > 0 ? `${data.avgTimePerQuestion}s` : '—'} color="bg-[hsl(var(--muted-foreground))]" />
-        <StatCard icon={Flame} label="Dias estudando" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
+        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(phase1.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
+        <StatCard icon={BookOpen} label="Questões hoje" value={String(phase1.questionsToday)} color="bg-[hsl(var(--accent))]" />
+        {phase2 ? (
+          <StatCard icon={Timer} label="Tempo médio/questão" value={phase2.avgTimePerQuestion > 0 ? `${phase2.avgTimePerQuestion}s` : '—'} color="bg-[hsl(var(--muted-foreground))]" />
+        ) : (
+          <div className="bg-card rounded-xl shadow-sm p-5"><Skeleton className="h-10 w-full" /></div>
+        )}
+        <StatCard icon={Flame} label="Dias estudando" value={`${phase1.meta.streak} dia${phase1.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
       </div>
 
-      {/* CONTINUAR TREINO - Primary CTA */}
-      {data.nextTopic && (
+      {/* CONTINUAR TREINO - Primary CTA (Phase 2 dependent) */}
+      {phase2Loading ? (
+        <div className="bg-gradient-to-r from-primary/10 to-gold/10 border border-primary/20 rounded-xl p-6">
+          <Skeleton className="h-6 w-48 mb-2" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+      ) : phase2?.nextTopic ? (
         <div className="bg-gradient-to-r from-primary/10 to-gold/10 border border-primary/20 rounded-xl p-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">Próximo passo recomendado</p>
-              <p className="text-lg font-bold text-foreground">{data.nextTopic.topicName}</p>
+              <p className="text-lg font-bold text-foreground">{phase2.nextTopic.topicName}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {data.nextTopic.count} exercícios · Nível: <span className="font-semibold capitalize">{difficultyLabel(data.nextTopic.recommendedDifficulty)}</span>
+                {phase2.nextTopic.count} exercícios · Nível: <span className="font-semibold capitalize">{difficultyLabel(phase2.nextTopic.recommendedDifficulty)}</span>
               </p>
             </div>
             <button
-              onClick={() => onStartTopic(data.nextTopic!.topicId, data.nextTopic!.recommendedDifficulty)}
+              onClick={() => onStartTopic(phase2.nextTopic!.topicId, phase2.nextTopic!.recommendedDifficulty)}
               className="flex items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md"
             >
               <Play className="h-5 w-5" />
@@ -238,9 +355,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
             </button>
           </div>
         </div>
-      )}
-
-      {!hasData && !data.nextTopic && (
+      ) : !hasData ? (
         <div className="bg-card rounded-xl shadow-sm p-6 text-center">
           <p className="text-muted-foreground mb-3">Comece respondendo questões para ver seu progresso!</p>
           <button onClick={onNavigateQuestions} className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md">
@@ -248,105 +363,115 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
             COMEÇAR A TREINAR
           </button>
         </div>
-      )}
+      ) : null}
 
-      {/* Study Trail */}
+      {/* Study Trail — Phase 1 data */}
       <StudyTrail
-        hasDiagnostic={data.hasDiagnostic}
-        diagnosticAccuracy={data.diagnosticAccuracy}
-        attempts={data.allAttempts}
-        pendingNotebookCount={data.pendingCount}
+        hasDiagnostic={hasDiagnostic}
+        diagnosticAccuracy={phase2?.diagnosticAccuracy ?? 0}
+        attempts={phase1.allAttempts}
+        pendingNotebookCount={phase1.pendingCount}
       />
 
       {/* Daily Missions */}
       <DailyMissions />
 
-      {/* Diagnostic Report - only if completed */}
-      {data.hasDiagnostic && <DiagnosticReport diagnosticResult={data.diagnosticResult} attempts={data.allAttempts} />}
-
-      {/* Study Plan */}
-      <StudyPlan
-        attempts={data.allAttempts}
-        questions={data.allQuestions}
-        topics={data.allTopics as any}
-        diagnosticResult={data.diagnosticResult}
-        onStartTopic={onStartTopic}
-      />
-
-      {/* Evolution Chart */}
-      <EvolutionChart attempts={data.allAttempts} />
-
-      {hasData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Notebook Summary */}
-          <div className="bg-card rounded-xl shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-3">📓 Caderno de Erros</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-destructive/5 p-3 text-center">
-                <p className="text-xs text-muted-foreground">Pendentes</p>
-                <p className="text-xl font-bold text-destructive">{data.pendingCount}</p>
-              </div>
-              <div className="rounded-lg bg-success/10 p-3 text-center">
-                <p className="text-xs text-muted-foreground">Dominados</p>
-                <p className="text-xl font-bold text-success">{data.masteredCount}</p>
-              </div>
-              <div className="rounded-lg bg-muted p-3 text-center">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="text-xl font-bold text-foreground">{data.totalReviewed}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Weak Topics */}
-          <div className="bg-card rounded-xl shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Tópicos Fracos (Top 5)</h3>
-            {data.weakTopics.length > 0 ? (
-              <div className="space-y-2.5">
-                {data.weakTopics.map((t, i) => (
-                  <div key={t.topicId} className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground truncate">
-                        <span className="text-xs text-muted-foreground mr-1">{i + 1}.</span> {t.label}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Erro {t.errorRate}% ({t.errors}/{t.total})</p>
-                    </div>
-                    <button onClick={() => onStartTopic(t.topicId)} className="text-xs text-primary font-medium hover:underline ml-2">Treinar</button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Sem dados suficientes.</p>
-            )}
-          </div>
-
-          {/* Recent Errors */}
-          <div className="bg-card rounded-xl shadow-sm p-5 lg:col-span-2">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Revisar Erros (Últimas 5)</h3>
-            <div className="space-y-3">
-              {data.wrongLatest.length > 0 ? data.wrongLatest.map(a => {
-                const q = data.questions.get(a.questionId);
-                if (!q) return null;
-                return (
-                  <div key={a.id} className="flex items-start justify-between gap-3 pb-3 border-b border-border last:border-0">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground">{q.statement.slice(0, 95)}{q.statement.length > 95 ? '...' : ''}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{formatDate(a.answeredAt)} · {q.grade} · {subjectLabel(q.subject)}</p>
-                    </div>
-                    <button onClick={() => onRefazer(q.id)} className="shrink-0 rounded-lg text-xs text-primary border border-primary/30 px-3 py-1 hover:bg-primary hover:text-primary-foreground transition-colors">
-                      Refazer
-                    </button>
-                  </div>
-                );
-              }) : (
-                <p className="text-sm text-muted-foreground">Nenhuma questão errada até agora. 🎉</p>
-              )}
-            </div>
-          </div>
+      {/* Phase 2 dependent sections */}
+      {phase2Loading ? (
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
-      )}
+      ) : phase2 ? (
+        <>
+          {/* Diagnostic Report */}
+          {phase2.hasDiagnostic && <DiagnosticReport diagnosticResult={phase2.diagnosticResult} attempts={phase1.allAttempts} />}
 
-      {/* Achievements */}
-      <Achievements attempts={data.allAttempts} streak={data.meta.streak} />
+          {/* Study Plan */}
+          <StudyPlan
+            attempts={phase1.allAttempts}
+            questions={phase2.allQuestions}
+            topics={phase2.allTopics as any}
+            diagnosticResult={phase2.diagnosticResult}
+            onStartTopic={onStartTopic}
+          />
+
+          {/* Evolution Chart */}
+          <EvolutionChart attempts={phase1.allAttempts} />
+
+          {hasData && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Notebook Summary */}
+              <div className="bg-card rounded-xl shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-3">📓 Caderno de Erros</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-destructive/5 p-3 text-center">
+                    <p className="text-xs text-muted-foreground">Pendentes</p>
+                    <p className="text-xl font-bold text-destructive">{phase1.pendingCount}</p>
+                  </div>
+                  <div className="rounded-lg bg-success/10 p-3 text-center">
+                    <p className="text-xs text-muted-foreground">Dominados</p>
+                    <p className="text-xl font-bold text-success">{phase1.masteredCount}</p>
+                  </div>
+                  <div className="rounded-lg bg-muted p-3 text-center">
+                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="text-xl font-bold text-foreground">{phase1.totalReviewed}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weak Topics */}
+              <div className="bg-card rounded-xl shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-3">Tópicos Fracos (Top 5)</h3>
+                {phase2.weakTopics.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {phase2.weakTopics.map((t, i) => (
+                      <div key={t.topicId} className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground truncate">
+                            <span className="text-xs text-muted-foreground mr-1">{i + 1}.</span> {t.label}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Erro {t.errorRate}% ({t.errors}/{t.total})</p>
+                        </div>
+                        <button onClick={() => onStartTopic(t.topicId)} className="text-xs text-primary font-medium hover:underline ml-2">Treinar</button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sem dados suficientes.</p>
+                )}
+              </div>
+
+              {/* Recent Errors */}
+              <div className="bg-card rounded-xl shadow-sm p-5 lg:col-span-2">
+                <h3 className="text-sm font-semibold text-foreground mb-3">Revisar Erros (Últimas 5)</h3>
+                <div className="space-y-3">
+                  {phase2.wrongLatest.length > 0 ? phase2.wrongLatest.map(a => {
+                    const q = phase2.questions.get(a.questionId);
+                    if (!q) return null;
+                    return (
+                      <div key={a.id} className="flex items-start justify-between gap-3 pb-3 border-b border-border last:border-0">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground">{q.statement.slice(0, 95)}{q.statement.length > 95 ? '...' : ''}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{formatDate(a.answeredAt)} · {q.grade} · {subjectLabel(q.subject)}</p>
+                        </div>
+                        <button onClick={() => onRefazer(q.id)} className="shrink-0 rounded-lg text-xs text-primary border border-primary/30 px-3 py-1 hover:bg-primary hover:text-primary-foreground transition-colors">
+                          Refazer
+                        </button>
+                      </div>
+                    );
+                  }) : (
+                    <p className="text-sm text-muted-foreground">Nenhuma questão errada até agora. 🎉</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Achievements */}
+          <Achievements attempts={phase1.allAttempts} streak={phase1.meta.streak} />
+        </>
+      ) : null}
     </div>
   );
 }
