@@ -88,6 +88,7 @@ export function StudentApp() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
+  const [difficultyFilter, setDifficultyFilter] = useState<string | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [diagChecked, setDiagChecked] = useState(false);
   // Key to force remount components on tab switch, clearing stale state
@@ -112,12 +113,14 @@ export function StudentApp() {
   const handleTabChange = (t: Tab) => {
     setTab(t);
     setTopicFilter(null);
+    setDifficultyFilter(null);
     setTabKey(k => k + 1);
   };
 
   const handleRefazer = (questionId: string) => {
     setTargetQuestion(questionId);
     setTopicFilter(null);
+    setDifficultyFilter(null);
     setTab('questions');
     setTabKey(k => k + 1);
     setTimeout(() => {
@@ -125,9 +128,10 @@ export function StudentApp() {
     }, 100);
   };
 
-  const handleStartTopic = (topicId: string) => {
+  const handleStartTopic = (topicId: string, difficulty?: string) => {
     setTargetQuestion(null);
     setTopicFilter(topicId);
+    setDifficultyFilter(difficulty ?? null);
     setTab('questions');
     setTabKey(k => k + 1);
   };
@@ -178,7 +182,7 @@ export function StudentApp() {
           </header>
           <main className="flex-1 p-4 md:p-6 overflow-auto">
             {tab === 'dashboard' && <StudentDashboard key={tabKey} onNavigateQuestions={() => handleTabChange('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
-            {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} onQuestionAnswered={recordQuestionAnswered} />}
+            {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} initialDifficulty={difficultyFilter} onQuestionAnswered={recordQuestionAnswered} />}
             {tab === 'knowledgeMap' && <KnowledgeMap key={tabKey} onStartTopic={handleStartTopic} />}
             {tab === 'lessons' && <StudentLessons key={tabKey} />}
             {tab === 'notebook' && <StudentNotebook key={tabKey} onRefazer={handleRefazer} />}
