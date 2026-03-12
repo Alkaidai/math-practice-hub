@@ -12,7 +12,6 @@ import { StudentLessons } from './StudentLessons';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { ScrollToTop } from './ScrollToTop';
 import { getDiagnosticResult, getAppSetting } from '../../lib/storage';
-import { useSessionTracker } from '../../hooks/useSessionTracker';
 import {
   SidebarProvider, SidebarTrigger, Sidebar, SidebarContent,
   SidebarGroup, SidebarGroupContent, SidebarMenu,
