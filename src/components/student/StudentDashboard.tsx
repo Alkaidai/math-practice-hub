@@ -119,10 +119,11 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     });
   }, [userId, execute]);
 
-  useEffect(() => { load(); }, [userId]);
+  useEffect(() => { load(); }, [load]);
+  useVisibilityRefresh(load);
 
-  if (error) return <ErrorState message="Erro ao carregar o painel." onRetry={load} />;
-  if (!data) return <p className="text-muted-foreground">Carregando painel...</p>;
+  if (error) return <LoadingTimeout error={error} onRetry={load} />;
+  if (loading || !data) return <p className="text-muted-foreground">Carregando painel...</p>;
 
   // Show diagnostic assessment inline
   if (showDiagnosticNow) {
