@@ -28,9 +28,14 @@ function shuffleOptions(options: string[], correctIndex: number): { shuffled: st
   return { shuffled, newCorrectIndex, indexMap: indices };
 }
 
-export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQuestionId?: string | null; initialTopicId?: string | null }) {
+export function QuestionsList({ initialQuestionId, initialTopicId, onQuestionAnswered }: {
+  initialQuestionId?: string | null;
+  initialTopicId?: string | null;
+  onQuestionAnswered?: () => void;
+}) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
+  const { startQuestion, stopQuestion, getAbandonedQuestions, clearAll } = useQuestionTimer();
 
   const [filters, setFilters] = useState<QuestionFilters>({ grade: '', subject: '', difficulty: '', topicId: initialTopicId ?? '', search: '' });
   const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
