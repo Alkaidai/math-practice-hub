@@ -517,3 +517,66 @@ function TabPanel({ tab, question: q, answer, user, notebookItem, lessons, shuff
 
   return null;
 }
+
+/** Wrapper that starts question timers when questions become visible */
+function QuestionsWithTimer({
+  questions, shuffledMap, page, perPage, answers, activeTab, notebookMap, topicMap, user, allLessons, lessonsForQuestion,
+  startQuestion, onConfirm, onTabChange, onComment, onReport, onAddNotebook, onSaveNotebook,
+}: {
+  questions: Question[];
+  shuffledMap: Record<string, { options: string[]; correctIndex: number }>;
+  page: number;
+  perPage: number;
+  answers: Record<string, AnswerState>;
+  activeTab: Record<string, string>;
+  notebookMap: Map<string, NotebookItem>;
+  topicMap: Map<string, string>;
+  user: any;
+  allLessons: Lesson[];
+  lessonsForQuestion: (q: Question) => Lesson[];
+  startQuestion: (id: string) => void;
+  onConfirm: (q: Question, selectedIndex: number) => void;
+  onTabChange: (qId: string, tab: string) => void;
+  onComment: (qId: string, text: string) => void;
+  onReport: (q: Question, type: string, message: string) => void;
+  onAddNotebook: (qId: string) => void;
+  onSaveNotebook: (qId: string, whatIErred: string, ruleInsight: string) => void;
+}) {
+  // Start timers for unanswered questions when they appear
+  useEffect(() => {
+    questions.forEach(q => {
+      if (!answers[q.id]) {
+        startQuestion(q.id);
+      }
+    });
+  }, [questions.map(q => q.id).join(',')]);
+
+  return (
+    <div className="space-y-4">
+      {questions.map((q, idx) => {
+        const sq = shuffledMap[q.id];
+        return (
+          <QuestionCard
+            key={q.id}
+            question={q}
+            shuffledOptions={sq?.options ?? q.options}
+            shuffledCorrectIndex={sq?.correctIndex ?? q.correctIndex}
+            index={page * perPage + idx}
+            answer={answers[q.id]}
+            activeTab={activeTab[q.id] ?? 'gabarito'}
+            notebookItem={notebookMap.get(q.id)}
+            topicLabel={topicMap.get(q.topicId) ?? '—'}
+            user={user}
+            lessons={lessonsForQuestion(q)}
+            onConfirm={(selectedIndex) => onConfirm(q, selectedIndex)}
+            onTabChange={(tab) => onTabChange(q.id, tab)}
+            onComment={(text) => onComment(q.id, text)}
+            onReport={(type, message) => onReport(q, type, message)}
+            onAddNotebook={() => onAddNotebook(q.id)}
+            onSaveNotebook={(w, r) => onSaveNotebook(q.id, w, r)}
+          />
+        );
+      })}
+    </div>
+  );
+}
