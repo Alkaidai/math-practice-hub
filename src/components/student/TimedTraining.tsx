@@ -45,6 +45,7 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   const statsRef = useRef({ correct: 0, total: 0, startTime: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishedRef = useRef(false);
 
   const clearRunningTimers = useCallback(() => {
     if (timerRef.current) {
