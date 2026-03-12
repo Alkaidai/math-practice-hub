@@ -177,6 +177,14 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         <StatCard icon={AlertCircle} label="Pendências" value={String(data.pendingCount)} color="bg-destructive" />
       </div>
 
+      {/* Today's Study Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(data.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
+        <StatCard icon={BookOpen} label="Questões hoje" value={String(data.questionsToday)} color="bg-[hsl(var(--accent))]" />
+        <StatCard icon={Timer} label="Tempo médio/questão" value={data.avgTimePerQuestion > 0 ? `${data.avgTimePerQuestion}s` : '—'} color="bg-[hsl(var(--muted-foreground))]" />
+        <StatCard icon={Flame} label="Dias estudando" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
+      </div>
+
       {/* Next Step */}
       {data.nextTopic && (
         <div className="bg-card rounded-xl shadow-sm border-l-4 border-l-gold p-5">
