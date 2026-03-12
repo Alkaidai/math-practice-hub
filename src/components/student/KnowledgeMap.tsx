@@ -4,7 +4,7 @@ import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjec
 import { Progress } from '../ui/progress';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import { AlertTriangle, CheckCircle2, BookOpen, Clock } from 'lucide-react';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
