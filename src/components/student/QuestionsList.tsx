@@ -51,14 +51,12 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   const [allLessons, setAllLessons] = useState<Lesson[]>([]);
   const [allowedSlugs, setAllowedSlugs] = useState<string[]>([]);
   const [cognitiveBlock, setCognitiveBlock] = useState<ReturnType<typeof detectCognitiveBlock>>(null);
-  const [loading, setLoading] = useState(true);
-  const { error: loadError, execute } = useLoadWithTimeout();
+  const { loading, error: loadError, execute } = useLoadWithTimeout();
 
   // Store shuffled options per question
   const [shuffledMap, setShuffledMap] = useState<Record<string, { options: string[]; correctIndex: number }>>({});
 
   const loadData = useCallback(async () => {
-    setLoading(true);
     await execute(async () => {
       const [topics, questions, notebook, lessons, slugs, attempts, prereqs] = await Promise.all([
         getTopics({ activeOnly: true }),
@@ -89,7 +87,6 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
         newShuffled[q.id] = { options: shuffled, correctIndex: newCorrectIndex };
       });
       setShuffledMap(newShuffled);
-      setLoading(false);
     });
   }, [userId, execute]);
 
@@ -209,8 +206,8 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   const totalPages = Math.max(1, Math.ceil(questions.length / perPage));
   const pagedQuestions = questions.slice(page * perPage, (page + 1) * perPage);
 
-  if (loading) return <p className="text-muted-foreground">Carregando questões...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (loading) return <p className="text-muted-foreground">Carregando questões...</p>;
 
   return (
     <div className="space-y-5">

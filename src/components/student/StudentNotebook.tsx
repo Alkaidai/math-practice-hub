@@ -43,11 +43,9 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { error: loadError, execute } = useLoadWithTimeout();
+  const { loading, error: loadError, execute } = useLoadWithTimeout();
 
   const loadData = useCallback(async () => {
-    setLoading(true);
     await execute(async () => {
       const [questions, topics, notebook, allowedSlugs] = await Promise.all([
         loadQuestionBank(),
@@ -58,7 +56,6 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
       setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
       setNotebookItems(notebook);
-      setLoading(false);
     });
   }, [userId, execute]);
 
@@ -103,8 +100,8 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
     });
   }, [notebookItems, filters, search, questionsMap, allTopics]);
 
-  if (loading) return <p className="text-muted-foreground">Carregando caderno de erros...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (loading) return <p className="text-muted-foreground">Carregando caderno de erros...</p>;
 
   const pending = items.filter(i => i.status === 'pending');
   const mastered = items.filter(i => i.status === 'mastered');

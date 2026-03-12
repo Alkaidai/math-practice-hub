@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { loadQuestionBank, getTopics, addAttempt, getAllowedSubjectSlugs } from '../../lib/storage';
+import { loadQuestionBank, addAttempt, getAllowedSubjectSlugs } from '../../lib/storage';
 import { difficultyLabel } from '../../lib/ui-utils';
-import { getRecommendedDifficulty } from '../../lib/adaptive';
+import { LoadingTimeout } from './LoadingTimeout';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import type { Question } from '../../lib/types';
-import { Timer, CheckCircle2, XCircle, Play, Square } from 'lucide-react';
+import { Timer, CheckCircle2, XCircle, Play, Square, RefreshCw } from 'lucide-react';
 
 const TIMED_DURATION_SECONDS = 300; // 5 minutes
+const MAX_TIMED_QUESTIONS = 50;
 
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -27,6 +30,7 @@ interface TimedResult {
 export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () => void }) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
+
   const [phase, setPhase] = useState<'setup' | 'active' | 'result'>('setup');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -34,45 +38,32 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   const [answered, setAnswered] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(TIMED_DURATION_SECONDS);
   const [result, setResult] = useState<TimedResult | null>(null);
+  const [loadedAtLeastOnce, setLoadedAtLeastOnce] = useState(false);
+
+  const { loading: loadingQuestions, error: loadError, execute } = useLoadWithTimeout();
+
   const statsRef = useRef({ correct: 0, total: 0, startTime: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishedRef = useRef(false);
 
-  const loadQuestions = useCallback(async () => {
-    const [allQ, topics, slugs] = await Promise.all([
-      loadQuestionBank(),
-      getTopics({ activeOnly: true }),
-      userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
-    ]);
-    const filtered = allQ.filter(q => q.status !== 'draft' && slugs.includes(q.subject));
-    setQuestions(shuffleArray(filtered).slice(0, 50));
-  }, [userId]);
-
-  useEffect(() => { loadQuestions(); }, [loadQuestions]);
-
-  const startTimer = () => {
-    statsRef.current = { correct: 0, total: 0, startTime: Date.now() };
-    setCurrentIdx(0);
-    setSelectedIndex(null);
-    setAnswered(false);
-    setSecondsLeft(TIMED_DURATION_SECONDS);
-    setPhase('active');
-
-    timerRef.current = setInterval(() => {
-      setSecondsLeft(prev => {
-        if (prev <= 1) {
-          finishTraining();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+  const clearRunningTimers = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (autoAdvanceRef.current) {
+      clearTimeout(autoAdvanceRef.current);
+      autoAdvanceRef.current = null;
+    }
+  }, []);
 
   const finishTraining = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = null;
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    clearRunningTimers();
     const { correct, total, startTime } = statsRef.current;
-    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    const elapsed = startTime > 0 ? Math.round((Date.now() - startTime) / 1000) : 0;
     setResult({
       totalAnswered: total,
       totalCorrect: correct,
@@ -80,47 +71,112 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
       avgTimeSeconds: total > 0 ? Math.round(elapsed / total) : 0,
     });
     setPhase('result');
-  }, []);
+  }, [clearRunningTimers]);
+
+  const loadQuestions = useCallback(async () => {
+    setLoadedAtLeastOnce(false);
+
+    await execute(async () => {
+      const [allQuestions, allowedSlugs] = await Promise.all([
+        loadQuestionBank(),
+        userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
+      ]);
+
+      const filtered = allQuestions.filter(
+        (q) => q.status !== 'draft' && allowedSlugs.includes(q.subject)
+      );
+
+      setQuestions(shuffleArray(filtered).slice(0, MAX_TIMED_QUESTIONS));
+      setLoadedAtLeastOnce(true);
+    });
+  }, [userId, execute]);
 
   useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
+    finishedRef.current = false;
+    clearRunningTimers();
+    setPhase('setup');
+    setResult(null);
+    setCurrentIdx(0);
+    setSelectedIndex(null);
+    setAnswered(false);
+    setSecondsLeft(TIMED_DURATION_SECONDS);
+    statsRef.current = { correct: 0, total: 0, startTime: 0 };
+    loadQuestions();
+
+    return () => {
+      clearRunningTimers();
+    };
+  }, [loadQuestions, clearRunningTimers]);
+
+  useVisibilityRefresh(loadQuestions);
+
+  const startTimer = useCallback(() => {
+    if (loadingQuestions || !!loadError || questions.length === 0) return;
+
+    finishedRef.current = false;
+    clearRunningTimers();
+    statsRef.current = { correct: 0, total: 0, startTime: Date.now() };
+    setCurrentIdx(0);
+    setSelectedIndex(null);
+    setAnswered(false);
+    setSecondsLeft(TIMED_DURATION_SECONDS);
+    setResult(null);
+    setPhase('active');
+
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          finishTraining();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [questions.length, loadingQuestions, loadError, finishTraining, clearRunningTimers]);
 
   const handleAnswer = async (idx: number) => {
     if (answered || !user) return;
+
     const q = questions[currentIdx];
     if (!q) return;
+
     const isCorrect = idx === q.correctIndex;
     setSelectedIndex(idx);
     setAnswered(true);
 
-    statsRef.current.total++;
-    if (isCorrect) statsRef.current.correct++;
+    statsRef.current.total += 1;
+    if (isCorrect) statsRef.current.correct += 1;
 
-    await addAttempt({
-      userId: user.username,
-      questionId: q.id,
-      selectedIndex: idx,
-      isCorrect,
-      answeredAt: new Date().toISOString(),
-      topicId: q.topicId,
-      timeSpentSeconds: 0,
-      possibleGuess: false,
-      difficultyDetected: false,
-      attemptNumber: 1,
-    });
-    onQuestionAnswered?.();
-
-    // Auto-advance after 1s
-    setTimeout(() => {
-      if (currentIdx + 1 >= questions.length) {
-        finishTraining();
-      } else {
-        setCurrentIdx(i => i + 1);
-        setSelectedIndex(null);
-        setAnswered(false);
-      }
-    }, 800);
+    try {
+      await addAttempt({
+        userId: user.username,
+        questionId: q.id,
+        selectedIndex: idx,
+        isCorrect,
+        answeredAt: new Date().toISOString(),
+        topicId: q.topicId,
+        timeSpentSeconds: 0,
+        possibleGuess: false,
+        difficultyDetected: false,
+        attemptNumber: 1,
+      });
+      onQuestionAnswered?.();
+    } catch (error) {
+      console.error('[TimedTraining] erro ao salvar tentativa:', error);
+    } finally {
+      if (finishedRef.current) return;
+      if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+      autoAdvanceRef.current = setTimeout(() => {
+        if (finishedRef.current) return;
+        if (currentIdx + 1 >= questions.length) {
+          finishTraining();
+        } else {
+          setCurrentIdx((i) => i + 1);
+          setSelectedIndex(null);
+          setAnswered(false);
+        }
+      }, 800);
+    }
   };
 
   const formatTime = (s: number) => {
@@ -129,8 +185,11 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  // Setup phase
   if (phase === 'setup') {
+    if (loadError) return <LoadingTimeout error={loadError} onRetry={loadQuestions} />;
+
+    const noQuestions = loadedAtLeastOnce && !loadingQuestions && questions.length === 0;
+
     return (
       <div className="max-w-lg mx-auto bg-card rounded-xl shadow-sm p-8 text-center space-y-4">
         <Timer className="h-12 w-12 text-primary mx-auto" />
@@ -138,19 +197,32 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
         <p className="text-sm text-muted-foreground">
           Resolva o máximo de questões em <strong>5 minutos</strong>. As questões serão sorteadas aleatoriamente.
         </p>
+
         <button
           onClick={startTimer}
-          disabled={questions.length === 0}
+          disabled={loadingQuestions || questions.length === 0}
           className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md disabled:opacity-40"
         >
           <Play className="h-5 w-5" /> Iniciar Treino
         </button>
-        {questions.length === 0 && <p className="text-xs text-muted-foreground">Carregando questões...</p>}
+
+        {loadingQuestions && <p className="text-xs text-muted-foreground">Carregando questões...</p>}
+
+        {noQuestions && (
+          <div className="space-y-2">
+            <p className="text-xs text-destructive">Nenhuma questão disponível para iniciar o treino.</p>
+            <button
+              onClick={loadQuestions}
+              className="inline-flex items-center gap-2 rounded-lg text-xs border border-border px-3 py-1.5 hover:bg-muted transition-all"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Tentar novamente
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
-  // Result phase
   if (phase === 'result' && result) {
     return (
       <div className="max-w-lg mx-auto bg-card rounded-xl shadow-sm p-8 text-center space-y-6">
@@ -174,8 +246,14 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
           </div>
         </div>
         <div className="flex gap-3 justify-center">
-          <button onClick={() => { loadQuestions(); setPhase('setup'); }}
-            className="rounded-xl bg-primary text-primary-foreground font-bold text-sm px-6 py-2.5 hover:brightness-110 transition-all">
+          <button
+            onClick={() => {
+              setResult(null);
+              setPhase('setup');
+              loadQuestions();
+            }}
+            className="rounded-xl bg-primary text-primary-foreground font-bold text-sm px-6 py-2.5 hover:brightness-110 transition-all"
+          >
             Treinar novamente
           </button>
         </div>
@@ -183,13 +261,26 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
     );
   }
 
-  // Active phase
   const q = questions[currentIdx];
-  if (!q) { finishTraining(); return null; }
+  if (!q) {
+    return (
+      <div className="max-w-lg mx-auto bg-card rounded-xl shadow-sm p-8 text-center space-y-3">
+        <p className="text-sm text-muted-foreground">Não há questões disponíveis para este treino.</p>
+        <button
+          onClick={() => {
+            setPhase('setup');
+            loadQuestions();
+          }}
+          className="inline-flex items-center gap-2 rounded-lg text-sm border border-border px-4 py-2 hover:bg-muted transition-all"
+        >
+          <RefreshCw className="h-4 w-4" /> Recarregar questões
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      {/* Timer bar */}
       <div className="bg-card rounded-xl shadow-sm p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -202,7 +293,10 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
             <span className="text-xs text-muted-foreground">
               {statsRef.current.total} respondidas · {statsRef.current.correct} corretas
             </span>
-            <button onClick={finishTraining} className="rounded-lg text-xs border border-border px-3 py-1 hover:bg-muted transition-all flex items-center gap-1">
+            <button
+              onClick={finishTraining}
+              className="rounded-lg text-xs border border-border px-3 py-1 hover:bg-muted transition-all flex items-center gap-1"
+            >
               <Square className="h-3 w-3" /> Encerrar
             </button>
           </div>
@@ -215,7 +309,6 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
         </div>
       </div>
 
-      {/* Question */}
       <div className="bg-card rounded-xl shadow-sm p-6">
         <p className="text-xs text-muted-foreground mb-3">
           Questão {currentIdx + 1} · {difficultyLabel(q.difficulty)}
