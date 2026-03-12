@@ -31,7 +31,7 @@ export function StudentLessons() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const { error: loadError, execute } = useLoadWithTimeout();
   const [search, setSearch] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
