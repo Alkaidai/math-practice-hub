@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { getDiagnosticResult, getAttempts } from '../../lib/storage';
+import { useMemo } from 'react';
 import { Progress } from '../ui/progress';
+import type { Attempt } from '../../lib/types';
 
 interface DiagResult {
   totalQuestions: number;
@@ -13,41 +12,32 @@ interface DiagResult {
   recommendedPlan: { focusTopics: string[]; level: string };
 }
 
-export function DiagnosticReport() {
-  const { user } = useAuth();
-  const userId = user?.username ?? '';
-  const [result, setResult] = useState<DiagResult | null>(null);
-  const [currentRate, setCurrentRate] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+interface DiagnosticReportProps {
+  diagnosticResult: any;
+  attempts: Attempt[];
+}
 
-  useEffect(() => {
-    async function load() {
-      const [raw, attempts] = await Promise.all([
-        getDiagnosticResult(userId),
-        getAttempts(userId),
-      ]);
-      if (raw) {
-        const r = raw as any;
-        setResult({
-          totalQuestions: r.total_questions ?? r.totalQuestions ?? 0,
-          correctAnswers: r.correct_answers ?? r.correctAnswers ?? 0,
-          accuracyRate: r.accuracy_rate ?? r.accuracyRate ?? 0,
-          topicBreakdown: (r.topic_breakdown ?? r.topicBreakdown ?? []) as any[],
-          strengths: (r.strengths ?? []) as string[],
-          weaknesses: (r.weaknesses ?? []) as string[],
-          recommendedPlan: (r.recommended_plan ?? r.recommendedPlan ?? { focusTopics: [], level: 'iniciante' }),
-        });
-      }
-      if (attempts.length > 0) {
-        const correct = attempts.filter(a => a.isCorrect).length;
-        setCurrentRate(Math.round((correct / attempts.length) * 100));
-      }
-      setLoading(false);
-    }
-    load();
-  }, [userId]);
+export function DiagnosticReport({ diagnosticResult, attempts }: DiagnosticReportProps) {
+  const result = useMemo<DiagResult | null>(() => {
+    if (!diagnosticResult) return null;
+    const r = diagnosticResult as any;
+    return {
+      totalQuestions: r.total_questions ?? r.totalQuestions ?? 0,
+      correctAnswers: r.correct_answers ?? r.correctAnswers ?? 0,
+      accuracyRate: r.accuracy_rate ?? r.accuracyRate ?? 0,
+      topicBreakdown: (r.topic_breakdown ?? r.topicBreakdown ?? []) as any[],
+      strengths: (r.strengths ?? []) as string[],
+      weaknesses: (r.weaknesses ?? []) as string[],
+      recommendedPlan: (r.recommended_plan ?? r.recommendedPlan ?? { focusTopics: [], level: 'iniciante' }),
+    };
+  }, [diagnosticResult]);
 
-  if (loading) return null;
+  const currentRate = useMemo(() => {
+    if (attempts.length === 0) return null;
+    const correct = attempts.filter(a => a.isCorrect).length;
+    return Math.round((correct / attempts.length) * 100);
+  }, [attempts]);
+
   if (!result) return null;
 
   const levelColor = result.recommendedPlan.level === 'avançado' ? 'text-success' : result.recommendedPlan.level === 'intermediário' ? 'text-gold' : 'text-destructive';

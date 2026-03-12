@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { getDiagnosticResult, getAttempts, getNotebook } from '../../lib/storage';
 import { CheckCircle2, Circle } from 'lucide-react';
+import type { Attempt, NotebookItem } from '../../lib/types';
 
 interface TrailStep {
   icon: string;
@@ -10,62 +8,38 @@ interface TrailStep {
   detail: string;
 }
 
-export function StudyTrail() {
-  const { user } = useAuth();
-  const userId = user?.username ?? '';
-  const [steps, setSteps] = useState<TrailStep[]>([]);
-  const [loading, setLoading] = useState(true);
+interface StudyTrailProps {
+  hasDiagnostic: boolean;
+  diagnosticAccuracy?: number;
+  attempts: Attempt[];
+  pendingNotebookCount: number;
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const [diag, attempts, notebook] = await Promise.all([
-          getDiagnosticResult(userId),
-          getAttempts(userId),
-          getNotebook(userId),
-        ]);
-        if (cancelled) return;
+export function StudyTrail({ hasDiagnostic, diagnosticAccuracy, attempts, pendingNotebookCount }: StudyTrailProps) {
+  const hasAttempts = attempts.length > 0;
 
-        const hasDiag = !!diag;
-        const hasAttempts = attempts.length > 0;
-        const pendingNotebook = notebook.filter(n => n.status === 'pending').length;
-
-        const trail: TrailStep[] = [
-          {
-            icon: '🎯', label: 'Diagnóstico',
-            status: hasDiag ? 'done' : 'current',
-            detail: hasDiag ? `Concluído · ${(diag as any).accuracy_rate ?? (diag as any).accuracyRate ?? 0}% de acerto` : 'Realize o diagnóstico inicial',
-          },
-          {
-            icon: '📚', label: 'Tópicos recomendados',
-            status: hasDiag ? (hasAttempts ? 'done' : 'current') : 'pending',
-            detail: hasDiag ? 'Plano de estudo gerado' : 'Disponível após o diagnóstico',
-          },
-          {
-            icon: '✏️', label: 'Exercícios',
-            status: hasAttempts ? 'done' : 'pending',
-            detail: hasAttempts ? `${attempts.length} exercícios respondidos` : 'Resolva os exercícios recomendados',
-          },
-          {
-            icon: '📓', label: 'Revisão',
-            status: pendingNotebook > 0 ? 'current' : (hasAttempts ? 'done' : 'pending'),
-            detail: pendingNotebook > 0 ? `${pendingNotebook} erros pendentes para revisar` : 'Revise seus erros no caderno',
-          },
-        ];
-
-        setSteps(trail);
-      } catch {
-        // silently fail
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [userId]);
-
-  if (loading) return null;
+  const steps: TrailStep[] = [
+    {
+      icon: '🎯', label: 'Diagnóstico',
+      status: hasDiagnostic ? 'done' : 'current',
+      detail: hasDiagnostic ? `Concluído · ${diagnosticAccuracy ?? 0}% de acerto` : 'Realize o diagnóstico inicial',
+    },
+    {
+      icon: '📚', label: 'Tópicos recomendados',
+      status: hasDiagnostic ? (hasAttempts ? 'done' : 'current') : 'pending',
+      detail: hasDiagnostic ? 'Plano de estudo gerado' : 'Disponível após o diagnóstico',
+    },
+    {
+      icon: '✏️', label: 'Exercícios',
+      status: hasAttempts ? 'done' : 'pending',
+      detail: hasAttempts ? `${attempts.length} exercícios respondidos` : 'Resolva os exercícios recomendados',
+    },
+    {
+      icon: '📓', label: 'Revisão',
+      status: pendingNotebookCount > 0 ? 'current' : (hasAttempts ? 'done' : 'pending'),
+      detail: pendingNotebookCount > 0 ? `${pendingNotebookCount} erros pendentes para revisar` : 'Revise seus erros no caderno',
+    },
+  ];
 
   return (
     <div className="bg-card rounded-xl shadow-sm p-5">

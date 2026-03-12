@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs, getDailyStudyStats, getAverageTimePerQuestion } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, formatDate } from '../../lib/ui-utils';
-import { Progress } from '../ui/progress';
 import { DiagnosticReport } from './DiagnosticReport';
 import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
@@ -36,6 +35,11 @@ interface DashboardData {
   weakTopics: WeakTopic[];
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
+  allQuestions: Question[];
+  allTopics: { id: string; name: string; subject: string; grade: string; status: string }[];
+  allAttempts: Attempt[];
+  diagnosticResult: any | null;
+  diagnosticAccuracy: number;
   nextTopic: { topicId: string; topicName: string; count: number; recommendedDifficulty: string } | null;
   hasDiagnostic: boolean;
   recommendedDifficulty: string;
@@ -143,8 +147,13 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
       const globalDifficulty = getRecommendedDifficulty(attempts, undefined, qMap);
 
+      const diagAccuracy = diag ? ((diag as any).accuracy_rate ?? (diag as any).accuracyRate ?? 0) : 0;
+
       setData({
-        answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag,
+        answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions,
+        allQuestions: filteredQuestions, allTopics: filteredTopics, allAttempts: attempts,
+        diagnosticResult: diag, diagnosticAccuracy: diagAccuracy,
+        nextTopic, hasDiagnostic: !!diag,
         studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
         questionsToday: dailyStats?.questionsAnswered ?? 0,
         avgTimePerQuestion: avgTime,
@@ -242,19 +251,30 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       )}
 
       {/* Study Trail */}
-      <StudyTrail />
+      <StudyTrail
+        hasDiagnostic={data.hasDiagnostic}
+        diagnosticAccuracy={data.diagnosticAccuracy}
+        attempts={data.allAttempts}
+        pendingNotebookCount={data.pendingCount}
+      />
 
       {/* Daily Missions */}
       <DailyMissions />
 
       {/* Diagnostic Report - only if completed */}
-      {data.hasDiagnostic && <DiagnosticReport />}
+      {data.hasDiagnostic && <DiagnosticReport diagnosticResult={data.diagnosticResult} attempts={data.allAttempts} />}
 
       {/* Study Plan */}
-      <StudyPlan onStartTopic={onStartTopic} />
+      <StudyPlan
+        attempts={data.allAttempts}
+        questions={data.allQuestions}
+        topics={data.allTopics as any}
+        diagnosticResult={data.diagnosticResult}
+        onStartTopic={onStartTopic}
+      />
 
       {/* Evolution Chart */}
-      <EvolutionChart />
+      <EvolutionChart attempts={data.allAttempts} />
 
       {hasData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -326,7 +346,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       )}
 
       {/* Achievements */}
-      <Achievements />
+      <Achievements attempts={data.allAttempts} streak={data.meta.streak} />
     </div>
   );
 }

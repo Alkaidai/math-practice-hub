@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts } from '../../lib/storage';
+import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import type { Attempt } from '../../lib/types';
 
 interface WeekData {
   label: string;
@@ -9,44 +8,35 @@ interface WeekData {
   total: number;
 }
 
-export function EvolutionChart() {
-  const { user } = useAuth();
-  const userId = user?.username ?? '';
-  const [data, setData] = useState<WeekData[]>([]);
-  const [loading, setLoading] = useState(true);
+interface EvolutionChartProps {
+  attempts: Attempt[];
+}
 
-  useEffect(() => {
-    async function load() {
-      const attempts = await getAttempts(userId);
-      if (attempts.length === 0) { setLoading(false); return; }
+export function EvolutionChart({ attempts }: EvolutionChartProps) {
+  const data = useMemo(() => {
+    if (attempts.length === 0) return [];
 
-      const sorted = [...attempts].sort((a, b) => new Date(a.answeredAt).getTime() - new Date(b.answeredAt).getTime());
-      const weeks = new Map<string, { total: number; correct: number }>();
+    const sorted = [...attempts].sort((a, b) => new Date(a.answeredAt).getTime() - new Date(b.answeredAt).getTime());
+    const weeks = new Map<string, { total: number; correct: number }>();
 
-      sorted.forEach(a => {
-        const d = new Date(a.answeredAt);
-        const weekStart = new Date(d);
-        weekStart.setDate(d.getDate() - d.getDay());
-        const key = weekStart.toISOString().slice(0, 10);
-        const prev = weeks.get(key) ?? { total: 0, correct: 0 };
-        prev.total += 1;
-        if (a.isCorrect) prev.correct += 1;
-        weeks.set(key, prev);
-      });
+    sorted.forEach(a => {
+      const d = new Date(a.answeredAt);
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - d.getDay());
+      const key = weekStart.toISOString().slice(0, 10);
+      const prev = weeks.get(key) ?? { total: 0, correct: 0 };
+      prev.total += 1;
+      if (a.isCorrect) prev.correct += 1;
+      weeks.set(key, prev);
+    });
 
-      const chartData: WeekData[] = [...weeks.entries()].map(([key, stats]) => ({
-        label: new Date(key).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        rate: Math.round((stats.correct / stats.total) * 100),
-        total: stats.total,
-      }));
+    return [...weeks.entries()].map(([key, stats]) => ({
+      label: new Date(key).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      rate: Math.round((stats.correct / stats.total) * 100),
+      total: stats.total,
+    }));
+  }, [attempts]);
 
-      setData(chartData);
-      setLoading(false);
-    }
-    load();
-  }, [userId]);
-
-  if (loading) return null;
   if (data.length < 2) return null;
 
   return (
