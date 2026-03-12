@@ -269,6 +269,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       ]);
 
       const allOk = [attemptsR, notebookR, metaR, dailyR].every(r => r.ok);
+      const anyOk = [attemptsR, notebookR, metaR, dailyR].some(r => r.ok);
       const failedNames = [attemptsR, notebookR, metaR, dailyR].filter(r => !r.ok).map(r => r.name);
       console.log(`[Dashboard] Phase 1 done in ${Date.now() - t0}ms — ${allOk ? 'ALL OK ✅' : `⚠️ fallback used for: ${failedNames.join(', ')}`}`);
 
@@ -278,17 +279,28 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       clearTimeout(safetyTimer);
       if (stale()) return;
 
-      const attempts = attemptsR.value;
-      const notebook = notebookR.value;
-      const meta = metaR.value;
-      const dailyStats = dailyR.value;
+      // ─── Stale-while-revalidate: if refresh failed, preserve previous data ───
+      if (!allOk && hasPreviousData && !anyOk) {
+        console.log('[Dashboard] ⚡ all queries failed on refresh — preserving previous phase1 snapshot');
+        setRefreshWarning('Não foi possível atualizar os dados. Mostrando última versão.');
+        setPhase1Loading(false);
+        return; // keep existing phase1 & phase2 intact
+      }
 
+      // If it's a refresh with partial failure, use previous values for failed queries
+      const attempts = attemptsR.ok ? attemptsR.value : (hasPreviousData ? phase1!.allAttempts : attemptsR.value);
+      const notebook = notebookR.ok ? notebookR.value : (hasPreviousData ? (() => { console.log('[Dashboard] skipping empty fallback for notebook — using previous data'); return null; })() : notebookR.value);
+      const meta = metaR.ok ? metaR.value : (hasPreviousData ? phase1!.meta : metaR.value);
+      const dailyStats = dailyR.ok ? dailyR.value : (hasPreviousData ? { totalSeconds: phase1!.studyTodaySeconds, questionsAnswered: phase1!.questionsToday } : dailyR.value);
+
+      // For notebook, if we're reusing previous data, reuse the counts
+      const usePreviousNotebook = !notebookR.ok && hasPreviousData;
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;
       const rate = answered ? Math.round((correct / answered) * 100) : 0;
-      const pendingCount = notebook.filter((i: any) => i.status === 'pending').length;
-      const masteredCount = notebook.filter((i: any) => i.status === 'mastered').length;
-      const totalReviewed = notebook.length;
+      const pendingCount = usePreviousNotebook ? phase1!.pendingCount : (notebook ? notebook.filter((i: any) => i.status === 'pending').length : 0);
+      const masteredCount = usePreviousNotebook ? phase1!.masteredCount : (notebook ? notebook.filter((i: any) => i.status === 'mastered').length : 0);
+      const totalReviewed = usePreviousNotebook ? phase1!.totalReviewed : (notebook ? notebook.length : 0);
 
       setPhase1({
         answered, correct, rate, pendingCount, masteredCount, totalReviewed,
@@ -297,9 +309,11 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
         questionsToday: dailyStats?.questionsAnswered ?? 0,
       });
+      isInitialLoadRef.current = false;
       setPhase1Loading(false);
       if (!allOk) {
-        console.warn(`[Dashboard] Phase 1 partial — failed: ${failedNames.join(', ')}. Showing available data.`);
+        console.warn(`[Dashboard] Phase 1 partial — failed: ${failedNames.join(', ')}. Using previous data for failed queries.`);
+        setRefreshWarning('Alguns dados podem estar desatualizados.');
       }
       console.log('[Dashboard] Phase 1 done ✅ — rendering main UI');
 
