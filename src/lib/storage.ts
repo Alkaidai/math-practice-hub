@@ -548,6 +548,8 @@ export async function getNotebook(userId?: string): Promise<NotebookItem[]> {
     grade: row.grade, subject: row.subject, difficulty: row.difficulty, topicId: row.topic_id,
     status: row.status, whatIErred: row.what_i_erred, ruleInsight: row.rule_insight,
     updatedAt: row.updated_at,
+    nextReviewAt: row.next_review_at ?? null,
+    reviewCount: row.review_count ?? 0,
   }));
 }
 
