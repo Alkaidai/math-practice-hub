@@ -113,6 +113,7 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   const startTimer = useCallback(() => {
     if (loadingQuestions || !!loadError || questions.length === 0) return;
 
+    finishedRef.current = false;
     clearRunningTimers();
     statsRef.current = { correct: 0, total: 0, startTime: Date.now() };
     setCurrentIdx(0);
