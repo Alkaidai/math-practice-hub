@@ -7,6 +7,7 @@ import { TimedTraining } from './TimedTraining';
 import { StudentNotebook } from './StudentNotebook';
 import { StudentRanking } from './StudentRanking';
 import { KnowledgeMap } from './KnowledgeMap';
+import { LearningTrails } from './LearningTrails';
 import { StudentLessons } from './StudentLessons';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { ScrollToTop } from './ScrollToTop';
@@ -17,14 +18,15 @@ import {
   SidebarGroup, SidebarGroupContent, SidebarMenu,
   SidebarMenuItem, SidebarMenuButton, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap, Timer } from 'lucide-react';
+import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap, Timer, Route } from 'lucide-react';
 
-type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'notebook' | 'ranking' | 'lessons';
+type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'trails' | 'notebook' | 'ranking' | 'lessons';
 
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { key: 'questions', label: 'Treinar', icon: PenLine },
   { key: 'timed', label: 'Cronômetro', icon: Timer },
+  { key: 'trails', label: 'Trilhas', icon: Route },
   { key: 'lessons', label: 'Aulas', icon: GraduationCap },
   { key: 'knowledgeMap', label: 'Mapa de tópicos', icon: Map },
   { key: 'notebook', label: 'Caderno de erros', icon: BookOpen },
@@ -186,6 +188,7 @@ export function StudentApp() {
             {tab === 'dashboard' && <StudentDashboard key={tabKey} onNavigateQuestions={() => handleTabChange('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
             {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} initialDifficulty={difficultyFilter} onQuestionAnswered={recordQuestionAnswered} />}
             {tab === 'timed' && <TimedTraining key={tabKey} onQuestionAnswered={recordQuestionAnswered} />}
+            {tab === 'trails' && <LearningTrails key={tabKey} onStartTopic={handleStartTopic} />}
             {tab === 'knowledgeMap' && <KnowledgeMap key={tabKey} onStartTopic={handleStartTopic} />}
             {tab === 'lessons' && <StudentLessons key={tabKey} />}
             {tab === 'notebook' && <StudentNotebook key={tabKey} onRefazer={handleRefazer} />}
