@@ -203,17 +203,29 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     if (stale()) { console.log('[Dashboard] stale after auth wait, aborting'); return; }
 
     // ─── PHASE 1: Essential data (4 queries, max concurrency = 4) ───
-    setPhase1Loading(true);
+    const isRefresh = !isInitialLoadRef.current; // already have data?
+    const hasPreviousData = phase1 !== null;
+
+    if (!isRefresh) {
+      setPhase1Loading(true);
+    }
     setPhase1Error(null);
+    setRefreshWarning(null);
 
     // Safety timeout: if Phase 1 takes >25s, force-exit loading
     const safetyTimer = setTimeout(() => {
       if (stale()) return;
-      console.error('[Dashboard] ⚠️ PHASE 1 SAFETY TIMEOUT (25s) — forcing loading=false');
+      console.error('[Dashboard] ⚠️ PHASE 1 SAFETY TIMEOUT (25s)');
       releaseRefreshLock();
-      setPhase1Loading(false);
-      setPhase2Loading(false);
-      setPhase1Error('Não foi possível carregar os dados. Verifique sua conexão.');
+      if (hasPreviousData) {
+        console.log('[Dashboard] preserving previous data after safety timeout');
+        setRefreshWarning('Não foi possível atualizar os dados. Mostrando última versão.');
+        setPhase1Loading(false);
+      } else {
+        setPhase1Loading(false);
+        setPhase2Loading(false);
+        setPhase1Error('Não foi possível carregar os dados. Verifique sua conexão.');
+      }
     }, 25_000);
 
     try {
