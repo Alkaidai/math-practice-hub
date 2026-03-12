@@ -148,8 +148,13 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
       const globalDifficulty = getRecommendedDifficulty(attempts, undefined, qMap);
 
+      const diagAccuracy = diag ? ((diag as any).accuracy_rate ?? (diag as any).accuracyRate ?? 0) : 0;
+
       setData({
-        answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag,
+        answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions,
+        allQuestions: filteredQuestions, allTopics: filteredTopics, allAttempts: attempts,
+        diagnosticResult: diag, diagnosticAccuracy: diagAccuracy,
+        nextTopic, hasDiagnostic: !!diag,
         studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
         questionsToday: dailyStats?.questionsAnswered ?? 0,
         avgTimePerQuestion: avgTime,
