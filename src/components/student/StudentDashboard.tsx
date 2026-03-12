@@ -388,7 +388,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     );
   }
 
-  const hasData = phase1!.answered > 0;
+  const hasData = phase1 ? phase1.answered > 0 : false;
   const hasDiagnostic = phase2?.hasDiagnostic ?? false;
 
   return (
