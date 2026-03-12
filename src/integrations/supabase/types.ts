@@ -35,28 +35,46 @@ export type Database = {
       attempts: {
         Row: {
           answered_at: string
+          attempt_number: number | null
+          difficulty_detected: boolean | null
           id: number
           is_correct: boolean
+          possible_guess: boolean | null
+          question_abandoned: boolean | null
           question_id: string
+          question_skipped: boolean | null
           selected_index: number
+          time_spent_seconds: number | null
           topic_id: string | null
           user_id: string
         }
         Insert: {
           answered_at?: string
+          attempt_number?: number | null
+          difficulty_detected?: boolean | null
           id?: number
           is_correct?: boolean
+          possible_guess?: boolean | null
+          question_abandoned?: boolean | null
           question_id: string
+          question_skipped?: boolean | null
           selected_index?: number
+          time_spent_seconds?: number | null
           topic_id?: string | null
           user_id: string
         }
         Update: {
           answered_at?: string
+          attempt_number?: number | null
+          difficulty_detected?: boolean | null
           id?: number
           is_correct?: boolean
+          possible_guess?: boolean | null
+          question_abandoned?: boolean | null
           question_id?: string
+          question_skipped?: boolean | null
           selected_index?: number
+          time_spent_seconds?: number | null
           topic_id?: string | null
           user_id?: string
         }
@@ -107,6 +125,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_study_stats: {
+        Row: {
+          date: string
+          id: string
+          questions_answered: number
+          total_seconds: number
+          user_id: string
+        }
+        Insert: {
+          date?: string
+          id?: string
+          questions_answered?: number
+          total_seconds?: number
+          user_id: string
+        }
+        Update: {
+          date?: string
+          id?: string
+          questions_answered?: number
+          total_seconds?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       dashboard_meta: {
         Row: {
@@ -626,6 +668,33 @@ export type Database = {
           qty?: number
           question_ids?: Json
           topic?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_sessions: {
+        Row: {
+          duration_seconds: number | null
+          end_time: string | null
+          id: string
+          last_activity: string
+          start_time: string
+          user_id: string
+        }
+        Insert: {
+          duration_seconds?: number | null
+          end_time?: string | null
+          id?: string
+          last_activity?: string
+          start_time?: string
+          user_id: string
+        }
+        Update: {
+          duration_seconds?: number | null
+          end_time?: string | null
+          id?: string
+          last_activity?: string
+          start_time?: string
           user_id?: string
         }
         Relationships: []
