@@ -18,7 +18,7 @@ import {
   SidebarGroup, SidebarGroupContent, SidebarMenu,
   SidebarMenuItem, SidebarMenuButton, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap, Timer } from 'lucide-react';
+import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap, Timer, Route } from 'lucide-react';
 
 type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'notebook' | 'ranking' | 'lessons';
 
