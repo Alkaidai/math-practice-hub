@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs, getDiagnosticResult } from '../../lib/storage';
+import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { LoadingTimeout } from './LoadingTimeout';
-import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { CheckCircle2, Lock, Play, Circle, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { Progress } from '../ui/progress';
