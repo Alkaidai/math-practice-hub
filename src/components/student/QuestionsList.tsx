@@ -6,8 +6,10 @@ import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useQuestionTimer } from '../../hooks/useQuestionTimer';
 import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson } from '../../lib/types';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AnswerState {
   selectedIndex: number;
@@ -26,9 +28,14 @@ function shuffleOptions(options: string[], correctIndex: number): { shuffled: st
   return { shuffled, newCorrectIndex, indexMap: indices };
 }
 
-export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQuestionId?: string | null; initialTopicId?: string | null }) {
+export function QuestionsList({ initialQuestionId, initialTopicId, onQuestionAnswered }: {
+  initialQuestionId?: string | null;
+  initialTopicId?: string | null;
+  onQuestionAnswered?: () => void;
+}) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
+  const { startQuestion, stopQuestion, getAbandonedQuestions, clearAll } = useQuestionTimer();
 
   const [filters, setFilters] = useState<QuestionFilters>({ grade: '', subject: '', difficulty: '', topicId: initialTopicId ?? '', search: '' });
   const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
@@ -103,16 +110,39 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
 
   const handleConfirm = async (q: Question, selectedIndex: number) => {
     if (!user) return;
-    // Map shuffled index back to original for storage
     const shuffled = shuffledMap[q.id];
-    const originalCorrectIndex = q.correctIndex;
     const isCorrect = shuffled ? selectedIndex === shuffled.correctIndex : selectedIndex === q.correctIndex;
+
+    // Get timing data from question timer
+    const timing = stopQuestion(q.id);
+
+    // Calculate attempt number
+    const { data: prevAttempts } = await supabase
+      .from('attempts')
+      .select('id')
+      .eq('user_id', user.username)
+      .eq('question_id', q.id);
+    const attemptNumber = (prevAttempts?.length ?? 0) + 1;
 
     setAnswers(prev => ({ ...prev, [q.id]: { selectedIndex, isCorrect } }));
     setActiveTab(prev => ({ ...prev, [q.id]: 'gabarito' }));
 
-    // Store the original selected index for the attempt
-    await addAttempt({ userId: user.username, questionId: q.id, selectedIndex, isCorrect, answeredAt: new Date().toISOString(), topicId: q.topicId });
+    await addAttempt({
+      userId: user.username,
+      questionId: q.id,
+      selectedIndex,
+      isCorrect,
+      answeredAt: new Date().toISOString(),
+      topicId: q.topicId,
+      timeSpentSeconds: timing.timeSpentSeconds,
+      possibleGuess: timing.possibleGuess,
+      difficultyDetected: timing.difficultyDetected,
+      attemptNumber,
+    });
+
+    // Notify session tracker
+    onQuestionAnswered?.();
+
     if (!isCorrect) {
       const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
       setNotebookItems(prev => {
@@ -215,43 +245,38 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
             </div>
           </div>
 
-          <div className="space-y-4">
-            {pagedQuestions.map((q, idx) => {
-              const sq = shuffledMap[q.id];
-              return (
-                <QuestionCard
-                  key={q.id}
-                  question={q}
-                  shuffledOptions={sq?.options ?? q.options}
-                  shuffledCorrectIndex={sq?.correctIndex ?? q.correctIndex}
-                  index={page * perPage + idx}
-                  answer={answers[q.id]}
-                  activeTab={activeTab[q.id] ?? 'gabarito'}
-                  notebookItem={notebookMap.get(q.id)}
-                  topicLabel={topicMap.get(q.topicId) ?? '—'}
-                  user={user}
-                  lessons={lessonsForQuestion(q)}
-                  onConfirm={(selectedIndex) => handleConfirm(q, selectedIndex)}
-                  onTabChange={(tab) => setActiveTab(prev => ({ ...prev, [q.id]: tab }))}
-                  onComment={(text) => handleComment(q.id, text)}
-                  onReport={(type, message) => handleReport(q, type, message)}
-                  onAddNotebook={async () => {
-                    if (user) {
-                      const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
-                      setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
-                      setActiveTab(prev => ({ ...prev, [q.id]: 'caderno' }));
-                    }
-                  }}
-                  onSaveNotebook={async (whatIErred, ruleInsight) => {
-                    if (user) {
-                      const item = await upsertNotebookItem(user.username, q.id, { whatIErred, ruleInsight });
-                      setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
+          {/* Start timers for visible questions */}
+          <QuestionsWithTimer
+            questions={pagedQuestions}
+            shuffledMap={shuffledMap}
+            page={page}
+            perPage={perPage}
+            answers={answers}
+            activeTab={activeTab}
+            notebookMap={notebookMap}
+            topicMap={topicMap}
+            user={user}
+            allLessons={allLessons}
+            lessonsForQuestion={lessonsForQuestion}
+            startQuestion={startQuestion}
+            onConfirm={handleConfirm}
+            onTabChange={(qId, tab) => setActiveTab(prev => ({ ...prev, [qId]: tab }))}
+            onComment={handleComment}
+            onReport={handleReport}
+            onAddNotebook={async (qId) => {
+              if (user) {
+                const item = await upsertNotebookItem(user.username, qId, { status: 'pending' });
+                setNotebookItems(prev => [...prev.filter(n => n.questionId !== qId), item]);
+                setActiveTab(prev => ({ ...prev, [qId]: 'caderno' }));
+              }
+            }}
+            onSaveNotebook={async (qId, whatIErred, ruleInsight) => {
+              if (user) {
+                const item = await upsertNotebookItem(user.username, qId, { whatIErred, ruleInsight });
+                setNotebookItems(prev => [...prev.filter(n => n.questionId !== qId), item]);
+              }
+            }}
+          />
 
           <div className="flex items-center justify-center gap-3 pt-2">
             <button disabled={page === 0} onClick={() => { setPage(page - 1); document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-lg text-sm border border-border px-4 py-2 disabled:opacity-40 hover:bg-muted transition-colors">
@@ -491,4 +516,67 @@ function TabPanel({ tab, question: q, answer, user, notebookItem, lessons, shuff
   }
 
   return null;
+}
+
+/** Wrapper that starts question timers when questions become visible */
+function QuestionsWithTimer({
+  questions, shuffledMap, page, perPage, answers, activeTab, notebookMap, topicMap, user, allLessons, lessonsForQuestion,
+  startQuestion, onConfirm, onTabChange, onComment, onReport, onAddNotebook, onSaveNotebook,
+}: {
+  questions: Question[];
+  shuffledMap: Record<string, { options: string[]; correctIndex: number }>;
+  page: number;
+  perPage: number;
+  answers: Record<string, AnswerState>;
+  activeTab: Record<string, string>;
+  notebookMap: Map<string, NotebookItem>;
+  topicMap: Map<string, string>;
+  user: any;
+  allLessons: Lesson[];
+  lessonsForQuestion: (q: Question) => Lesson[];
+  startQuestion: (id: string) => void;
+  onConfirm: (q: Question, selectedIndex: number) => void;
+  onTabChange: (qId: string, tab: string) => void;
+  onComment: (qId: string, text: string) => void;
+  onReport: (q: Question, type: string, message: string) => void;
+  onAddNotebook: (qId: string) => void;
+  onSaveNotebook: (qId: string, whatIErred: string, ruleInsight: string) => void;
+}) {
+  // Start timers for unanswered questions when they appear
+  useEffect(() => {
+    questions.forEach(q => {
+      if (!answers[q.id]) {
+        startQuestion(q.id);
+      }
+    });
+  }, [questions.map(q => q.id).join(',')]);
+
+  return (
+    <div className="space-y-4">
+      {questions.map((q, idx) => {
+        const sq = shuffledMap[q.id];
+        return (
+          <QuestionCard
+            key={q.id}
+            question={q}
+            shuffledOptions={sq?.options ?? q.options}
+            shuffledCorrectIndex={sq?.correctIndex ?? q.correctIndex}
+            index={page * perPage + idx}
+            answer={answers[q.id]}
+            activeTab={activeTab[q.id] ?? 'gabarito'}
+            notebookItem={notebookMap.get(q.id)}
+            topicLabel={topicMap.get(q.topicId) ?? '—'}
+            user={user}
+            lessons={lessonsForQuestion(q)}
+            onConfirm={(selectedIndex) => onConfirm(q, selectedIndex)}
+            onTabChange={(tab) => onTabChange(q.id, tab)}
+            onComment={(text) => onComment(q.id, text)}
+            onReport={(type, message) => onReport(q, type, message)}
+            onAddNotebook={() => onAddNotebook(q.id)}
+            onSaveNotebook={(w, r) => onSaveNotebook(q.id, w, r)}
+          />
+        );
+      })}
+    </div>
+  );
 }
