@@ -236,6 +236,40 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
         </div>
       </div>
 
+      {/* Cognitive Block Alert */}
+      {cognitiveBlock && (
+        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              Possível travamento detectado em "{cognitiveBlock.topicName}"
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Você errou {cognitiveBlock.consecutiveErrors} questões seguidas nesse tópico.
+              {cognitiveBlock.prerequisiteTopicName
+                ? ` Recomendamos revisar "${cognitiveBlock.prerequisiteTopicName}" antes de continuar.`
+                : ' Tente revisar o conteúdo ou assistir uma aula sobre o tópico.'}
+            </p>
+            <div className="flex gap-2 mt-3">
+              {cognitiveBlock.prerequisiteTopicId && (
+                <button
+                  onClick={() => handleFilter('topicId', cognitiveBlock.prerequisiteTopicId!)}
+                  className="rounded-lg text-xs font-medium bg-primary text-primary-foreground px-4 py-1.5 hover:brightness-110 transition-all flex items-center gap-1"
+                >
+                  <BookOpen className="h-3.5 w-3.5" /> Revisar pré-requisito
+                </button>
+              )}
+              <button
+                onClick={() => setCognitiveBlock(null)}
+                className="rounded-lg text-xs font-medium border border-border px-4 py-1.5 hover:bg-muted transition-all"
+              >
+                Continuar mesmo assim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {questions.length === 0 ? (
         <div className="bg-card rounded-xl shadow-sm p-8 text-center">
           <p className="text-muted-foreground">Nenhuma questão encontrada com os filtros atuais.</p>
