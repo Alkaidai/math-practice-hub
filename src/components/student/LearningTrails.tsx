@@ -181,19 +181,10 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
   const { user } = useAuth();
   const userId = user?.username ?? '';
   const [trails, setTrails] = useState<Trail[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+  const { loading, error: loadError, execute } = useLoadWithTimeout();
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+    await execute(async () => {
       const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getTopics({ activeOnly: true }),
@@ -201,8 +192,6 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
         loadQuestionBank(),
         getAllowedSubjectSlugs(userId),
       ]);
-
-      if (!mountedRef.current) return;
 
       const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
@@ -262,20 +251,15 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
         })
         .filter(t => t.nodes.length > 0);
 
-      if (mountedRef.current) setTrails(result);
-    } catch (err: any) {
-      console.error('[LearningTrails] load error:', err);
-      if (mountedRef.current) setError('Ocorreu um erro ao carregar as trilhas.');
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, [userId]);
+      setTrails(result);
+    });
+  }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load);
 
+  if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
   if (loading) return <p className="text-muted-foreground">Carregando trilhas...</p>;
-  if (error) return <LoadingTimeout error={error} onRetry={load} />;
 
   if (trails.length === 0) return (
     <div className="bg-card rounded-xl shadow-sm p-8 text-center">
