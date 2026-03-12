@@ -274,8 +274,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       console.log('[Dashboard] Phase 2 done ✅');
 
     } catch (err: any) {
+      clearTimeout(safetyTimer);
       if (stale()) return;
-      console.error('[Dashboard] Load error:', err?.message);
+      console.error('[Dashboard] ❌ Load error:', err?.message);
       setPhase1Error(err?.message === 'TIMEOUT'
         ? 'Não foi possível carregar os dados. Verifique sua conexão.'
         : 'Ocorreu um erro ao carregar os dados.');
