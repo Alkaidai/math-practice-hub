@@ -38,6 +38,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useVisibilityRefresh(loadData);
 
   const questionsMap = useMemo(() => new Map(allQuestions.map(q => [q.id, q])), [allQuestions]);
 
