@@ -21,7 +21,7 @@ import {
   ArrowLeft, LogOut, ImageIcon, X, Trash2, Activity,
 } from 'lucide-react';
 
-type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'analytics' | 'settings';
+type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'analytics' | 'prerequisites' | 'settings';
 
 // Reusable paginated table component for admin lists
 function AdminPaginatedTable<T>({ items, perPage, renderHeader, renderRow }: {
