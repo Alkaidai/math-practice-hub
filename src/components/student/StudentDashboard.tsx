@@ -175,9 +175,15 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   const [phase1Loading, setPhase1Loading] = useState(true);
   const [phase2Loading, setPhase2Loading] = useState(true);
   const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const loadIdRef = useRef(0);
+  const isInitialLoadRef = useRef(true);
+  const phase1Ref = useRef<Phase1Data | null>(null);
+
+  // Keep ref in sync with state
+  useEffect(() => { phase1Ref.current = phase1; }, [phase1]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -201,17 +207,30 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     if (stale()) { console.log('[Dashboard] stale after auth wait, aborting'); return; }
 
     // ─── PHASE 1: Essential data (4 queries, max concurrency = 4) ───
-    setPhase1Loading(true);
+    const isRefresh = !isInitialLoadRef.current; // already have data?
+    const hasPreviousData = phase1Ref.current !== null;
+    const prevPhase1 = phase1Ref.current;
+
+    if (!isRefresh) {
+      setPhase1Loading(true);
+    }
     setPhase1Error(null);
+    setRefreshWarning(null);
 
     // Safety timeout: if Phase 1 takes >25s, force-exit loading
     const safetyTimer = setTimeout(() => {
       if (stale()) return;
-      console.error('[Dashboard] ⚠️ PHASE 1 SAFETY TIMEOUT (25s) — forcing loading=false');
+      console.error('[Dashboard] ⚠️ PHASE 1 SAFETY TIMEOUT (25s)');
       releaseRefreshLock();
-      setPhase1Loading(false);
-      setPhase2Loading(false);
-      setPhase1Error('Não foi possível carregar os dados. Verifique sua conexão.');
+      if (hasPreviousData) {
+        console.log('[Dashboard] preserving previous data after safety timeout');
+        setRefreshWarning('Não foi possível atualizar os dados. Mostrando última versão.');
+        setPhase1Loading(false);
+      } else {
+        setPhase1Loading(false);
+        setPhase2Loading(false);
+        setPhase1Error('Não foi possível carregar os dados. Verifique sua conexão.');
+      }
     }, 25_000);
 
     try {
@@ -255,6 +274,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       ]);
 
       const allOk = [attemptsR, notebookR, metaR, dailyR].every(r => r.ok);
+      const anyOk = [attemptsR, notebookR, metaR, dailyR].some(r => r.ok);
       const failedNames = [attemptsR, notebookR, metaR, dailyR].filter(r => !r.ok).map(r => r.name);
       console.log(`[Dashboard] Phase 1 done in ${Date.now() - t0}ms — ${allOk ? 'ALL OK ✅' : `⚠️ fallback used for: ${failedNames.join(', ')}`}`);
 
@@ -264,17 +284,28 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       clearTimeout(safetyTimer);
       if (stale()) return;
 
-      const attempts = attemptsR.value;
-      const notebook = notebookR.value;
-      const meta = metaR.value;
-      const dailyStats = dailyR.value;
+      // ─── Stale-while-revalidate: if refresh failed, preserve previous data ───
+      if (!allOk && hasPreviousData && !anyOk) {
+        console.log('[Dashboard] ⚡ all queries failed on refresh — preserving previous phase1 snapshot');
+        setRefreshWarning('Não foi possível atualizar os dados. Mostrando última versão.');
+        setPhase1Loading(false);
+        return; // keep existing phase1 & phase2 intact
+      }
 
+      // If it's a refresh with partial failure, use previous values for failed queries
+      const attempts = attemptsR.ok ? attemptsR.value : (hasPreviousData ? prevPhase1!.allAttempts : attemptsR.value);
+      const notebook = notebookR.ok ? notebookR.value : (hasPreviousData ? (() => { console.log('[Dashboard] skipping empty fallback for notebook — using previous data'); return null; })() : notebookR.value);
+      const meta = metaR.ok ? metaR.value : (hasPreviousData ? prevPhase1!.meta : metaR.value);
+      const dailyStats = dailyR.ok ? dailyR.value : (hasPreviousData ? { totalSeconds: prevPhase1!.studyTodaySeconds, questionsAnswered: prevPhase1!.questionsToday } : dailyR.value);
+
+      // For notebook, if we're reusing previous data, reuse the counts
+      const usePreviousNotebook = !notebookR.ok && hasPreviousData;
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;
       const rate = answered ? Math.round((correct / answered) * 100) : 0;
-      const pendingCount = notebook.filter((i: any) => i.status === 'pending').length;
-      const masteredCount = notebook.filter((i: any) => i.status === 'mastered').length;
-      const totalReviewed = notebook.length;
+      const pendingCount = usePreviousNotebook ? prevPhase1!.pendingCount : (notebook ? notebook.filter((i: any) => i.status === 'pending').length : 0);
+      const masteredCount = usePreviousNotebook ? prevPhase1!.masteredCount : (notebook ? notebook.filter((i: any) => i.status === 'mastered').length : 0);
+      const totalReviewed = usePreviousNotebook ? prevPhase1!.totalReviewed : (notebook ? notebook.length : 0);
 
       setPhase1({
         answered, correct, rate, pendingCount, masteredCount, totalReviewed,
@@ -283,9 +314,11 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
         questionsToday: dailyStats?.questionsAnswered ?? 0,
       });
+      isInitialLoadRef.current = false;
       setPhase1Loading(false);
       if (!allOk) {
-        console.warn(`[Dashboard] Phase 1 partial — failed: ${failedNames.join(', ')}. Showing available data.`);
+        console.warn(`[Dashboard] Phase 1 partial — failed: ${failedNames.join(', ')}. Using previous data for failed queries.`);
+        setRefreshWarning('Alguns dados podem estar desatualizados.');
       }
       console.log('[Dashboard] Phase 1 done ✅ — rendering main UI');
 
@@ -324,11 +357,17 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       clearTimeout(safetyTimer);
       if (stale()) return;
       console.error('[Dashboard] ❌ Load error:', err?.message);
-      setPhase1Error(err?.message === 'TIMEOUT'
-        ? 'Não foi possível carregar os dados. Verifique sua conexão.'
-        : 'Ocorreu um erro ao carregar os dados.');
-      setPhase1Loading(false);
-      setPhase2Loading(false);
+      if (hasPreviousData) {
+        console.log('[Dashboard] partial refresh failed, preserving current UI');
+        setRefreshWarning('Ocorreu um erro ao atualizar. Mostrando última versão.');
+        setPhase1Loading(false);
+      } else {
+        setPhase1Error(err?.message === 'TIMEOUT'
+          ? 'Não foi possível carregar os dados. Verifique sua conexão.'
+          : 'Ocorreu um erro ao carregar os dados.');
+        setPhase1Loading(false);
+        setPhase2Loading(false);
+      }
     }
   }, [userId, waitForAuthReady]);
 
@@ -337,8 +376,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
   // ─── Render states ───
 
-  if (phase1Error) return <LoadingTimeout error={phase1Error} onRetry={load} />;
-  if (phase1Loading || !phase1) return <p className="text-muted-foreground">Carregando painel...</p>;
+  // Only show full error screen on initial load (no previous data)
+  if (phase1Error && !phase1) return <LoadingTimeout error={phase1Error} onRetry={load} />;
+  if (phase1Loading && !phase1) return <p className="text-muted-foreground">Carregando painel...</p>;
 
   if (showDiagnosticNow) {
     return (
@@ -348,11 +388,20 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     );
   }
 
-  const hasData = phase1.answered > 0;
+  const hasData = phase1 ? phase1.answered > 0 : false;
   const hasDiagnostic = phase2?.hasDiagnostic ?? false;
 
   return (
     <div className="space-y-6">
+      {/* Refresh warning — subtle banner, not blocking */}
+      {refreshWarning && (
+        <div className="bg-gold/10 border border-gold/30 rounded-lg px-4 py-2.5 flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">{refreshWarning}</p>
+          <button onClick={() => { setRefreshWarning(null); load(); }} className="text-xs text-primary font-medium hover:underline ml-3 shrink-0">
+            Tentar novamente
+          </button>
+        </div>
+      )}
       {/* Diagnostic CTA - only if not done yet */}
       {!phase2Loading && !hasDiagnostic && (
         <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
