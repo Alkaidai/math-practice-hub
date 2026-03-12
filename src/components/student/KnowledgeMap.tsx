@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
-import { ErrorState } from './ErrorState';
+import { LoadingTimeout } from './LoadingTimeout';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { AlertTriangle, CheckCircle2, BookOpen, Clock } from 'lucide-react';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
