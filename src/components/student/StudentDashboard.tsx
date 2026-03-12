@@ -215,13 +215,27 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     try {
       console.log('[Dashboard] Phase 1 started — 4 essential queries');
       const t0 = Date.now();
+
+      const timedQuery = async <T,>(name: string, fn: () => Promise<T>): Promise<T> => {
+        const start = Date.now();
+        console.log(`[Dashboard][Phase1] ⏱ ${name} — START`);
+        try {
+          const result = await fn();
+          console.log(`[Dashboard][Phase1] ✅ ${name} — OK in ${Date.now() - start}ms`);
+          return result;
+        } catch (err: any) {
+          console.error(`[Dashboard][Phase1] ❌ ${name} — FAIL in ${Date.now() - start}ms:`, err?.message);
+          throw err;
+        }
+      };
+
       const [attempts, notebook, meta, dailyStats] = await Promise.all([
-        getAttempts(userId),
-        getNotebook(userId),
-        getStudentDashboardMeta(userId),
-        getDailyStudyStats(userId),
+        timedQuery('getAttempts', () => getAttempts(userId)),
+        timedQuery('getNotebook', () => getNotebook(userId)),
+        timedQuery('getStudentDashboardMeta', () => getStudentDashboardMeta(userId)),
+        timedQuery('getDailyStudyStats', () => getDailyStudyStats(userId)),
       ]);
-      console.log(`[Dashboard] Phase 1 queries done in ${Date.now() - t0}ms`);
+      console.log(`[Dashboard] Phase 1 ALL done in ${Date.now() - t0}ms`);
 
       clearTimeout(safetyTimer);
       if (stale()) return;
