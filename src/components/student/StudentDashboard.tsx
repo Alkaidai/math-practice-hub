@@ -179,7 +179,11 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
   const mountedRef = useRef(true);
   const loadIdRef = useRef(0);
-  const isInitialLoadRef = useRef(true); // true until first successful phase1
+  const isInitialLoadRef = useRef(true);
+  const phase1Ref = useRef<Phase1Data | null>(null);
+
+  // Keep ref in sync with state
+  useEffect(() => { phase1Ref.current = phase1; }, [phase1]);
 
   useEffect(() => {
     mountedRef.current = true;
