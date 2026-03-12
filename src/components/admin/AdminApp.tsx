@@ -215,13 +215,30 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 
 function AdminDashboard() {
   const [data, setData] = useState<{ questions: Question[]; attempts: Attempt[]; users: User[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([loadQuestionBank(), getAttempts(), loadUsers()]).then(([questions, attempts, users]) => {
-      setData({ questions, attempts, users });
-    });
+    let mounted = true;
+
+    async function loadData() {
+      try {
+        const [questions, attempts, users] = await Promise.all([loadQuestionBank(), getAttempts(), loadUsers()]);
+        if (!mounted) return;
+        setData({ questions, attempts, users });
+        setError(null);
+      } catch (err) {
+        console.error('[AdminDashboard] erro ao carregar painel:', err);
+        if (!mounted) return;
+        setError('Não foi possível carregar os dados do painel.');
+      }
+    }
+
+    loadData();
+
+    return () => { mounted = false; };
   }, []);
 
+  if (error) return <p className="font-body text-destructive">{error}</p>;
   if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
   const { questions, attempts, users } = data;
@@ -278,18 +295,36 @@ function AdminDashboard() {
 function AdminRanking() {
   const [ranking, setRanking] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<any[]>([]);
   const [selectedStudent, setSelectedStudent] = useState('');
   const students = useStudentList();
 
   useEffect(() => {
-    Promise.all([getRanking(), getAllDiagnosticResults()]).then(([r, d]) => {
-      setRanking(r);
-      setDiagnostics(d);
-      setLoading(false);
-    });
+    let mounted = true;
+
+    async function loadData() {
+      try {
+        const [r, d] = await Promise.all([getRanking(), getAllDiagnosticResults()]);
+        if (!mounted) return;
+        setRanking(r);
+        setDiagnostics(d);
+        setError(null);
+      } catch (err) {
+        console.error('[AdminRanking] erro ao carregar ranking:', err);
+        if (!mounted) return;
+        setError('Não foi possível carregar o ranking.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => { mounted = false; };
   }, []);
 
+  if (error) return <p className="font-body text-destructive">{error}</p>;
   if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
   const filteredRanking = selectedStudent ? ranking.filter(r => r.username === selectedStudent) : ranking;
@@ -372,15 +407,32 @@ function AdminRanking() {
 
 function AdminTopicStats() {
   const [data, setData] = useState<{ topics: Topic[]; attempts: Attempt[]; questions: Question[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [selectedStudent, setSelectedStudent] = useState('');
   const students = useStudentList();
 
   useEffect(() => {
-    Promise.all([getTopics(), getAttempts(), loadQuestionBank()]).then(([topics, attempts, questions]) => {
-      setData({ topics, attempts, questions });
-    });
+    let mounted = true;
+
+    async function loadData() {
+      try {
+        const [topics, attempts, questions] = await Promise.all([getTopics(), getAttempts(), loadQuestionBank()]);
+        if (!mounted) return;
+        setData({ topics, attempts, questions });
+        setError(null);
+      } catch (err) {
+        console.error('[AdminTopicStats] erro ao carregar estatísticas:', err);
+        if (!mounted) return;
+        setError('Não foi possível carregar as estatísticas por tópico.');
+      }
+    }
+
+    loadData();
+
+    return () => { mounted = false; };
   }, []);
 
+  if (error) return <p className="font-body text-destructive">{error}</p>;
   if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
   const { topics, questions } = data;
@@ -466,15 +518,32 @@ function AdminTopicStats() {
 function AdminSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
 
   useEffect(() => {
-    Promise.all([getAllAppSettings(), loadQuestionBank()]).then(([s, q]) => {
-      setSettings(s);
-      setQuestionCount(q.filter(x => x.status !== 'draft').length);
-      setLoading(false);
-    });
+    let mounted = true;
+
+    async function loadData() {
+      try {
+        const [s, q] = await Promise.all([getAllAppSettings(), loadQuestionBank()]);
+        if (!mounted) return;
+        setSettings(s);
+        setQuestionCount(q.filter(x => x.status !== 'draft').length);
+        setError(null);
+      } catch (err) {
+        console.error('[AdminSettings] erro ao carregar configurações:', err);
+        if (!mounted) return;
+        setError('Não foi possível carregar as configurações.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => { mounted = false; };
   }, []);
 
   const toggle = async (key: string) => {
@@ -486,6 +555,7 @@ function AdminSettings() {
     setTimeout(() => setFeedback(''), 2000);
   };
 
+  if (error) return <p className="font-body text-destructive">{error}</p>;
   if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
   const toggleItems = [
