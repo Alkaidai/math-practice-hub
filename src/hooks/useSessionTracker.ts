@@ -45,6 +45,7 @@ export function useSessionTracker(userId: string | null) {
     const sid = sessionIdRef.current;
     if (!sid) return;
 
+    console.log('[SessionTracker] endSession called, sid:', sid);
     sessionIdRef.current = null;
     startingSessionRef.current = null;
 
