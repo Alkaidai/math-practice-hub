@@ -13,7 +13,7 @@ import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
-import { Target, TrendingUp, Flame, AlertCircle, Stethoscope } from 'lucide-react';
+import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer } from 'lucide-react';
 
 interface WeakTopic {
   topicId: string;
