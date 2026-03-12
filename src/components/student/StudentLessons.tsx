@@ -4,7 +4,7 @@ import { getLessons, getTopics, getAllowedSubjectSlugs } from '../../lib/storage
 import { subjectLabel } from '../../lib/ui-utils';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import { Search, PlayCircle, Clock } from 'lucide-react';
 import type { Lesson, Topic } from '../../lib/types';
 
