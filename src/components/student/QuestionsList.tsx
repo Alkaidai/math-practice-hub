@@ -5,9 +5,9 @@ import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, optionLette
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useQuestionTimer } from '../../hooks/useQuestionTimer';
 import { detectCognitiveBlock, getTopicPrerequisites, buildPrerequisiteMap } from '../../lib/adaptive';
+import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
 import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson, Attempt } from '../../lib/types';
 import { CheckCircle2, XCircle, AlertTriangle, BookOpen } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
