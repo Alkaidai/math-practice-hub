@@ -120,6 +120,8 @@ export interface NotebookItem {
   whatIErred: string;
   ruleInsight: string;
   updatedAt: string;
+  nextReviewAt: string | null;
+  reviewCount: number;
 }
 
 export interface Report {

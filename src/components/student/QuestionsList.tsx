@@ -155,7 +155,9 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
     onQuestionAnswered?.();
 
     if (!isCorrect) {
-      const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
+      const reviewIn3Days = new Date();
+      reviewIn3Days.setDate(reviewIn3Days.getDate() + 3);
+      const item = await upsertNotebookItem(user.username, q.id, { status: 'pending', nextReviewAt: reviewIn3Days.toISOString(), reviewCount: 0 });
       setNotebookItems(prev => {
         const idx = prev.findIndex(n => n.questionId === q.id);
         if (idx >= 0) { const next = [...prev]; next[idx] = item; return next; }

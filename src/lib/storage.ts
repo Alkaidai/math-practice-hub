@@ -548,6 +548,8 @@ export async function getNotebook(userId?: string): Promise<NotebookItem[]> {
     grade: row.grade, subject: row.subject, difficulty: row.difficulty, topicId: row.topic_id,
     status: row.status, whatIErred: row.what_i_erred, ruleInsight: row.rule_insight,
     updatedAt: row.updated_at,
+    nextReviewAt: row.next_review_at ?? null,
+    reviewCount: row.review_count ?? 0,
   }));
 }
 
@@ -567,6 +569,8 @@ export async function upsertNotebookItem(userId: string, questionId: string, pat
     rule_insight: patch.ruleInsight ?? '',
     updated_at: nowIso(),
   };
+  if (patch.nextReviewAt !== undefined) row.next_review_at = patch.nextReviewAt;
+  if (patch.reviewCount !== undefined) row.review_count = patch.reviewCount;
 
   const { data } = await supabase
     .from('notebook_items')
@@ -580,6 +584,8 @@ export async function upsertNotebookItem(userId: string, questionId: string, pat
     grade: d.grade, subject: d.subject, difficulty: d.difficulty, topicId: d.topic_id,
     status: d.status, whatIErred: d.what_i_erred, ruleInsight: d.rule_insight,
     updatedAt: d.updated_at,
+    nextReviewAt: d.next_review_at ?? null,
+    reviewCount: d.review_count ?? 0,
   };
 }
 
