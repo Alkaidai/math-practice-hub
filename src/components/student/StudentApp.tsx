@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from './LoginForm';
 import { StudentDashboard } from './StudentDashboard';
 import { QuestionsList } from './QuestionsList';
+import { TimedTraining } from './TimedTraining';
 import { StudentNotebook } from './StudentNotebook';
 import { StudentRanking } from './StudentRanking';
 import { KnowledgeMap } from './KnowledgeMap';
