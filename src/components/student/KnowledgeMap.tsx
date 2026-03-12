@@ -107,12 +107,8 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
         .filter(g => g.topics.length > 0);
 
       setGroups(result);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
+  }, [userId, execute, externalUserId]);
 
   useEffect(() => { load(); }, [userId]);
 
