@@ -17,6 +17,7 @@ import { LoadingTimeout } from './LoadingTimeout';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { getRecommendedDifficulty, getRecommendedTopic } from '../../lib/adaptive';
+import { acquireRefreshLock, releaseRefreshLock } from '../../lib/refreshLock';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
 import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer, Play } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
