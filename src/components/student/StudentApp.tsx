@@ -88,6 +88,7 @@ export function StudentApp() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
+  const [difficultyFilter, setDifficultyFilter] = useState<string | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [diagChecked, setDiagChecked] = useState(false);
   // Key to force remount components on tab switch, clearing stale state
