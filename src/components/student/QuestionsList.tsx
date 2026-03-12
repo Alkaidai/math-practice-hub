@@ -6,8 +6,10 @@ import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useQuestionTimer } from '../../hooks/useQuestionTimer';
 import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson } from '../../lib/types';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AnswerState {
   selectedIndex: number;
