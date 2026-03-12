@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/sidebar';
 import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap } from 'lucide-react';
 
-type Tab = 'dashboard' | 'questions' | 'knowledgeMap' | 'notebook' | 'ranking' | 'lessons';
+type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'notebook' | 'ranking' | 'lessons';
 
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'dashboard', label: 'Painel', icon: LayoutDashboard },
