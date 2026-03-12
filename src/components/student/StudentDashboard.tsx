@@ -208,6 +208,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     const safetyTimer = setTimeout(() => {
       if (stale()) return;
       console.error('[Dashboard] ⚠️ PHASE 1 SAFETY TIMEOUT (25s) — forcing loading=false');
+      releaseRefreshLock();
       setPhase1Loading(false);
       setPhase2Loading(false);
       setPhase1Error('Não foi possível carregar os dados. Verifique sua conexão.');
