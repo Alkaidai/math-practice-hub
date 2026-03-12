@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs } from '../../lib/storage';
+import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs, getDailyStudyStats, getAverageTimePerQuestion } from '../../lib/storage';
 import { subjectLabel, formatDate } from '../../lib/ui-utils';
 import { Progress } from '../ui/progress';
 import { DiagnosticReport } from './DiagnosticReport';
@@ -13,7 +13,7 @@ import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
-import { Target, TrendingUp, Flame, AlertCircle, Stethoscope } from 'lucide-react';
+import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer } from 'lucide-react';
 
 interface WeakTopic {
   topicId: string;
@@ -36,6 +36,9 @@ interface DashboardData {
   questions: Map<string, Question>;
   nextTopic: { topicId: string; topicName: string; count: number } | null;
   hasDiagnostic: boolean;
+  studyTodaySeconds: number;
+  questionsToday: number;
+  avgTimePerQuestion: number;
 }
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
@@ -52,6 +55,15 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
+function formatStudyTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const remainMins = mins % 60;
+  return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
+}
+
 export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic }: {
   onNavigateQuestions: () => void;
   onRefazer: (questionId: string) => void;
@@ -65,7 +77,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
   const load = useCallback(async () => {
     await execute(async () => {
-      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
+      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs, dailyStats, avgTime] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
         getStudentDashboardMeta(userId),
@@ -73,6 +85,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         getTopics({ activeOnly: true }),
         getDiagnosticResult(userId),
         getAllowedSubjectSlugs(userId),
+        getDailyStudyStats(userId),
+        getAverageTimePerQuestion(userId),
       ]);
 
       const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
@@ -115,7 +129,12 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ };
       }
 
-      setData({ answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag });
+      setData({
+        answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag,
+        studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
+        questionsToday: dailyStats?.questionsAnswered ?? 0,
+        avgTimePerQuestion: avgTime,
+      });
     });
   }, [userId, execute]);
 
@@ -165,6 +184,14 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         <StatCard icon={TrendingUp} label="Acertos" value={`${data.rate}%`} color="bg-success" />
         <StatCard icon={Flame} label="Sequência" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
         <StatCard icon={AlertCircle} label="Pendências" value={String(data.pendingCount)} color="bg-destructive" />
+      </div>
+
+      {/* Today's Study Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(data.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
+        <StatCard icon={BookOpen} label="Questões hoje" value={String(data.questionsToday)} color="bg-[hsl(var(--accent))]" />
+        <StatCard icon={Timer} label="Tempo médio/questão" value={data.avgTimePerQuestion > 0 ? `${data.avgTimePerQuestion}s` : '—'} color="bg-[hsl(var(--muted-foreground))]" />
+        <StatCard icon={Flame} label="Dias estudando" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
       </div>
 
       {/* Next Step */}
