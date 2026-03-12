@@ -86,9 +86,11 @@ export function useSessionTracker(userId: string | null) {
   const startSession = useCallback(async () => {
     if (!userId || sessionIdRef.current) return;
     if (startingSessionRef.current) {
+      console.log('[SessionTracker] startSession already in progress, waiting...');
       await startingSessionRef.current;
       return;
     }
+    console.log('[SessionTracker] startSession called');
 
     const run = (async () => {
       const now = new Date();
