@@ -3,7 +3,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import { ErrorState } from './ErrorState';
+import { LoadingTimeout } from './LoadingTimeout';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { CheckCircle2, Search } from 'lucide-react';
 import type { Question, Topic, NotebookItem } from '../../lib/types';
 
