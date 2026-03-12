@@ -77,11 +77,16 @@ export function AdminAnalytics() {
     const today = new Date().toISOString().split('T')[0];
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-    const [sessionsRes, todaySessionsRes, weekSessionsRes] = await Promise.all([
-      supabase.from('user_sessions').select('duration_seconds, user_id').not('duration_seconds', 'is', null).gt('duration_seconds', 0),
-      supabase.from('user_sessions').select('user_id').gte('start_time', today),
-      supabase.from('user_sessions').select('user_id').gte('start_time', weekAgo),
-    ]);
+    let sessionsQ = supabase.from('user_sessions').select('duration_seconds, user_id').not('duration_seconds', 'is', null).gt('duration_seconds', 0);
+    let todayQ = supabase.from('user_sessions').select('user_id').gte('start_time', today);
+    let weekQ = supabase.from('user_sessions').select('user_id').gte('start_time', weekAgo);
+    if (selectedStudent) {
+      sessionsQ = sessionsQ.eq('user_id', selectedStudent);
+      todayQ = todayQ.eq('user_id', selectedStudent);
+      weekQ = weekQ.eq('user_id', selectedStudent);
+    }
+
+    const [sessionsRes, todaySessionsRes, weekSessionsRes] = await Promise.all([sessionsQ, todayQ, weekQ]);
 
     const sessions = sessionsRes.data ?? [];
     const totalDuration = sessions.reduce((s: number, r: any) => s + (r.duration_seconds ?? 0), 0);
@@ -103,8 +108,10 @@ export function AdminAnalytics() {
   }
 
   async function loadBehavior() {
+    let attemptsQ = supabase.from('attempts').select('topic_id, is_correct, possible_guess, question_abandoned, time_spent_seconds');
+    if (selectedStudent) attemptsQ = attemptsQ.eq('user_id', selectedStudent);
     const [attemptsRes, topicsRes] = await Promise.all([
-      supabase.from('attempts').select('topic_id, is_correct, possible_guess, question_abandoned, time_spent_seconds'),
+      attemptsQ,
       supabase.from('topics').select('id, name'),
     ]);
 
