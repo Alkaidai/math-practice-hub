@@ -120,6 +120,7 @@ export function StudentApp() {
   const handleRefazer = (questionId: string) => {
     setTargetQuestion(questionId);
     setTopicFilter(null);
+    setDifficultyFilter(null);
     setTab('questions');
     setTabKey(k => k + 1);
     setTimeout(() => {
@@ -127,9 +128,10 @@ export function StudentApp() {
     }, 100);
   };
 
-  const handleStartTopic = (topicId: string) => {
+  const handleStartTopic = (topicId: string, difficulty?: string) => {
     setTargetQuestion(null);
     setTopicFilter(topicId);
+    setDifficultyFilter(difficulty ?? null);
     setTab('questions');
     setTabKey(k => k + 1);
   };
