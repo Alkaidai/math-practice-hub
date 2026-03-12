@@ -1,39 +1,19 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { subscribeVisibilityChange } from '../lib/visibility';
-import { useAuth } from '../contexts/AuthContext';
-import { waitForRefreshLock, isRefreshLocked } from '../lib/refreshLock';
 
-const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
+const HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
 
 /**
  * Tracks user study sessions.
  * - Creates a session on mount
  * - Updates last_activity on user interactions
- * - Auto-ends session after inactivity
  * - Ends session on unmount / tab close
- * - Waits for auth readiness before starting sessions on tab return
  */
 export function useSessionTracker(userId: string | null) {
-  const { waitForAuthReady } = useAuth();
-  const waitForAuthRef = useRef(waitForAuthReady);
-  waitForAuthRef.current = waitForAuthReady;
-
   const sessionIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(0);
   const lastActivityRef = useRef<number>(Date.now());
-  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startingSessionRef = useRef<Promise<void> | null>(null);
-
-  const stopInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
-      console.log('[SessionTracker] inactivity timer cleared');
-    }
-  }, []);
 
   const stopHeartbeat = useCallback(() => {
     if (heartbeatTimerRef.current) {
@@ -46,9 +26,7 @@ export function useSessionTracker(userId: string | null) {
     const sid = sessionIdRef.current;
     if (!sid) return;
 
-    console.log('[SessionTracker] endSession called, sid:', sid);
     sessionIdRef.current = null;
-    startingSessionRef.current = null;
 
     const now = new Date();
     const durationSeconds = Math.round((now.getTime() - startTimeRef.current) / 1000);
@@ -86,67 +64,28 @@ export function useSessionTracker(userId: string | null) {
 
   const startSession = useCallback(async () => {
     if (!userId || sessionIdRef.current) return;
-    if (startingSessionRef.current) {
-      console.log('[SessionTracker] startSession already in progress, waiting...');
-      await startingSessionRef.current;
-      return;
+
+    const now = new Date();
+    startTimeRef.current = now.getTime();
+    lastActivityRef.current = now.getTime();
+
+    try {
+      const { data } = await supabase.from('user_sessions')
+        .insert({ user_id: userId, start_time: now.toISOString(), last_activity: now.toISOString() } as any)
+        .select('id')
+        .single();
+
+      if (data) {
+        sessionIdRef.current = (data as any).id;
+      }
+    } catch {
+      // Best effort
     }
-    console.log('[SessionTracker] startSession called');
-
-    const run = (async () => {
-      const now = new Date();
-      startTimeRef.current = now.getTime();
-      lastActivityRef.current = now.getTime();
-
-      try {
-        const { data } = await supabase.from('user_sessions')
-          .insert({ user_id: userId, start_time: now.toISOString(), last_activity: now.toISOString() } as any)
-          .select('id')
-          .single();
-
-        if (data) {
-          sessionIdRef.current = (data as any).id;
-        }
-      } catch {
-        // Best effort
-      } finally {
-        startingSessionRef.current = null;
-      }
-    })();
-
-    startingSessionRef.current = run;
-    await run;
   }, [userId]);
-
-  const resetInactivityTimer = useCallback(() => {
-    stopInactivityTimer();
-    inactivityTimerRef.current = setTimeout(() => {
-      console.warn('[SessionTracker] ⚠️ INACTIVITY TIMEOUT FIRED (5 min) — ending study session');
-      void endSession();
-    }, INACTIVITY_TIMEOUT_MS);
-  }, [endSession, stopInactivityTimer]);
-
-  const startHeartbeat = useCallback(() => {
-    stopHeartbeat();
-
-    heartbeatTimerRef.current = setInterval(async () => {
-      const sid = sessionIdRef.current;
-      if (!sid) return;
-
-      try {
-        await supabase.from('user_sessions')
-          .update({ last_activity: new Date(lastActivityRef.current).toISOString() } as any)
-          .eq('id', sid);
-      } catch {
-        // Best effort
-      }
-    }, HEARTBEAT_INTERVAL_MS);
-  }, [stopHeartbeat]);
 
   const recordActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
-    resetInactivityTimer();
-  }, [resetInactivityTimer]);
+  }, []);
 
   const recordQuestionAnswered = useCallback(async () => {
     if (!userId) return;
@@ -179,55 +118,27 @@ export function useSessionTracker(userId: string | null) {
   useEffect(() => {
     if (!userId) return;
 
-    let alive = true;
+    void startSession();
 
-    void startSession().then(() => {
-      if (!alive) return;
-      startHeartbeat();
-      resetInactivityTimer();
-    });
+    // Heartbeat
+    heartbeatTimerRef.current = setInterval(async () => {
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+      try {
+        await supabase.from('user_sessions')
+          .update({ last_activity: new Date(lastActivityRef.current).toISOString() } as any)
+          .eq('id', sid);
+      } catch {
+        // Best effort
+      }
+    }, HEARTBEAT_INTERVAL_MS);
 
+    // Activity tracking
     const events = ['click', 'keydown', 'scroll', 'touchstart'] as const;
     const handler = () => recordActivity();
     events.forEach(e => document.addEventListener(e, handler, { passive: true }));
 
-    const unsubscribeVisibility = subscribeVisibilityChange(async ({ state, hiddenDurationMs }) => {
-      if (state === 'hidden') {
-        console.log('[SessionTracker] tab hidden — ending session');
-        stopHeartbeat();
-        stopInactivityTimer();
-        void endSession();
-        return;
-      }
-
-      console.log(`[SessionTracker] tab visible — hidden for ${Math.round(hiddenDurationMs / 1000)}s, waiting for auth...`);
-      // Tab became visible — wait for auth refresh before starting session
-      try {
-        await waitForAuthRef.current();
-        console.log('[SessionTracker] auth ready');
-      } catch {
-        console.warn('[SessionTracker] auth wait failed, continuing anyway');
-      }
-
-      if (!alive) return;
-
-      // Wait for dashboard refresh to finish before starting session
-      if (isRefreshLocked()) {
-        console.log('[SessionTracker] ⏳ startSession blocked — waiting for dashboard refresh lock');
-        await waitForRefreshLock();
-        console.log('[SessionTracker] 🔓 refresh lock released — proceeding with startSession');
-      }
-
-      if (!alive) return;
-
-      lastActivityRef.current = Date.now();
-      void startSession().then(() => {
-        if (!alive) return;
-        startHeartbeat();
-        resetInactivityTimer();
-      });
-    });
-
+    // Tab close
     const handleUnload = () => {
       const sid = sessionIdRef.current;
       if (!sid || !userId) return;
@@ -248,15 +159,12 @@ export function useSessionTracker(userId: string | null) {
     window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      alive = false;
       events.forEach(e => document.removeEventListener(e, handler));
-      unsubscribeVisibility();
       window.removeEventListener('beforeunload', handleUnload);
-      stopInactivityTimer();
       stopHeartbeat();
       void endSession();
     };
-  }, [userId, startSession, endSession, recordActivity, resetInactivityTimer, startHeartbeat, stopInactivityTimer, stopHeartbeat]);
+  }, [userId, startSession, endSession, recordActivity, stopHeartbeat]);
 
   return { recordActivity, recordQuestionAnswered };
 }

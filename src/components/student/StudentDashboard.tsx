@@ -15,9 +15,7 @@ import { DailyMissions } from './DailyMissions';
 import { StudyTrail } from './StudyTrail';
 import { LoadingTimeout } from './LoadingTimeout';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { getRecommendedDifficulty, getRecommendedTopic } from '../../lib/adaptive';
-import { acquireRefreshLock, releaseRefreshLock } from '../../lib/refreshLock';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
 import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer, Play } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
@@ -105,7 +103,6 @@ function computePhase2(
   const questions = new Map(allQuestions.map(q => [q.id, q]));
   const topicMap = new Map(allTopics.map(t => [t.id, t.name]));
 
-  // Weak topics aggregation
   const agg = new Map<string, { topicId: string; label: string; total: number; errors: number }>();
   attempts.forEach(a => {
     const q = questions.get(a.questionId);
@@ -127,7 +124,6 @@ function computePhase2(
     .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
     .slice(0, 5);
 
-  // Adaptive recommendation
   const qMap = new Map(allQuestions.map(q => [q.id, { topicId: q.topicId, difficulty: q.difficulty, status: q.status }]));
   const recommended = getRecommendedTopic(attempts, qMap, topicMap);
   let nextTopic: Phase2Data['nextTopic'] = null;
@@ -166,7 +162,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   onRefazer: (questionId: string) => void;
   onStartTopic: (topicId: string, difficulty?: string) => void;
 }) {
-  const { user, waitForAuthReady } = useAuth();
+  const { user } = useAuth();
   const userId = user?.username ?? '';
 
   const [phase1, setPhase1] = useState<Phase1Data | null>(null);
@@ -175,15 +171,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   const [phase1Loading, setPhase1Loading] = useState(true);
   const [phase2Loading, setPhase2Loading] = useState(true);
   const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
-  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const loadIdRef = useRef(0);
-  const isInitialLoadRef = useRef(true);
-  const phase1Ref = useRef<Phase1Data | null>(null);
-
-  // Keep ref in sync with state
-  useEffect(() => { phase1Ref.current = phase1; }, [phase1]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -194,118 +184,28 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
     const loadId = ++loadIdRef.current;
     const stale = () => !mountedRef.current || loadId !== loadIdRef.current;
 
-    console.log(`[Dashboard] load() called (loadId=${loadId})`);
-
-    // Wait for auth to be ready (no-op if gate is already resolved)
-    try {
-      console.log('[Dashboard] waitForAuthReady entered');
-      await waitForAuthReady();
-      console.log('[Dashboard] waitForAuthReady resolved ✅');
-    } catch {
-      console.warn('[Dashboard] waitForAuthReady failed');
-    }
-    if (stale()) { console.log('[Dashboard] stale after auth wait, aborting'); return; }
-
-    // ─── PHASE 1: Essential data (4 queries, max concurrency = 4) ───
-    const isRefresh = !isInitialLoadRef.current; // already have data?
-    const hasPreviousData = phase1Ref.current !== null;
-    const prevPhase1 = phase1Ref.current;
-
-    if (!isRefresh) {
-      setPhase1Loading(true);
-    }
+    setPhase1Loading(true);
     setPhase1Error(null);
-    setRefreshWarning(null);
-
-    // Safety timeout: if Phase 1 takes >25s, force-exit loading
-    const safetyTimer = setTimeout(() => {
-      if (stale()) return;
-      console.error('[Dashboard] ⚠️ PHASE 1 SAFETY TIMEOUT (25s)');
-      releaseRefreshLock();
-      if (hasPreviousData) {
-        console.log('[Dashboard] preserving previous data after safety timeout');
-        setRefreshWarning('Não foi possível atualizar os dados. Mostrando última versão.');
-        setPhase1Loading(false);
-      } else {
-        setPhase1Loading(false);
-        setPhase2Loading(false);
-        setPhase1Error('Não foi possível carregar os dados. Verifique sua conexão.');
-      }
-    }, 25_000);
 
     try {
-      console.log('[Dashboard] Phase 1 started — 4 essential queries');
-      acquireRefreshLock();
-      console.log('[Dashboard] 🔒 refresh lock acquired');
-      const t0 = Date.now();
-
-      const QUERY_TIMEOUT = 15_000; // 15s per individual query
-
-      const timedQuery = <T,>(name: string, fn: () => Promise<T>, fallback: T): Promise<{ name: string; value: T; ok: boolean }> => {
-        const start = Date.now();
-        console.log(`[Dashboard][Phase1] ⏱ ${name} — START`);
-        return new Promise((resolve) => {
-          const timer = setTimeout(() => {
-            console.error(`[Dashboard][Phase1] ⏰ ${name} — TIMEOUT after ${QUERY_TIMEOUT}ms, using fallback`);
-            resolve({ name, value: fallback, ok: false });
-          }, QUERY_TIMEOUT);
-
-          fn()
-            .then((result) => {
-              clearTimeout(timer);
-              console.log(`[Dashboard][Phase1] ✅ ${name} — OK in ${Date.now() - start}ms`);
-              resolve({ name, value: result, ok: true });
-            })
-            .catch((err: any) => {
-              clearTimeout(timer);
-              console.error(`[Dashboard][Phase1] ❌ ${name} — FAIL in ${Date.now() - start}ms:`, err?.message);
-              resolve({ name, value: fallback, ok: false });
-            });
-        });
-      };
-
+      // ─── PHASE 1: Essential data (4 queries) ───
       const defaultMeta: DashboardMeta = { streak: 0, lastAttemptDate: null, lastFilters: { grade: '', subject: '', difficulty: '', topicId: '', search: '' } };
 
-      const [attemptsR, notebookR, metaR, dailyR] = await Promise.all([
-        timedQuery('getAttempts', () => getAttempts(userId), [] as Attempt[]),
-        timedQuery('getNotebook', () => getNotebook(userId), []),
-        timedQuery('getStudentDashboardMeta', () => getStudentDashboardMeta(userId), defaultMeta),
-        timedQuery('getDailyStudyStats', () => getDailyStudyStats(userId), null),
+      const [attempts, notebook, meta, dailyStats] = await Promise.all([
+        getAttempts(userId),
+        getNotebook(userId),
+        getStudentDashboardMeta(userId).catch(() => defaultMeta),
+        getDailyStudyStats(userId).catch(() => null),
       ]);
 
-      const allOk = [attemptsR, notebookR, metaR, dailyR].every(r => r.ok);
-      const anyOk = [attemptsR, notebookR, metaR, dailyR].some(r => r.ok);
-      const failedNames = [attemptsR, notebookR, metaR, dailyR].filter(r => !r.ok).map(r => r.name);
-      console.log(`[Dashboard] Phase 1 done in ${Date.now() - t0}ms — ${allOk ? 'ALL OK ✅' : `⚠️ fallback used for: ${failedNames.join(', ')}`}`);
-
-      releaseRefreshLock();
-      console.log('[Dashboard] 🔓 refresh lock released');
-
-      clearTimeout(safetyTimer);
       if (stale()) return;
 
-      // ─── Stale-while-revalidate: if refresh failed, preserve previous data ───
-      if (!allOk && hasPreviousData && !anyOk) {
-        console.log('[Dashboard] ⚡ all queries failed on refresh — preserving previous phase1 snapshot');
-        setRefreshWarning('Não foi possível atualizar os dados. Mostrando última versão.');
-        setPhase1Loading(false);
-        return; // keep existing phase1 & phase2 intact
-      }
-
-      // If it's a refresh with partial failure, use previous values for failed queries
-      const attempts = attemptsR.ok ? attemptsR.value : (hasPreviousData ? prevPhase1!.allAttempts : attemptsR.value);
-      const notebook = notebookR.ok ? notebookR.value : (hasPreviousData ? (() => { console.log('[Dashboard] skipping empty fallback for notebook — using previous data'); return null; })() : notebookR.value);
-      const meta = metaR.ok ? metaR.value : (hasPreviousData ? prevPhase1!.meta : metaR.value);
-      const dailyStats = dailyR.ok ? dailyR.value : (hasPreviousData ? { totalSeconds: prevPhase1!.studyTodaySeconds, questionsAnswered: prevPhase1!.questionsToday } : dailyR.value);
-
-      // For notebook, if we're reusing previous data, reuse the counts
-      const usePreviousNotebook = !notebookR.ok && hasPreviousData;
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;
       const rate = answered ? Math.round((correct / answered) * 100) : 0;
-      const pendingCount = usePreviousNotebook ? prevPhase1!.pendingCount : (notebook ? notebook.filter((i: any) => i.status === 'pending').length : 0);
-      const masteredCount = usePreviousNotebook ? prevPhase1!.masteredCount : (notebook ? notebook.filter((i: any) => i.status === 'mastered').length : 0);
-      const totalReviewed = usePreviousNotebook ? prevPhase1!.totalReviewed : (notebook ? notebook.length : 0);
+      const pendingCount = notebook.filter((i: any) => i.status === 'pending').length;
+      const masteredCount = notebook.filter((i: any) => i.status === 'mastered').length;
+      const totalReviewed = notebook.length;
 
       setPhase1({
         answered, correct, rate, pendingCount, masteredCount, totalReviewed,
@@ -314,19 +214,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
         questionsToday: dailyStats?.questionsAnswered ?? 0,
       });
-      isInitialLoadRef.current = false;
       setPhase1Loading(false);
-      if (!allOk) {
-        console.warn(`[Dashboard] Phase 1 partial — failed: ${failedNames.join(', ')}. Using previous data for failed queries.`);
-        setRefreshWarning('Alguns dados podem estar desatualizados.');
-      }
-      console.log('[Dashboard] Phase 1 done ✅ — rendering main UI');
 
-      // ─── PHASE 2: Secondary data (5 queries, cached where possible) ───
-      console.log('[Dashboard] Phase 2 started — secondary/cached queries');
-
-      // Group into 2 batches to limit concurrency
-      // Batch A: cached data (topics + questions + slugs) — likely instant from cache
+      // ─── PHASE 2: Secondary data (cached where possible) ───
       const [allTopics, allQuestions, allowedSlugs] = await Promise.all([
         cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
         cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
@@ -335,7 +225,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
       if (stale()) return;
 
-      // Batch B: remaining user-specific data (2 queries)
       const [diagResult, avgTime] = await Promise.all([
         getDiagnosticResult(userId),
         getAverageTimePerQuestion(userId),
@@ -343,40 +232,26 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
       if (stale()) return;
 
-      // Filter by allowed subjects
       const filteredTopics = allTopics.filter((t: any) => allowedSlugs.includes(t.subject));
       const filteredQuestions = allQuestions.filter((q: any) => allowedSlugs.includes(q.subject));
 
       const p2 = computePhase2(attempts, filteredQuestions, filteredTopics as any, diagResult, avgTime);
       setPhase2(p2);
       setPhase2Loading(false);
-      console.log('[Dashboard] Phase 2 done ✅');
 
     } catch (err: any) {
-      releaseRefreshLock();
-      clearTimeout(safetyTimer);
       if (stale()) return;
-      console.error('[Dashboard] ❌ Load error:', err?.message);
-      if (hasPreviousData) {
-        console.log('[Dashboard] partial refresh failed, preserving current UI');
-        setRefreshWarning('Ocorreu um erro ao atualizar. Mostrando última versão.');
-        setPhase1Loading(false);
-      } else {
-        setPhase1Error(err?.message === 'TIMEOUT'
-          ? 'Não foi possível carregar os dados. Verifique sua conexão.'
-          : 'Ocorreu um erro ao carregar os dados.');
-        setPhase1Loading(false);
-        setPhase2Loading(false);
-      }
+      console.error('[Dashboard] Load error:', err?.message);
+      setPhase1Error('Ocorreu um erro ao carregar os dados.');
+      setPhase1Loading(false);
+      setPhase2Loading(false);
     }
-  }, [userId, waitForAuthReady]);
+  }, [userId]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load, 60_000); // only dashboard refreshes on tab return (60s threshold)
 
   // ─── Render states ───
 
-  // Only show full error screen on initial load (no previous data)
   if (phase1Error && !phase1) return <LoadingTimeout error={phase1Error} onRetry={load} />;
   if (phase1Loading && !phase1) return <p className="text-muted-foreground">Carregando painel...</p>;
 
@@ -393,16 +268,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
   return (
     <div className="space-y-6">
-      {/* Refresh warning — subtle banner, not blocking */}
-      {refreshWarning && (
-        <div className="bg-gold/10 border border-gold/30 rounded-lg px-4 py-2.5 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">{refreshWarning}</p>
-          <button onClick={() => { setRefreshWarning(null); load(); }} className="text-xs text-primary font-medium hover:underline ml-3 shrink-0">
-            Tentar novamente
-          </button>
-        </div>
-      )}
-      {/* Diagnostic CTA - only if not done yet */}
+      {/* Diagnostic CTA */}
       {!phase2Loading && !hasDiagnostic && (
         <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
           <div>
@@ -423,27 +289,27 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       )}
 
-      {/* Stats Cards — Phase 1 data (always available) */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Target} label="Respondidas" value={String(phase1.answered)} color="bg-primary" />
-        <StatCard icon={TrendingUp} label="Acertos" value={`${phase1.rate}%`} color="bg-success" />
-        <StatCard icon={Flame} label="Sequência" value={`${phase1.meta.streak} dia${phase1.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
-        <StatCard icon={AlertCircle} label="Pendências" value={String(phase1.pendingCount)} color="bg-destructive" />
+        <StatCard icon={Target} label="Respondidas" value={String(phase1!.answered)} color="bg-primary" />
+        <StatCard icon={TrendingUp} label="Acertos" value={`${phase1!.rate}%`} color="bg-success" />
+        <StatCard icon={Flame} label="Sequência" value={`${phase1!.meta.streak} dia${phase1!.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
+        <StatCard icon={AlertCircle} label="Pendências" value={String(phase1!.pendingCount)} color="bg-destructive" />
       </div>
 
       {/* Today's Study Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(phase1.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
-        <StatCard icon={BookOpen} label="Questões hoje" value={String(phase1.questionsToday)} color="bg-[hsl(var(--accent))]" />
+        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(phase1!.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
+        <StatCard icon={BookOpen} label="Questões hoje" value={String(phase1!.questionsToday)} color="bg-[hsl(var(--accent))]" />
         {phase2 ? (
           <StatCard icon={Timer} label="Tempo médio/questão" value={phase2.avgTimePerQuestion > 0 ? `${phase2.avgTimePerQuestion}s` : '—'} color="bg-[hsl(var(--muted-foreground))]" />
         ) : (
           <div className="bg-card rounded-xl shadow-sm p-5"><Skeleton className="h-10 w-full" /></div>
         )}
-        <StatCard icon={Flame} label="Dias estudando" value={`${phase1.meta.streak} dia${phase1.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
+        <StatCard icon={Flame} label="Dias estudando" value={`${phase1!.meta.streak} dia${phase1!.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
       </div>
 
-      {/* CONTINUAR TREINO - Primary CTA (Phase 2 dependent) */}
+      {/* CONTINUAR TREINO */}
       {phase2Loading ? (
         <div className="bg-gradient-to-r from-primary/10 to-gold/10 border border-primary/20 rounded-xl p-6">
           <Skeleton className="h-6 w-48 mb-2" />
@@ -478,12 +344,12 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       ) : null}
 
-      {/* Study Trail — Phase 1 data */}
+      {/* Study Trail */}
       <StudyTrail
         hasDiagnostic={hasDiagnostic}
         diagnosticAccuracy={phase2?.diagnosticAccuracy ?? 0}
-        attempts={phase1.allAttempts}
-        pendingNotebookCount={phase1.pendingCount}
+        attempts={phase1!.allAttempts}
+        pendingNotebookCount={phase1!.pendingCount}
       />
 
       {/* Daily Missions */}
@@ -497,43 +363,38 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       ) : phase2 ? (
         <>
-          {/* Diagnostic Report */}
-          {phase2.hasDiagnostic && <DiagnosticReport diagnosticResult={phase2.diagnosticResult} attempts={phase1.allAttempts} />}
+          {phase2.hasDiagnostic && <DiagnosticReport diagnosticResult={phase2.diagnosticResult} attempts={phase1!.allAttempts} />}
 
-          {/* Study Plan */}
           <StudyPlan
-            attempts={phase1.allAttempts}
+            attempts={phase1!.allAttempts}
             questions={phase2.allQuestions}
             topics={phase2.allTopics as any}
             diagnosticResult={phase2.diagnosticResult}
             onStartTopic={onStartTopic}
           />
 
-          {/* Evolution Chart */}
-          <EvolutionChart attempts={phase1.allAttempts} />
+          <EvolutionChart attempts={phase1!.allAttempts} />
 
           {hasData && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Notebook Summary */}
               <div className="bg-card rounded-xl shadow-sm p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-3">📓 Caderno de Erros</h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-lg bg-destructive/5 p-3 text-center">
                     <p className="text-xs text-muted-foreground">Pendentes</p>
-                    <p className="text-xl font-bold text-destructive">{phase1.pendingCount}</p>
+                    <p className="text-xl font-bold text-destructive">{phase1!.pendingCount}</p>
                   </div>
                   <div className="rounded-lg bg-success/10 p-3 text-center">
                     <p className="text-xs text-muted-foreground">Dominados</p>
-                    <p className="text-xl font-bold text-success">{phase1.masteredCount}</p>
+                    <p className="text-xl font-bold text-success">{phase1!.masteredCount}</p>
                   </div>
                   <div className="rounded-lg bg-muted p-3 text-center">
                     <p className="text-xs text-muted-foreground">Total</p>
-                    <p className="text-xl font-bold text-foreground">{phase1.totalReviewed}</p>
+                    <p className="text-xl font-bold text-foreground">{phase1!.totalReviewed}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Weak Topics */}
               <div className="bg-card rounded-xl shadow-sm p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-3">Tópicos Fracos (Top 5)</h3>
                 {phase2.weakTopics.length > 0 ? (
@@ -555,7 +416,6 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
                 )}
               </div>
 
-              {/* Recent Errors */}
               <div className="bg-card rounded-xl shadow-sm p-5 lg:col-span-2">
                 <h3 className="text-sm font-semibold text-foreground mb-3">Revisar Erros (Últimas 5)</h3>
                 <div className="space-y-3">
@@ -581,8 +441,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
             </div>
           )}
 
-          {/* Achievements */}
-          <Achievements attempts={phase1.allAttempts} streak={phase1.meta.streak} />
+          <Achievements attempts={phase1!.allAttempts} streak={phase1!.meta.streak} />
         </>
       ) : null}
     </div>
