@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { AuthUser } from '../lib/types';
 import { supabase } from '@/integrations/supabase/client';
 import { getProfileByAuthId, setCurrentUser, logout as logoutStorage } from '../lib/storage';
