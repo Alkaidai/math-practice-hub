@@ -368,7 +368,9 @@ export type Database = {
           difficulty: string | null
           grade: string | null
           id: number
+          next_review_at: string | null
           question_id: string
+          review_count: number
           rule_insight: string
           status: string
           subject: string | null
@@ -381,7 +383,9 @@ export type Database = {
           difficulty?: string | null
           grade?: string | null
           id?: number
+          next_review_at?: string | null
           question_id: string
+          review_count?: number
           rule_insight?: string
           status?: string
           subject?: string | null
@@ -394,7 +398,9 @@ export type Database = {
           difficulty?: string | null
           grade?: string | null
           id?: number
+          next_review_at?: string | null
           question_id?: string
+          review_count?: number
           rule_insight?: string
           status?: string
           subject?: string | null
