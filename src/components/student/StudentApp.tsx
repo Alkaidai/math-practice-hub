@@ -12,7 +12,6 @@ import { StudentLessons } from './StudentLessons';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { ScrollToTop } from './ScrollToTop';
 import { getDiagnosticResult, getAppSetting } from '../../lib/storage';
-import { useSessionTracker } from '../../hooks/useSessionTracker';
 import {
   SidebarProvider, SidebarTrigger, Sidebar, SidebarContent,
   SidebarGroup, SidebarGroupContent, SidebarMenu,
@@ -88,7 +87,6 @@ function StudentSidebar({ tab, setTab, user, onLogout }: {
 
 export function StudentApp() {
   const { user, loading: authLoading, error: authError, logout } = useAuth();
-  const { recordActivity, recordQuestionAnswered } = useSessionTracker(user?.username ?? null);
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
@@ -188,8 +186,8 @@ export function StudentApp() {
           </header>
           <main className="flex-1 p-4 md:p-6 overflow-auto">
             {tab === 'dashboard' && <StudentDashboard key={tabKey} onNavigateQuestions={() => handleTabChange('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
-            {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} initialDifficulty={difficultyFilter} onQuestionAnswered={recordQuestionAnswered} />}
-            {tab === 'timed' && <TimedTraining key={tabKey} onQuestionAnswered={recordQuestionAnswered} />}
+            {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} initialDifficulty={difficultyFilter} />}
+            {tab === 'timed' && <TimedTraining key={tabKey} />}
             {tab === 'trails' && <LearningTrails key={tabKey} onStartTopic={handleStartTopic} />}
             {tab === 'knowledgeMap' && <KnowledgeMap key={tabKey} onStartTopic={handleStartTopic} />}
             {tab === 'lessons' && <StudentLessons key={tabKey} />}
