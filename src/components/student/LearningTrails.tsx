@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs, getDiagnosticResult } from '../../lib/storage';
+import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { LoadingTimeout } from './LoadingTimeout';
-import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { CheckCircle2, Lock, Play, Circle, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { Progress } from '../ui/progress';
@@ -181,10 +180,19 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
   const { user } = useAuth();
   const userId = user?.username ?? '';
   const [trails, setTrails] = useState<Trail[]>([]);
-  const { loading, error, execute } = useLoadWithTimeout();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
-    await execute(async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getTopics({ activeOnly: true }),
@@ -193,11 +201,12 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
         getAllowedSubjectSlugs(userId),
       ]);
 
+      if (!mountedRef.current) return;
+
       const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
       const questionMap = new Map(questions.map(q => [q.id, q]));
 
-      // Available questions per topic
       const availableByTopic = new Map<string, number>();
       questions.forEach(q => {
         if (q.status !== 'draft' && q.topicId) {
@@ -205,7 +214,6 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
         }
       });
 
-      // Stats per topic
       const statsByTopic = new Map<string, { total: number; correct: number }>();
       attempts.forEach(a => {
         const q = questionMap.get(a.questionId);
@@ -216,7 +224,6 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
         statsByTopic.set(q.topicId, prev);
       });
 
-      // Group by subject
       const groupMap = new Map<string, Topic[]>();
       filteredTopics.forEach(t => {
         const arr = groupMap.get(t.subject) ?? [];
@@ -226,7 +233,6 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
 
       const result: Trail[] = [...groupMap.entries()]
         .map(([slug, topicList]) => {
-          // Build sequential nodes
           const nodes: TrailNode[] = [];
           topicList.forEach((t, i) => {
             const stats = statsByTopic.get(t.id) ?? { total: 0, correct: 0 };
@@ -255,9 +261,14 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
         })
         .filter(t => t.nodes.length > 0);
 
-      setTrails(result);
-    });
-  }, [userId, execute]);
+      if (mountedRef.current) setTrails(result);
+    } catch (err: any) {
+      console.error('[LearningTrails] load error:', err);
+      if (mountedRef.current) setError('Ocorreu um erro ao carregar as trilhas.');
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load);
