@@ -204,9 +204,18 @@ export function useSessionTracker(userId: string | null) {
       // Tab became visible — wait for auth refresh before starting session
       try {
         await waitForAuthRef.current();
-        console.log('[SessionTracker] auth ready, starting session');
+        console.log('[SessionTracker] auth ready');
       } catch {
         console.warn('[SessionTracker] auth wait failed, continuing anyway');
+      }
+
+      if (!alive) return;
+
+      // Wait for dashboard refresh to finish before starting session
+      if (isRefreshLocked()) {
+        console.log('[SessionTracker] ⏳ startSession blocked — waiting for dashboard refresh lock');
+        await waitForRefreshLock();
+        console.log('[SessionTracker] 🔓 refresh lock released — proceeding with startSession');
       }
 
       if (!alive) return;

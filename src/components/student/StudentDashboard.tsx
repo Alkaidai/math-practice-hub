@@ -293,6 +293,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       console.log('[Dashboard] Phase 2 done ✅');
 
     } catch (err: any) {
+      releaseRefreshLock();
       clearTimeout(safetyTimer);
       if (stale()) return;
       console.error('[Dashboard] ❌ Load error:', err?.message);
