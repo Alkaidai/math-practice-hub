@@ -4,7 +4,7 @@ import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjec
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
-import { CheckCircle2, Lock, Play, Circle, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, Lock, Play, Circle, Star, ChevronDown, ChevronUp, Route } from 'lucide-react';
 import { Progress } from '../ui/progress';
 import type { Topic, Attempt } from '../../lib/types';
 
@@ -38,25 +38,25 @@ function NodeIcon({ status }: { status: TrailNode['status'] }) {
   switch (status) {
     case 'completed':
       return (
-        <div className="w-12 h-12 rounded-full bg-success/15 border-2 border-success flex items-center justify-center shadow-sm">
+        <div className="w-12 h-12 rounded-xl bg-success-soft border-2 border-success flex items-center justify-center shadow-xs">
           <CheckCircle2 className="h-6 w-6 text-success" />
         </div>
       );
     case 'in_progress':
       return (
-        <div className="w-12 h-12 rounded-full bg-primary/15 border-2 border-primary flex items-center justify-center shadow-sm animate-pulse">
+        <div className="w-12 h-12 rounded-xl bg-primary-soft border-2 border-primary flex items-center justify-center shadow-xs status-pulse">
           <Play className="h-5 w-5 text-primary ml-0.5" />
         </div>
       );
     case 'available':
       return (
-        <div className="w-12 h-12 rounded-full bg-card border-2 border-primary/40 flex items-center justify-center shadow-sm">
+        <div className="w-12 h-12 rounded-xl bg-card border-2 border-primary/40 flex items-center justify-center shadow-xs">
           <Circle className="h-5 w-5 text-primary/60" />
         </div>
       );
     case 'locked':
       return (
-        <div className="w-12 h-12 rounded-full bg-muted border-2 border-border flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-muted border-2 border-border flex items-center justify-center">
           <Lock className="h-5 w-5 text-muted-foreground/50" />
         </div>
       );
@@ -82,18 +82,18 @@ function TrailNodeCard({ node, index, isLast, onStart }: {
 
       {/* Content */}
       <div
-        className={`flex-1 rounded-xl p-4 mb-3 transition-all ${
-          node.status === 'completed' ? 'bg-success/5 border border-success/20' :
-          node.status === 'in_progress' ? 'bg-primary/5 border border-primary/20' :
-          node.status === 'available' ? 'bg-card border border-border hover:border-primary/30' :
-          'bg-muted/50 border border-border/50 opacity-60'
-        } ${canStart ? 'cursor-pointer hover:shadow-sm' : ''}`}
+        className={`flex-1 rounded-xl p-4 mb-3 transition-all border ${
+          node.status === 'completed' ? 'bg-success-soft border-success/20' :
+          node.status === 'in_progress' ? 'bg-primary-soft border-primary/20' :
+          node.status === 'available' ? 'bg-card border-border hover:border-primary/30 hover:shadow-sm' :
+          'bg-muted/50 border-border/50 opacity-60'
+        } ${canStart ? 'cursor-pointer active:scale-[0.995]' : ''}`}
         onClick={() => canStart && onStart?.(node.topicId)}
       >
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="text-xs font-mono text-muted-foreground shrink-0">{String(index + 1).padStart(2, '0')}</span>
-            <p className={`text-sm font-medium truncate ${
+            <span className="text-caption font-mono text-muted-foreground shrink-0">{String(index + 1).padStart(2, '0')}</span>
+            <p className={`text-body font-medium truncate ${
               node.status === 'locked' ? 'text-muted-foreground' : 'text-foreground'
             }`}>{node.topicName}</p>
           </div>
@@ -103,23 +103,25 @@ function TrailNodeCard({ node, index, isLast, onStart }: {
         {node.total > 0 && (
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <Progress value={node.rate} className="h-1.5 flex-1" />
-              <span className={`text-xs font-semibold shrink-0 ${
+              <Progress value={node.rate} className="h-1.5 flex-1" indicatorClassName={
+                node.rate >= 70 ? 'bg-success' : node.rate >= 40 ? 'bg-gold' : 'bg-destructive'
+              } />
+              <span className={`text-caption font-bold shrink-0 ${
                 node.rate >= 70 ? 'text-success' : node.rate >= 40 ? 'text-gold' : 'text-destructive'
               }`}>{node.rate}%</span>
             </div>
-            <p className="text-xs text-muted-foreground">{node.correct}/{node.total} acertos · {node.available} questões</p>
+            <p className="text-caption text-muted-foreground">{node.correct}/{node.total} acertos · {node.available} questões</p>
           </div>
         )}
 
         {node.total === 0 && node.status !== 'locked' && (
-          <p className="text-xs text-muted-foreground">{node.available} questões disponíveis</p>
+          <p className="text-caption text-muted-foreground">{node.available} questões disponíveis</p>
         )}
 
         {canStart && (
           <button
             onClick={(e) => { e.stopPropagation(); onStart?.(node.topicId); }}
-            className="mt-2 text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            className="mt-2 text-caption font-bold text-primary hover:underline flex items-center gap-1"
           >
             <Play className="h-3 w-3" />
             {node.status === 'in_progress' ? 'Continuar' : 'Começar'}
@@ -135,18 +137,18 @@ function TrailSection({ trail, onStart }: { trail: Trail; onStart?: (topicId: st
   const pct = trail.totalCount > 0 ? Math.round((trail.completedCount / trail.totalCount) * 100) : 0;
 
   return (
-    <div className="bg-card rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between p-5 hover:bg-accent/30 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <span className="text-lg font-bold text-primary">{trail.subjectName.charAt(0)}</span>
+          <div className="w-10 h-10 rounded-xl bg-primary-soft flex items-center justify-center">
+            <span className="text-h3 font-bold text-primary">{trail.subjectName.charAt(0)}</span>
           </div>
           <div className="text-left">
-            <h3 className="text-base font-semibold text-foreground">{trail.subjectName}</h3>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="text-h3 font-semibold text-foreground">{trail.subjectName}</h3>
+            <p className="text-caption text-muted-foreground">
               {trail.completedCount}/{trail.totalCount} módulos · {pct}% concluído
             </p>
           </div>
@@ -155,7 +157,7 @@ function TrailSection({ trail, onStart }: { trail: Trail; onStart?: (topicId: st
           <div className="w-20 hidden sm:block">
             <Progress value={pct} className="h-2" />
           </div>
-          <span className="text-sm font-semibold text-primary">{pct}%</span>
+          <span className="text-body font-bold text-primary">{pct}%</span>
           {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
         </div>
       </button>
@@ -197,7 +199,6 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
       const questionMap = new Map(questions.map(q => [q.id, q]));
 
-      // Available questions per topic
       const availableByTopic = new Map<string, number>();
       questions.forEach(q => {
         if (q.status !== 'draft' && q.topicId) {
@@ -205,7 +206,6 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
         }
       });
 
-      // Stats per topic
       const statsByTopic = new Map<string, { total: number; correct: number }>();
       attempts.forEach(a => {
         const q = questionMap.get(a.questionId);
@@ -216,7 +216,6 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
         statsByTopic.set(q.topicId, prev);
       });
 
-      // Group by subject
       const groupMap = new Map<string, Topic[]>();
       filteredTopics.forEach(t => {
         const arr = groupMap.get(t.subject) ?? [];
@@ -226,7 +225,6 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
 
       const result: Trail[] = [...groupMap.entries()]
         .map(([slug, topicList]) => {
-          // Build sequential nodes
           const nodes: TrailNode[] = [];
           topicList.forEach((t, i) => {
             const stats = statsByTopic.get(t.id) ?? { total: 0, correct: 0 };
@@ -262,12 +260,13 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load);
 
-  if (loading) return <p className="text-muted-foreground">Carregando trilhas...</p>;
+  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando trilhas...</p>;
   if (error) return <LoadingTimeout error={error} onRetry={load} />;
 
   if (trails.length === 0) return (
-    <div className="bg-card rounded-xl shadow-sm p-8 text-center">
-      <p className="text-muted-foreground">Nenhuma trilha disponível.</p>
+    <div className="bg-card rounded-xl shadow-sm p-8 text-center border border-border">
+      <Route className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+      <p className="text-body text-muted-foreground">Nenhuma trilha disponível.</p>
     </div>
   );
 
@@ -276,15 +275,18 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
   const globalPct = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Global progress */}
-      <div className="bg-gradient-to-r from-primary/10 to-gold/10 border border-primary/20 rounded-xl p-6">
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Progresso Geral</h2>
-            <p className="text-sm text-muted-foreground">{completedModules} de {totalModules} módulos concluídos</p>
+            <h2 className="text-h2 font-bold text-foreground flex items-center gap-2">
+              <Route className="h-5 w-5 text-primary" />
+              Progresso Geral
+            </h2>
+            <p className="text-body text-muted-foreground">{completedModules} de {totalModules} módulos concluídos</p>
           </div>
-          <span className="text-3xl font-extrabold text-primary">{globalPct}%</span>
+          <span className="text-display font-extrabold text-primary">{globalPct}%</span>
         </div>
         <Progress value={globalPct} className="h-3" />
       </div>

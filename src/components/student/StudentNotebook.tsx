@@ -6,10 +6,10 @@ import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
-import { CheckCircle2, Search, CalendarClock } from 'lucide-react';
+import { CheckCircle2, Search, CalendarClock, BookOpen, AlertCircle, RotateCw } from 'lucide-react';
 import type { Question, Topic, NotebookItem } from '../../lib/types';
 
-const REVIEW_INTERVALS = [3, 7, 15]; // days
+const REVIEW_INTERVALS = [3, 7, 15];
 
 function getNextReviewDate(reviewCount: number): string {
   const days = REVIEW_INTERVALS[Math.min(reviewCount, REVIEW_INTERVALS.length - 1)];
@@ -103,69 +103,71 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
     });
   }, [notebookItems, filters, search, questionsMap, allTopics]);
 
-  if (loading) return <p className="text-muted-foreground">Carregando caderno de erros...</p>;
+  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando caderno de erros...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
 
   const pending = items.filter(i => i.status === 'pending');
   const mastered = items.filter(i => i.status === 'mastered');
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 animate-fade-in">
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card rounded-xl shadow-sm p-4 text-center">
-          <p className="text-xs text-muted-foreground">Pendentes</p>
-          <p className="text-2xl font-bold text-destructive">{pending.length}</p>
+        <div className="bg-destructive-soft rounded-xl p-4 text-center border border-destructive/10">
+          <AlertCircle className="h-5 w-5 text-destructive mx-auto mb-1" />
+          <p className="text-caption text-muted-foreground">Pendentes</p>
+          <p className="text-h2 font-bold text-destructive">{pending.length}</p>
         </div>
-        <div className="bg-card rounded-xl shadow-sm p-4 text-center">
-          <p className="text-xs text-muted-foreground">Dominados</p>
-          <p className="text-2xl font-bold text-success">{mastered.length}</p>
+        <div className="bg-success-soft rounded-xl p-4 text-center border border-success/10">
+          <CheckCircle2 className="h-5 w-5 text-success mx-auto mb-1" />
+          <p className="text-caption text-muted-foreground">Dominados</p>
+          <p className="text-h2 font-bold text-success">{mastered.length}</p>
         </div>
-        <div className="bg-card rounded-xl shadow-sm p-4 text-center">
-          <p className="text-xs text-muted-foreground">Total</p>
-          <p className="text-2xl font-bold text-foreground">{notebookItems.length}</p>
+        <div className="bg-muted rounded-xl p-4 text-center">
+          <BookOpen className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
+          <p className="text-caption text-muted-foreground">Total</p>
+          <p className="text-h2 font-bold text-foreground">{notebookItems.length}</p>
         </div>
         <button
           onClick={() => setFilters(f => ({ ...f, reviewDue: !f.reviewDue }))}
-          className={`bg-card rounded-xl shadow-sm p-4 text-center transition-all border-2 ${filters.reviewDue ? 'border-primary' : 'border-transparent'}`}
+          className={`rounded-xl p-4 text-center transition-all border-2 ${filters.reviewDue ? 'border-primary bg-primary-soft' : 'border-transparent bg-info-soft'}`}
         >
-          <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-            <CalendarClock className="h-3.5 w-3.5" /> Revisão hoje
-          </p>
-          <p className={`text-2xl font-bold ${dueCount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>{dueCount}</p>
+          <CalendarClock className="h-5 w-5 text-info mx-auto mb-1" />
+          <p className="text-caption text-muted-foreground">Revisão hoje</p>
+          <p className={`text-h2 font-bold ${dueCount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>{dueCount}</p>
         </button>
       </div>
 
       {/* Search + Filters */}
-      <div className="bg-card rounded-xl shadow-sm p-4 space-y-3">
+      <div className="bg-card rounded-xl shadow-sm p-4 space-y-3 border border-border">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar por ID, tema, texto da questão..."
-            className="w-full rounded-lg border border-input bg-background pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-xl border border-input bg-background pl-10 pr-3 py-2.5 text-body focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
           />
         </div>
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Filtros</h3>
+        <h3 className="text-overline text-muted-foreground uppercase tracking-wider">Filtros</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          <select value={filters.grade} onChange={e => setFilters(f => ({ ...f, grade: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+          <select value={filters.grade} onChange={e => setFilters(f => ({ ...f, grade: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2.5 text-body">
             <option value="">Todas séries</option>
             {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
-          <select value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+          <select value={filters.subject} onChange={e => setFilters(f => ({ ...f, subject: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2.5 text-body">
             <option value="">Todas disciplinas</option>
             {Object.entries(SUBJECTS_MAP).map(([code, label]) => <option key={code} value={label}>{label}</option>)}
           </select>
-          <select value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+          <select value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2.5 text-body">
             <option value="">Todas dificuldades</option>
             {Object.entries(DIFFICULTIES_MAP).map(([code, label]) => <option key={code} value={label}>{label}</option>)}
           </select>
-          <select value={filters.topicId} onChange={e => setFilters(f => ({ ...f, topicId: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+          <select value={filters.topicId} onChange={e => setFilters(f => ({ ...f, topicId: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2.5 text-body">
             <option value="">Todos tópicos</option>
             {allTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-          <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+          <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="rounded-xl border border-input bg-background px-3 py-2.5 text-body">
             <option value="">Todos status</option>
             <option value="pending">Pendente</option>
             <option value="mastered">Dominado</option>
@@ -175,9 +177,12 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
 
       {/* Items */}
       {items.length === 0 ? (
-        <p className="text-muted-foreground text-center py-8">Nenhum item com os filtros atuais.</p>
+        <div className="bg-card rounded-xl shadow-sm p-8 text-center border border-border">
+          <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-body text-muted-foreground">Nenhum item com os filtros atuais.</p>
+        </div>
       ) : (
-        <div className="space-y-3 max-h-[600px] overflow-y-auto">
+        <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar">
           {items.map(item => {
             const q = questionsMap.get(item.questionId);
             if (!q) return null;
@@ -241,15 +246,15 @@ function NotebookCard({ item, question: q, userId, onRefazer, onSave }: {
   const nextInterval = REVIEW_INTERVALS[Math.min(item.reviewCount, REVIEW_INTERVALS.length - 1)];
 
   return (
-    <article className={`bg-card rounded-xl shadow-sm p-5 ${due ? 'ring-2 ring-primary/40' : ''}`}>
+    <article className={`bg-card rounded-xl shadow-sm p-5 border transition-all ${due ? 'border-primary ring-2 ring-primary/20' : 'border-border'}`}>
       {due && (
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-primary mb-2">
+        <div className="flex items-center gap-1.5 text-caption font-semibold text-primary mb-2">
           <CalendarClock className="h-3.5 w-3.5" />
           Revisão programada — hora de revisar!
         </div>
       )}
-      <h4 className="text-sm font-medium text-foreground">{q.statement}</h4>
-      <p className="text-xs text-muted-foreground mt-1">
+      <h4 className="text-body font-medium text-foreground">{q.statement}</h4>
+      <p className="text-caption text-muted-foreground mt-1">
         {q.grade} · {subjectLabel(q.subject)} · {difficultyLabel(q.difficulty)} · Status: {statusLabel(item.status)}
         {item.nextReviewAt && !due && (
           <span className="ml-2 text-primary/70">· Próxima revisão: {formatReviewDate(item.nextReviewAt)}</span>
@@ -259,35 +264,35 @@ function NotebookCard({ item, question: q, userId, onRefazer, onSave }: {
         )}
       </p>
 
-      <label className="text-xs text-muted-foreground block mt-3 mb-1">O que eu errei?</label>
-      <textarea value={whatIErred} onChange={e => setWhatIErred(e.target.value)} className="w-full rounded-lg border border-input bg-background p-3 text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-primary/30" />
+      <label className="text-caption text-muted-foreground block mt-3 mb-1">O que eu errei?</label>
+      <textarea value={whatIErred} onChange={e => setWhatIErred(e.target.value)} className="w-full rounded-xl border border-input bg-background p-3 text-body min-h-[40px] focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
 
-      <label className="text-xs text-muted-foreground block mt-2 mb-1">Regra / insight</label>
-      <textarea value={ruleInsight} onChange={e => setRuleInsight(e.target.value)} className="w-full rounded-lg border border-input bg-background p-3 text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-primary/30" />
+      <label className="text-caption text-muted-foreground block mt-2 mb-1">Regra / insight</label>
+      <textarea value={ruleInsight} onChange={e => setRuleInsight(e.target.value)} className="w-full rounded-xl border border-input bg-background p-3 text-body min-h-[40px] focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
 
       <div className="flex items-center gap-2 mt-3 flex-wrap">
         <button onClick={() => handleSave(false)} disabled={saving}
-          className="rounded-lg text-xs font-medium text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50">
+          className="rounded-lg text-caption font-semibold text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-all disabled:opacity-50 active:scale-[0.98]">
           {saving ? 'Salvando...' : 'Salvar'}
         </button>
-        <button onClick={onRefazer} className="rounded-lg text-xs font-medium text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
-          Refazer
+        <button onClick={onRefazer} className="rounded-lg text-caption font-semibold text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-all flex items-center gap-1 active:scale-[0.98]">
+          <RotateCw className="h-3 w-3" /> Refazer
         </button>
         {item.status === 'pending' && (
           <>
             <button onClick={scheduleReview} disabled={saving}
-              className="rounded-lg text-xs font-medium text-foreground border border-border px-4 py-1.5 hover:bg-muted transition-colors disabled:opacity-50 flex items-center gap-1">
+              className="rounded-lg text-caption font-semibold text-foreground border border-border px-4 py-1.5 hover:bg-muted transition-all disabled:opacity-50 flex items-center gap-1 active:scale-[0.98]">
               <CalendarClock className="h-3 w-3" />
               Revisar em {nextInterval}d
             </button>
             <button onClick={() => handleSave(true)} disabled={saving}
-              className="rounded-lg text-xs font-medium bg-success text-success-foreground px-4 py-1.5 hover:brightness-110 transition-all disabled:opacity-50">
-              ✓ Dominado
+              className="rounded-lg text-caption font-semibold bg-success text-success-foreground px-4 py-1.5 hover:bg-success-light transition-all disabled:opacity-50 flex items-center gap-1 active:scale-[0.98]">
+              <CheckCircle2 className="h-3 w-3" /> Dominado
             </button>
           </>
         )}
         {saved && (
-          <span className="flex items-center gap-1 text-xs text-success font-medium">
+          <span className="flex items-center gap-1 text-caption text-success font-medium">
             <CheckCircle2 className="h-3.5 w-3.5" /> Salvo!
           </span>
         )}
