@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getRanking, getAppSetting } from '../../lib/storage';
 import { useAuth } from '../../contexts/AuthContext';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState } from './ScreenStates';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { Trophy, Medal, Award, User } from 'lucide-react';
