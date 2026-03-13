@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs, getDiagnosticResult } from '../../lib/storage';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState, EmptyState } from './ScreenStates';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { CheckCircle2, Lock, Play, Circle, Star, ChevronDown, ChevronUp, Route } from 'lucide-react';
