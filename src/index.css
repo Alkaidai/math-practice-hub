@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,87 +6,139 @@
 
 @layer base {
   :root {
-    --background: 220 60% 98%;
-    --foreground: 220 30% 15%;
+    /* ── Background & Surface ── */
+    --background: 222 47% 97%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 30% 15%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 15%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 218 69% 37%;
+    /* ── Primary (Blue) ── */
+    --primary: 224 76% 40%;
     --primary-foreground: 0 0% 100%;
+    --primary-light: 224 76% 55%;
+    --primary-soft: 224 76% 95%;
 
-    --secondary: 220 30% 94%;
-    --secondary-foreground: 220 30% 15%;
+    /* ── Secondary ── */
+    --secondary: 222 30% 93%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 220 20% 96%;
-    --muted-foreground: 220 10% 46%;
+    /* ── Muted ── */
+    --muted: 222 20% 95%;
+    --muted-foreground: 222 12% 50%;
 
-    --accent: 220 30% 94%;
-    --accent-foreground: 220 30% 15%;
+    /* ── Accent ── */
+    --accent: 222 30% 93%;
+    --accent-foreground: 222 47% 11%;
 
+    /* ── Destructive (Red) ── */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 72% 62%;
+    --destructive-soft: 0 80% 96%;
 
-    --border: 220 20% 90%;
-    --input: 220 20% 90%;
-    --ring: 218 69% 37%;
+    /* ── Success (Green) ── */
+    --success: 152 60% 40%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 152 55% 52%;
+    --success-soft: 152 60% 95%;
 
+    /* ── Gold (Yellow/Amber) ── */
+    --gold: 42 100% 50%;
+    --gold-foreground: 222 47% 11%;
+    --gold-light: 42 100% 62%;
+    --gold-soft: 42 100% 95%;
+
+    /* ── Warning (Orange) ── */
+    --warning: 25 95% 53%;
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 25 95% 95%;
+
+    /* ── Info ── */
+    --info: 210 100% 50%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 210 100% 96%;
+
+    /* ── Borders & Input ── */
+    --border: 222 20% 90%;
+    --input: 222 20% 88%;
+    --ring: 224 76% 48%;
+
+    /* ── Radius ── */
     --radius: 0.75rem;
 
-    --sidebar-background: 219 82% 24%;
-    --sidebar-foreground: 220 20% 96%;
-    --sidebar-primary: 48 100% 50%;
-    --sidebar-primary-foreground: 220 30% 15%;
-    --sidebar-accent: 219 70% 30%;
+    /* ── Sidebar ── */
+    --sidebar-background: 224 82% 22%;
+    --sidebar-foreground: 222 20% 96%;
+    --sidebar-primary: 42 100% 50%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 224 70% 30%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 219 60% 32%;
-    --sidebar-ring: 48 100% 50%;
+    --sidebar-border: 224 60% 32%;
+    --sidebar-ring: 42 100% 50%;
 
-    --gold: 48 100% 45%;
-    --gold-foreground: 220 30% 15%;
-
-    --success: 145 63% 42%;
-    --success-foreground: 0 0% 100%;
-
-    --font-heading: 'Inter', sans-serif;
+    /* ── Typography ── */
+    --font-heading: 'Space Grotesk', 'Inter', sans-serif;
     --font-body: 'Inter', sans-serif;
+
+    /* ── Shadows ── */
+    --shadow-xs: 0 1px 2px 0 hsl(222 47% 11% / 0.04);
+    --shadow-sm: 0 1px 3px 0 hsl(222 47% 11% / 0.06), 0 1px 2px -1px hsl(222 47% 11% / 0.06);
+    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.07), 0 2px 4px -2px hsl(222 47% 11% / 0.05);
+    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.08), 0 4px 6px -4px hsl(222 47% 11% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(222 47% 11% / 0.08), 0 8px 10px -6px hsl(222 47% 11% / 0.04);
+    --shadow-colored: 0 4px 14px -2px hsl(224 76% 40% / 0.20);
   }
 
   .dark {
-    --background: 220 25% 8%;
-    --foreground: 220 20% 92%;
-    --card: 220 25% 11%;
-    --card-foreground: 220 20% 92%;
-    --popover: 220 25% 11%;
-    --popover-foreground: 220 20% 92%;
-    --primary: 218 69% 50%;
+    --background: 222 47% 6%;
+    --foreground: 222 20% 92%;
+    --card: 222 40% 10%;
+    --card-foreground: 222 20% 92%;
+    --popover: 222 40% 10%;
+    --popover-foreground: 222 20% 92%;
+    --primary: 224 76% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 16%;
-    --secondary-foreground: 220 20% 92%;
-    --muted: 220 20% 16%;
-    --muted-foreground: 220 10% 55%;
-    --accent: 220 20% 16%;
-    --accent-foreground: 220 20% 92%;
+    --primary-light: 224 76% 62%;
+    --primary-soft: 224 76% 15%;
+    --secondary: 222 20% 16%;
+    --secondary-foreground: 222 20% 92%;
+    --muted: 222 20% 16%;
+    --muted-foreground: 222 10% 55%;
+    --accent: 222 20% 16%;
+    --accent-foreground: 222 20% 92%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 20% 20%;
-    --input: 220 20% 20%;
-    --ring: 218 69% 50%;
-    --sidebar-background: 220 30% 6%;
-    --sidebar-foreground: 220 20% 92%;
-    --sidebar-primary: 48 100% 50%;
-    --sidebar-primary-foreground: 220 30% 15%;
-    --sidebar-accent: 220 20% 14%;
-    --sidebar-accent-foreground: 220 20% 92%;
-    --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 48 100% 50%;
-    --gold: 48 100% 50%;
-    --gold-foreground: 220 30% 15%;
-    --success: 145 63% 42%;
+    --destructive-light: 0 72% 62%;
+    --destructive-soft: 0 80% 12%;
+    --success: 152 60% 42%;
     --success-foreground: 0 0% 100%;
+    --success-light: 152 55% 52%;
+    --success-soft: 152 60% 12%;
+    --gold: 42 100% 50%;
+    --gold-foreground: 222 47% 11%;
+    --gold-light: 42 100% 62%;
+    --gold-soft: 42 100% 12%;
+    --warning: 25 95% 53%;
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 25 95% 12%;
+    --info: 210 100% 50%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 210 100% 12%;
+    --border: 222 20% 20%;
+    --input: 222 20% 20%;
+    --ring: 224 76% 52%;
+    --sidebar-background: 222 40% 6%;
+    --sidebar-foreground: 222 20% 92%;
+    --sidebar-primary: 42 100% 50%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 222 20% 14%;
+    --sidebar-accent-foreground: 222 20% 92%;
+    --sidebar-border: 222 20% 18%;
+    --sidebar-ring: 42 100% 50%;
   }
 }
 
@@ -99,16 +151,32 @@
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-body);
     line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
-    letter-spacing: -0.02em;
-    line-height: 1.3;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    font-weight: 700;
   }
 }
 
-/* Error flash – Signature Moment */
+/* ── Spacing Scale ──
+ * 4  = 1   (xs)
+ * 8  = 2   (sm)
+ * 12 = 3   (md)
+ * 16 = 4   (base)
+ * 20 = 5
+ * 24 = 6   (lg)
+ * 32 = 8   (xl)
+ * 40 = 10  (2xl)
+ * 48 = 12  (3xl)
+ * 64 = 16  (4xl)
+ */
+
+/* ── Error Flash Animation ── */
 @keyframes error-flash {
   0% { background-color: hsl(0 72% 51% / 0.15); }
   100% { background-color: transparent; }
@@ -118,7 +186,53 @@
   animation: error-flash 300ms ease-out;
 }
 
-/* Smooth transitions */
+/* ── Smooth transitions ── */
 .transition-smooth {
   transition: all 0.2s ease;
+}
+
+/* ── Card hover effect ── */
+.card-interactive {
+  @apply transition-all duration-200;
+}
+.card-interactive:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* ── Progress bar animation ── */
+@keyframes progress-fill {
+  from { width: 0; }
+}
+.animate-progress [data-orientation="horizontal"] > div {
+  animation: progress-fill 0.8s ease-out;
+}
+
+/* ── Status dot pulse ── */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.status-pulse {
+  animation: status-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ── Focus ring ── */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+}
+
+/* ── Custom scrollbar ── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
 }

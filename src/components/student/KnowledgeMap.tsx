@@ -5,7 +5,7 @@ import { Progress } from '../ui/progress';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
-import { AlertTriangle, CheckCircle2, BookOpen, Clock } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, BookOpen, Clock, ArrowRight } from 'lucide-react';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
 interface TopicDomain {
@@ -34,10 +34,10 @@ function getDomainStatus(total: number, rate: number): TopicDomain['status'] {
 
 function statusConfig(status: TopicDomain['status']) {
   switch (status) {
-    case 'not_started': return { label: 'Não iniciado', color: 'text-muted-foreground', bg: 'bg-muted', bar: 'bg-muted-foreground/20', border: '', icon: Clock };
-    case 'needs_study': return { label: 'Precisa estudar', color: 'text-destructive', bg: 'bg-destructive/5', bar: 'bg-destructive', border: 'border-l-destructive', icon: AlertTriangle };
-    case 'developing': return { label: 'Em desenvolvimento', color: 'text-gold', bg: 'bg-gold/5', bar: 'bg-gold', border: 'border-l-gold', icon: BookOpen };
-    case 'mastered': return { label: 'Dominado', color: 'text-success', bg: 'bg-success/5', bar: 'bg-success', border: 'border-l-success', icon: CheckCircle2 };
+    case 'not_started': return { label: 'Não iniciado', color: 'text-muted-foreground', bg: 'bg-muted', bar: 'bg-muted-foreground/20', border: 'border-l-muted-foreground/20', icon: Clock, softBg: 'bg-muted' };
+    case 'needs_study': return { label: 'Precisa estudar', color: 'text-destructive', bg: 'bg-destructive-soft', bar: 'bg-destructive', border: 'border-l-destructive', icon: AlertTriangle, softBg: 'bg-destructive-soft' };
+    case 'developing': return { label: 'Em desenvolvimento', color: 'text-gold', bg: 'bg-gold-soft', bar: 'bg-gold', border: 'border-l-gold', icon: BookOpen, softBg: 'bg-gold-soft' };
+    case 'mastered': return { label: 'Dominado', color: 'text-success', bg: 'bg-success-soft', bar: 'bg-success', border: 'border-l-success', icon: CheckCircle2, softBg: 'bg-success-soft' };
   }
 }
 
@@ -62,7 +62,6 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
       const subjectMap = new Map(subjects.map(s => [s.slug, s.name]));
       const questionMap = new Map(questions.map(q => [q.id, q]));
 
-      // Count available questions per topic
       const availableByTopic = new Map<string, number>();
       questions.forEach(q => {
         if (q.status !== 'draft' && q.topicId) {
@@ -113,11 +112,12 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load);
 
-  if (loading) return <p className="text-muted-foreground">Carregando mapa de tópicos...</p>;
+  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando mapa de tópicos...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
   if (groups.length === 0) return (
-    <div className="bg-card rounded-xl shadow-sm p-8 text-center">
-      <p className="text-muted-foreground">Nenhum tópico disponível ainda.</p>
+    <div className="bg-card rounded-xl shadow-sm p-8 text-center border border-border">
+      <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+      <p className="text-body text-muted-foreground">Nenhum tópico disponível ainda.</p>
     </div>
   );
 
@@ -141,29 +141,29 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Dominados', value: mastered, color: 'text-success', bg: 'bg-success/10', Icon: CheckCircle2 },
-          { label: 'Em desenv.', value: developing, color: 'text-gold', bg: 'bg-gold/10', Icon: BookOpen },
-          { label: 'Estudar', value: needsStudy, color: 'text-destructive', bg: 'bg-destructive/10', Icon: AlertTriangle },
-          { label: 'Não iniciados', value: notStarted, color: 'text-muted-foreground', bg: 'bg-muted', Icon: Clock },
+          { label: 'Dominados', value: mastered, color: 'text-success', softBg: 'bg-success-soft', Icon: CheckCircle2 },
+          { label: 'Em desenv.', value: developing, color: 'text-gold', softBg: 'bg-gold-soft', Icon: BookOpen },
+          { label: 'Estudar', value: needsStudy, color: 'text-destructive', softBg: 'bg-destructive-soft', Icon: AlertTriangle },
+          { label: 'Não iniciados', value: notStarted, color: 'text-muted-foreground', softBg: 'bg-muted', Icon: Clock },
         ].map(s => (
-          <div key={s.label} className={`${s.bg} rounded-xl p-4 text-center`}>
+          <div key={s.label} className={`${s.softBg} rounded-xl p-4 text-center border border-border/50`}>
             <s.Icon className={`h-5 w-5 mx-auto mb-1 ${s.color}`} />
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-caption text-muted-foreground">{s.label}</p>
+            <p className={`text-h2 font-bold ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>
 
       {/* Sort */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Ordenar por:</span>
+        <span className="text-caption text-muted-foreground">Ordenar por:</span>
         {([['priority', 'Prioridade'], ['name', 'Nome'], ['rate', 'Taxa de acerto']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setSortBy(key)}
-            className={`text-xs px-3 py-1 rounded-lg transition-colors ${sortBy === key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}>
+            className={`text-caption font-semibold px-3 py-1.5 rounded-lg transition-all ${sortBy === key ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted text-muted-foreground hover:bg-accent'}`}>
             {label}
           </button>
         ))}
@@ -171,14 +171,14 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
 
       {/* By subject */}
       {groups.map(group => (
-        <div key={group.subjectName} className="bg-card rounded-xl shadow-sm p-5">
+        <div key={group.subjectName} className="bg-card rounded-xl shadow-sm p-5 border border-border">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-foreground">{group.subjectName}</h3>
+            <h3 className="text-h3 font-semibold text-foreground">{group.subjectName}</h3>
             <div className="flex items-center gap-2">
               <div className="w-24">
                 <Progress value={group.averageRate} className="h-2" />
               </div>
-              <span className="text-sm font-semibold text-primary">{group.averageRate}%</span>
+              <span className="text-body font-bold text-primary">{group.averageRate}%</span>
             </div>
           </div>
           <div className="space-y-2">
@@ -188,25 +188,24 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
               return (
                 <div
                   key={t.topicId}
-                  className={`rounded-lg border-l-4 ${config.border || 'border-l-transparent'} ${config.bg} px-4 py-3 ${onStartTopic ? 'cursor-pointer hover:brightness-95 transition-all' : ''}`}
+                  className={`rounded-xl border-l-4 ${config.border} ${config.bg} px-4 py-3 ${onStartTopic ? 'cursor-pointer hover:shadow-sm transition-all active:scale-[0.995]' : ''}`}
                   onClick={() => onStartTopic?.(t.topicId)}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <IconComp className={`h-4 w-4 shrink-0 ${config.color}`} />
-                      <p className="text-sm font-medium text-foreground truncate">{t.topicName}</p>
+                      <p className="text-body font-medium text-foreground truncate">{t.topicName}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-2">
-                      <span className="text-xs text-muted-foreground">{t.total}/{t.available} feitas</span>
-                      <span className={`text-xs font-semibold ${config.color}`}>
+                      <span className="text-caption text-muted-foreground font-mono">{t.total}/{t.available}</span>
+                      <span className={`text-caption font-semibold ${config.color}`}>
                         {t.total > 0 ? `${t.rate}%` : ''} {config.label}
                       </span>
+                      {onStartTopic && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />}
                     </div>
                   </div>
                   {t.total > 0 && (
-                    <div className="w-full bg-border/50 rounded-full h-1.5">
-                      <div className={`h-1.5 rounded-full ${config.bar} transition-all`} style={{ width: `${t.rate}%` }} />
-                    </div>
+                    <Progress value={t.rate} className="h-1.5" indicatorClassName={config.bar} />
                   )}
                 </div>
               );

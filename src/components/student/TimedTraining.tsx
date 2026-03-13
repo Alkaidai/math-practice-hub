@@ -4,9 +4,10 @@ import { loadQuestionBank, getTopics, addAttempt, getAllowedSubjectSlugs } from 
 import { difficultyLabel } from '../../lib/ui-utils';
 import { getRecommendedDifficulty } from '../../lib/adaptive';
 import type { Question } from '../../lib/types';
-import { Timer, CheckCircle2, XCircle, Play, Square } from 'lucide-react';
+import { Timer, CheckCircle2, XCircle, Play, Square, Target, Zap, Clock } from 'lucide-react';
+import { Progress } from '../ui/progress';
 
-const TIMED_DURATION_SECONDS = 300; // 5 minutes
+const TIMED_DURATION_SECONDS = 300;
 
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -111,7 +112,6 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
     });
     onQuestionAnswered?.();
 
-    // Auto-advance after 1s
     setTimeout(() => {
       if (currentIdx + 1 >= questions.length) {
         finishTraining();
@@ -126,26 +126,32 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
   // Setup phase
   if (phase === 'setup') {
     return (
-      <div className="max-w-lg mx-auto bg-card rounded-xl shadow-sm p-8 text-center space-y-4">
-        <Timer className="h-12 w-12 text-primary mx-auto" />
-        <h2 className="text-xl font-bold text-foreground">Treino Cronometrado</h2>
-        <p className="text-sm text-muted-foreground">
-          Resolva o máximo de questões em <strong>5 minutos</strong>. As questões serão sorteadas aleatoriamente.
-        </p>
-        <button
-          onClick={startTimer}
-          disabled={questions.length === 0}
-          className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md disabled:opacity-40"
-        >
-          <Play className="h-5 w-5" /> Iniciar Treino
-        </button>
-        {questions.length === 0 && <p className="text-xs text-muted-foreground">Carregando questões...</p>}
+      <div className="max-w-lg mx-auto animate-fade-in">
+        <div className="bg-card rounded-xl shadow-sm p-8 text-center space-y-6 border border-border">
+          <div className="w-16 h-16 rounded-2xl bg-primary-soft flex items-center justify-center mx-auto">
+            <Timer className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-h2 font-bold text-foreground">Treino Cronometrado</h2>
+            <p className="text-body text-muted-foreground mt-2">
+              Resolva o máximo de questões em <strong className="text-foreground">5 minutos</strong>. As questões serão sorteadas aleatoriamente.
+            </p>
+          </div>
+          <button
+            onClick={startTimer}
+            disabled={questions.length === 0}
+            className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-body px-8 py-3 hover:bg-primary-light transition-all shadow-colored disabled:opacity-40 active:scale-[0.98]"
+          >
+            <Play className="h-5 w-5" /> Iniciar Treino
+          </button>
+          {questions.length === 0 && <p className="text-caption text-muted-foreground">Carregando questões...</p>}
+        </div>
       </div>
     );
   }
@@ -153,29 +159,32 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   // Result phase
   if (phase === 'result' && result) {
     return (
-      <div className="max-w-lg mx-auto bg-card rounded-xl shadow-sm p-8 text-center space-y-6">
-        <h2 className="text-xl font-bold text-foreground">⏱️ Resultado do Treino</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-muted rounded-lg p-4">
-            <p className="text-xs text-muted-foreground">Questões</p>
-            <p className="text-2xl font-bold text-foreground">{result.totalAnswered}</p>
+      <div className="max-w-lg mx-auto animate-fade-in">
+        <div className="bg-card rounded-xl shadow-sm p-8 text-center space-y-6 border border-border">
+          <div className="w-16 h-16 rounded-2xl bg-gold-soft flex items-center justify-center mx-auto">
+            <Zap className="h-8 w-8 text-gold" />
           </div>
-          <div className="bg-success/10 rounded-lg p-4">
-            <p className="text-xs text-muted-foreground">Acertos</p>
-            <p className="text-2xl font-bold text-success">{result.rate}%</p>
+          <h2 className="text-h2 font-bold text-foreground">Resultado do Treino</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-muted rounded-xl p-4">
+              <p className="text-caption text-muted-foreground">Questões</p>
+              <p className="text-h1 font-bold text-foreground">{result.totalAnswered}</p>
+            </div>
+            <div className="bg-success-soft rounded-xl p-4">
+              <p className="text-caption text-muted-foreground">Acertos</p>
+              <p className="text-h1 font-bold text-success">{result.rate}%</p>
+            </div>
+            <div className="bg-primary-soft rounded-xl p-4">
+              <p className="text-caption text-muted-foreground">Corretas</p>
+              <p className="text-h1 font-bold text-primary">{result.totalCorrect}</p>
+            </div>
+            <div className="bg-gold-soft rounded-xl p-4">
+              <p className="text-caption text-muted-foreground">Tempo médio</p>
+              <p className="text-h1 font-bold text-gold">{result.avgTimeSeconds}s</p>
+            </div>
           </div>
-          <div className="bg-primary/10 rounded-lg p-4">
-            <p className="text-xs text-muted-foreground">Corretas</p>
-            <p className="text-2xl font-bold text-primary">{result.totalCorrect}</p>
-          </div>
-          <div className="bg-gold/10 rounded-lg p-4">
-            <p className="text-xs text-muted-foreground">Tempo médio</p>
-            <p className="text-2xl font-bold text-gold">{result.avgTimeSeconds}s</p>
-          </div>
-        </div>
-        <div className="flex gap-3 justify-center">
           <button onClick={() => { loadQuestions(); setPhase('setup'); }}
-            className="rounded-xl bg-primary text-primary-foreground font-bold text-sm px-6 py-2.5 hover:brightness-110 transition-all">
+            className="rounded-xl bg-primary text-primary-foreground font-bold text-body px-8 py-3 hover:bg-primary-light transition-all shadow-colored active:scale-[0.98]">
             Treinar novamente
           </button>
         </div>
@@ -187,48 +196,52 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   const q = questions[currentIdx];
   if (!q) { finishTraining(); return null; }
 
+  const progressPct = (secondsLeft / TIMED_DURATION_SECONDS) * 100;
+  const isUrgent = secondsLeft <= 30;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl mx-auto space-y-4 animate-fade-in">
       {/* Timer bar */}
-      <div className="bg-card rounded-xl shadow-sm p-4">
-        <div className="flex items-center justify-between mb-2">
+      <div className="bg-card rounded-xl shadow-sm p-4 border border-border">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Timer className={`h-5 w-5 ${secondsLeft <= 30 ? 'text-destructive animate-pulse' : 'text-primary'}`} />
-            <span className={`text-lg font-bold ${secondsLeft <= 30 ? 'text-destructive' : 'text-foreground'}`}>
+            <Timer className={`h-5 w-5 ${isUrgent ? 'text-destructive status-pulse' : 'text-primary'}`} />
+            <span className={`text-h2 font-bold font-mono ${isUrgent ? 'text-destructive' : 'text-foreground'}`}>
               {formatTime(secondsLeft)}
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">
-              {statsRef.current.total} respondidas · {statsRef.current.correct} corretas
-            </span>
-            <button onClick={finishTraining} className="rounded-lg text-xs border border-border px-3 py-1 hover:bg-muted transition-all flex items-center gap-1">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 text-caption text-muted-foreground">
+              <span className="flex items-center gap-1"><Target className="h-3.5 w-3.5" /> {statsRef.current.total}</span>
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-success" /> {statsRef.current.correct}</span>
+            </div>
+            <button onClick={finishTraining} className="rounded-lg text-caption font-semibold border border-border px-3 py-1.5 hover:bg-muted transition-all flex items-center gap-1 active:scale-[0.98]">
               <Square className="h-3 w-3" /> Encerrar
             </button>
           </div>
         </div>
-        <div className="w-full bg-muted rounded-full h-2">
-          <div
-            className={`h-2 rounded-full transition-all ${secondsLeft <= 30 ? 'bg-destructive' : 'bg-primary'}`}
-            style={{ width: `${(secondsLeft / TIMED_DURATION_SECONDS) * 100}%` }}
-          />
-        </div>
+        <Progress value={progressPct} className="h-2" indicatorClassName={isUrgent ? 'bg-destructive' : 'bg-primary'} />
       </div>
 
       {/* Question */}
-      <div className="bg-card rounded-xl shadow-sm p-6">
-        <p className="text-xs text-muted-foreground mb-3">
+      <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
+        <p className="text-caption text-muted-foreground mb-3 uppercase tracking-wide">
           Questão {currentIdx + 1} · {difficultyLabel(q.difficulty)}
         </p>
-        <p className="text-sm text-foreground leading-relaxed mb-4">{q.statement}</p>
-        <div className="space-y-2">
+        {q.imageUrl && (
+          <div className="mt-2 mb-4">
+            <img src={q.imageUrl} alt={q.imageAlt || 'Imagem da questão'} className="max-w-full rounded-lg border border-border" />
+          </div>
+        )}
+        <p className="text-body text-foreground leading-relaxed mb-5">{q.statement}</p>
+        <div className="space-y-2.5">
           {q.options.map((opt, i) => {
             const isSelected = selectedIndex === i;
             const isCorrect = i === q.correctIndex;
-            let optClass = 'border-border hover:border-primary/50 hover:bg-primary/5 cursor-pointer';
+            let optClass = 'border-border hover:border-primary/50 hover:bg-primary-soft cursor-pointer';
             if (answered) {
-              if (isCorrect) optClass = 'border-success bg-success/10';
-              else if (isSelected && !isCorrect) optClass = 'border-destructive bg-destructive/10';
+              if (isCorrect) optClass = 'border-success bg-success-soft';
+              else if (isSelected && !isCorrect) optClass = 'border-destructive bg-destructive-soft';
               else optClass = 'border-border opacity-50';
             }
             return (
@@ -236,14 +249,14 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
                 key={i}
                 onClick={() => handleAnswer(i)}
                 disabled={answered}
-                className={`w-full text-left rounded-lg border p-3 text-sm transition-all flex items-center gap-2 ${optClass}`}
+                className={`w-full text-left rounded-xl border-2 p-3.5 text-body transition-all flex items-center gap-3 ${optClass}`}
               >
-                <span className="w-6 h-6 rounded-full border border-current flex items-center justify-center text-xs font-bold shrink-0">
+                <span className="w-7 h-7 rounded-full border-2 border-current flex items-center justify-center text-caption font-bold shrink-0">
                   {String.fromCharCode(65 + i)}
                 </span>
                 <span className="flex-1">{opt}</span>
-                {answered && isCorrect && <CheckCircle2 className="h-4 w-4 text-success shrink-0" />}
-                {answered && isSelected && !isCorrect && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                {answered && isCorrect && <CheckCircle2 className="h-5 w-5 text-success shrink-0" />}
+                {answered && isSelected && !isCorrect && <XCircle className="h-5 w-5 text-destructive shrink-0" />}
               </button>
             );
           })}

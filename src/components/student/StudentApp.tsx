@@ -42,8 +42,12 @@ function StudentSidebar({ tab, setTab, user, onLogout }: {
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <div className="p-4 flex items-center gap-2">
-        {!collapsed && <h1 className="text-lg font-extrabold tracking-tight text-sidebar-foreground">CADÊ <span className="text-sidebar-primary">o</span> XIS</h1>}
-        {collapsed && <span className="text-sidebar-primary font-extrabold text-lg">X</span>}
+        {!collapsed && (
+          <h1 className="text-lg font-extrabold tracking-tight text-sidebar-foreground font-heading">
+            CADÊ <span className="text-sidebar-primary">●</span> XIS
+          </h1>
+        )}
+        {collapsed && <span className="text-sidebar-primary font-extrabold text-lg font-heading">X</span>}
       </div>
       <SidebarContent>
         <SidebarGroup>
@@ -53,7 +57,7 @@ function StudentSidebar({ tab, setTab, user, onLogout }: {
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton onClick={() => setTab(item.key)} isActive={tab === item.key} tooltip={item.label}>
                     <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                    <span className="font-medium">{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -76,8 +80,8 @@ function StudentSidebar({ tab, setTab, user, onLogout }: {
       </SidebarContent>
       <SidebarFooter>
         <div className={`p-3 ${collapsed ? 'text-center' : ''}`}>
-          {!collapsed && <p className="text-xs text-sidebar-foreground/70 mb-2 truncate">{user?.username}</p>}
-          <button onClick={onLogout} className="flex items-center gap-2 text-xs text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors">
+          {!collapsed && <p className="text-caption text-sidebar-foreground/70 mb-2 truncate">{user?.username}</p>}
+          <button onClick={onLogout} className="flex items-center gap-2 text-caption text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors">
             <LogOut className="h-3.5 w-3.5" />{!collapsed && <span>Sair</span>}
           </button>
         </div>
@@ -95,7 +99,6 @@ export function StudentApp() {
   const [difficultyFilter, setDifficultyFilter] = useState<string | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [diagChecked, setDiagChecked] = useState(false);
-  // Key to force remount components on tab switch, clearing stale state
   const [tabKey, setTabKey] = useState(0);
 
   useEffect(() => {
@@ -142,7 +145,7 @@ export function StudentApp() {
 
   if (authLoading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <p className="text-muted-foreground">Carregando...</p>
+      <p className="text-body text-muted-foreground">Carregando...</p>
     </div>
   );
 
@@ -150,8 +153,8 @@ export function StudentApp() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {authError && (
-          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-            <p className="text-sm text-destructive font-medium">{authError}</p>
+          <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive-soft p-4">
+            <p className="text-body text-destructive font-medium">{authError}</p>
           </div>
         )}
         <LoginForm />
@@ -161,7 +164,7 @@ export function StudentApp() {
 
   if (!diagChecked) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <p className="text-muted-foreground">Carregando...</p>
+      <p className="text-body text-muted-foreground">Carregando...</p>
     </div>
   );
 
@@ -173,18 +176,24 @@ export function StudentApp() {
     </div>
   );
 
+  const currentNav = NAV_ITEMS.find(n => n.key === tab);
+  const CurrentIcon = currentNav?.icon ?? LayoutDashboard;
+
   return (
     <SidebarProvider>
       <div className="h-screen flex w-full overflow-hidden">
         <StudentSidebar tab={tab} setTab={handleTabChange} user={user} onLogout={logout} />
         <div className="flex-1 flex flex-col h-full overflow-hidden">
-          <header className="h-14 flex items-center gap-4 border-b border-border bg-card px-4 shrink-0 z-20">
+          <header className="h-14 flex items-center gap-3 border-b border-border bg-card px-4 shrink-0 z-20">
             <SidebarTrigger />
-            <h2 className="text-sm font-semibold text-foreground">
-              {NAV_ITEMS.find(n => n.key === tab)?.label ?? 'Painel'}
-            </h2>
+            <div className="flex items-center gap-2">
+              <CurrentIcon className="h-4 w-4 text-primary" />
+              <h2 className="text-body font-semibold text-foreground">
+                {currentNav?.label ?? 'Painel'}
+              </h2>
+            </div>
           </header>
-          <main className="flex-1 p-4 md:p-6 overflow-auto">
+          <main className="flex-1 p-4 md:p-6 overflow-auto custom-scrollbar">
             {tab === 'dashboard' && <StudentDashboard key={tabKey} onNavigateQuestions={() => handleTabChange('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
             {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} initialDifficulty={difficultyFilter} onQuestionAnswered={recordQuestionAnswered} />}
             {tab === 'timed' && <TimedTraining key={tabKey} onQuestionAnswered={recordQuestionAnswered} />}

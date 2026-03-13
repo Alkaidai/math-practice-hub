@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Mail } from 'lucide-react';
 
 export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
   const { login, requestPasswordReset } = useAuth();
@@ -40,16 +40,18 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
 
   if (resetSent) {
     return (
-      <div className="bg-card rounded-xl shadow-lg p-8 space-y-4">
-        <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
-          <p className="text-sm text-primary font-semibold">📧 Email enviado!</p>
-          <p className="text-sm text-muted-foreground mt-1">
+      <div className="bg-card rounded-2xl shadow-lg p-8 space-y-4 border border-border">
+        <div className="rounded-xl bg-primary-soft border border-primary/20 p-4">
+          <p className="text-body text-primary font-semibold flex items-center gap-2">
+            <Mail className="h-4 w-4" /> Email enviado!
+          </p>
+          <p className="text-body text-muted-foreground mt-1">
             Verifique sua caixa de entrada para redefinir sua senha.
           </p>
         </div>
         <button
           onClick={() => { setMode('login'); setResetSent(false); setError(''); }}
-          className="text-sm text-primary hover:underline"
+          className="text-body text-primary hover:underline font-medium"
         >
           ← Voltar ao login
         </button>
@@ -58,32 +60,32 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
   }
 
   return (
-    <div className="bg-card rounded-xl shadow-lg p-8">
+    <div className="bg-card rounded-2xl shadow-lg p-8 border border-border">
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-          CADÊ <span className="text-primary">o</span> XIS
+        <h1 className="text-h1 font-extrabold tracking-tight text-foreground font-heading">
+          CADÊ <span className="text-primary">●</span> XIS
         </h1>
-        <p className="text-sm text-muted-foreground mt-2">
+        <p className="text-body text-muted-foreground mt-2">
           {mode === 'login' ? 'Entre na sua conta para continuar' : 'Recupere sua senha'}
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Email</label>
+          <label className="text-caption font-medium text-muted-foreground mb-1.5 block">Email</label>
           <input
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="seu@email.com"
             required
-            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+            className="w-full rounded-xl border border-input bg-background px-4 py-3 text-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
           />
         </div>
 
         {mode === 'login' && (
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Senha</label>
+            <label className="text-caption font-medium text-muted-foreground mb-1.5 block">Senha</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -91,7 +93,7 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 pr-10 text-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
               />
               <button
                 type="button"
@@ -108,21 +110,22 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-gold text-gold-foreground font-semibold text-sm px-4 py-2.5 hover:brightness-110 transition-all disabled:opacity-50"
+          className="w-full rounded-xl bg-primary text-primary-foreground font-bold text-body px-4 py-3 hover:bg-primary-light transition-all shadow-colored disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2"
         >
+          <LogIn className="h-4 w-4" />
           {submitting ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Enviar link de recuperação'}
         </button>
 
         {error && (
-          <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
-            <p className="text-sm text-destructive font-medium">{error}</p>
+          <div className="rounded-xl bg-destructive-soft border border-destructive/20 p-3">
+            <p className="text-body text-destructive font-medium">{error}</p>
           </div>
         )}
 
         <button
           type="button"
           onClick={() => { setMode(mode === 'login' ? 'forgot' : 'login'); setError(''); }}
-          className="text-sm text-primary hover:underline block mx-auto"
+          className="text-body text-primary hover:underline block mx-auto font-medium"
         >
           {mode === 'login' ? 'Esqueci minha senha' : '← Voltar ao login'}
         </button>

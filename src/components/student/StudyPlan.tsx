@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Progress } from '../ui/progress';
 import type { Topic, Question, Attempt } from '../../lib/types';
+import { BookOpen, ArrowRight } from 'lucide-react';
 
 interface TopicProgress {
   topicId: string;
@@ -78,29 +79,32 @@ export function StudyPlan({ attempts, questions, topics, diagnosticResult, onSta
   if (topicProgress.length === 0) return null;
 
   return (
-    <div className="bg-card rounded-xl shadow-sm p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">📚 Plano de Estudo Recomendado</h3>
+    <div className="bg-card rounded-xl shadow-sm p-5 border border-border">
+      <h3 className="text-body font-semibold text-foreground mb-4 flex items-center gap-2">
+        <BookOpen className="h-4 w-4 text-primary" />
+        Plano de Estudo Recomendado
+      </h3>
       <div className="space-y-3">
         {topicProgress.map((tp, i) => (
-          <div key={tp.topicId} className="rounded-lg bg-muted/50 p-4">
+          <div key={tp.topicId} className="rounded-xl bg-muted/50 p-4 hover:bg-muted transition-colors">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-foreground">
-                {i + 1}. {tp.topicName}
+              <p className="text-body font-medium text-foreground">
+                <span className="text-caption text-muted-foreground font-mono mr-1">{i + 1}.</span> {tp.topicName}
               </p>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-caption text-muted-foreground">
                 {tp.correct}/{tp.totalQuestions} acertos
               </span>
             </div>
-            <Progress value={tp.progress} className="h-2 mb-2" />
+            <Progress value={tp.progress} className="h-2 mb-2" indicatorClassName={tp.progress >= 70 ? 'bg-success' : tp.progress >= 40 ? 'bg-gold' : 'bg-destructive'} />
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
+              <span className="text-caption text-muted-foreground">
                 {tp.progress}% · {tp.totalQuestions} exercícios
               </span>
               <button
                 onClick={() => onStartTopic(tp.topicId)}
-                className="rounded-lg text-xs font-medium bg-primary text-primary-foreground px-4 py-1.5 hover:brightness-110 transition-all"
+                className="rounded-lg text-caption font-semibold bg-primary text-primary-foreground px-4 py-1.5 hover:bg-primary-light transition-all flex items-center gap-1 active:scale-[0.98]"
               >
-                Treinar →
+                Treinar <ArrowRight className="h-3 w-3" />
               </button>
             </div>
           </div>
