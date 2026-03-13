@@ -38,14 +38,20 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   const statsRef = useRef({ correct: 0, total: 0, startTime: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [loadingQuestions, setLoadingQuestions] = useState(true);
+
   const loadQuestions = useCallback(async () => {
-    const [allQ, topics, slugs] = await Promise.all([
-      loadQuestionBank(),
-      getTopics({ activeOnly: true }),
-      userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
-    ]);
-    const filtered = allQ.filter(q => q.status !== 'draft' && slugs.includes(q.subject));
-    setQuestions(shuffleArray(filtered).slice(0, 50));
+    setLoadingQuestions(true);
+    try {
+      const [allQ, topics, slugs] = await Promise.all([
+        loadQuestionBank(),
+        getTopics({ activeOnly: true }),
+        userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
+      ]);
+      const filtered = allQ.filter(q => q.status !== 'draft' && slugs.includes(q.subject));
+      setQuestions(shuffleArray(filtered).slice(0, 50));
+    } catch { /* handled by empty state */ }
+    setLoadingQuestions(false);
   }, [userId]);
 
   useEffect(() => { loadQuestions(); }, [loadQuestions]);
@@ -145,12 +151,15 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
           </div>
           <button
             onClick={startTimer}
-            disabled={questions.length === 0}
+            disabled={loadingQuestions || questions.length === 0}
             className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-body px-8 py-3 hover:bg-primary-light transition-all shadow-colored disabled:opacity-40 active:scale-[0.98]"
           >
-            <Play className="h-5 w-5" /> Iniciar Treino
+            <Play className="h-5 w-5" /> {loadingQuestions ? 'Carregando...' : 'Iniciar Treino'}
           </button>
-          {questions.length === 0 && <p className="text-caption text-muted-foreground">Carregando questões...</p>}
+          {!loadingQuestions && questions.length === 0 && (
+            <p className="text-caption text-muted-foreground">Nenhuma questão disponível no momento.</p>
+          )}
+          {loadingQuestions && <p className="text-caption text-muted-foreground">Carregando questões...</p>}
         </div>
       </div>
     );

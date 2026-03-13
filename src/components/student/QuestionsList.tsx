@@ -59,7 +59,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    await execute(async () => {
+    try { await execute(async () => {
       const [topics, questions, notebook, lessons, slugs, attempts, prereqs] = await Promise.all([
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
@@ -89,8 +89,8 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
         newShuffled[q.id] = { options: shuffled, correctIndex: newCorrectIndex };
       });
       setShuffledMap(newShuffled);
-      setLoading(false);
     });
+    } finally { setLoading(false); }
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
