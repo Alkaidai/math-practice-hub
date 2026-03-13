@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState, EmptyState } from './ScreenStates';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { AlertTriangle, CheckCircle2, BookOpen, Clock, ArrowRight } from 'lucide-react';
