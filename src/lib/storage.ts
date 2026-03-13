@@ -108,7 +108,9 @@ export async function getAllowedSubjectSlugs(userId: string): Promise<string[]> 
   ]);
   const activeSlugs = activeSubjects.map(s => s.slug);
   if (accessList.length === 0) return activeSlugs;
-  return activeSlugs.filter(s => accessList.includes(s));
+  const intersection = activeSlugs.filter(s => accessList.includes(s));
+  // Fallback: if intersection is empty, return all active slugs to avoid zeroing out data
+  return intersection.length > 0 ? intersection : activeSlugs;
 }
 
 // ---- Users / Profiles ----
