@@ -1,26 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getRanking, getAppSetting } from '../../lib/storage';
 import { useAuth } from '../../contexts/AuthContext';
+import { LoadingTimeout } from './LoadingTimeout';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 export function StudentRanking() {
   const { user } = useAuth();
   const [ranking, setRanking] = useState<any[]>([]);
   const [visible, setVisible] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { loading, error: loadError, execute } = useLoadWithTimeout();
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+    await execute(async () => {
       const vis = await getAppSetting('ranking_visible');
       if (vis === 'true') {
         setVisible(true);
         setRanking(await getRanking());
+      } else {
+        setVisible(false);
       }
-      setLoading(false);
-    }
-    load();
-  }, []);
+    });
+  }, [execute]);
+
+  useEffect(() => { load(); }, [load]);
+  useVisibilityRefresh(load);
 
   if (loading) return <p className="text-muted-foreground">Carregando...</p>;
+  if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
   if (!visible) return (
     <div className="bg-card rounded-xl shadow-sm p-8 text-center">
       <p className="text-muted-foreground">O ranking está desativado no momento.</p>

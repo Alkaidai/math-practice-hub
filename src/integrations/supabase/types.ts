@@ -35,28 +35,46 @@ export type Database = {
       attempts: {
         Row: {
           answered_at: string
+          attempt_number: number | null
+          difficulty_detected: boolean | null
           id: number
           is_correct: boolean
+          possible_guess: boolean | null
+          question_abandoned: boolean | null
           question_id: string
+          question_skipped: boolean | null
           selected_index: number
+          time_spent_seconds: number | null
           topic_id: string | null
           user_id: string
         }
         Insert: {
           answered_at?: string
+          attempt_number?: number | null
+          difficulty_detected?: boolean | null
           id?: number
           is_correct?: boolean
+          possible_guess?: boolean | null
+          question_abandoned?: boolean | null
           question_id: string
+          question_skipped?: boolean | null
           selected_index?: number
+          time_spent_seconds?: number | null
           topic_id?: string | null
           user_id: string
         }
         Update: {
           answered_at?: string
+          attempt_number?: number | null
+          difficulty_detected?: boolean | null
           id?: number
           is_correct?: boolean
+          possible_guess?: boolean | null
+          question_abandoned?: boolean | null
           question_id?: string
+          question_skipped?: boolean | null
           selected_index?: number
+          time_spent_seconds?: number | null
           topic_id?: string | null
           user_id?: string
         }
@@ -107,6 +125,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_missions: {
+        Row: {
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          current_value: number
+          date: string
+          id: number
+          mission_type: string
+          target_value: number
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          current_value?: number
+          date?: string
+          id?: never
+          mission_type: string
+          target_value?: number
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          current_value?: number
+          date?: string
+          id?: never
+          mission_type?: string
+          target_value?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      daily_study_stats: {
+        Row: {
+          date: string
+          id: string
+          questions_answered: number
+          total_seconds: number
+          user_id: string
+        }
+        Insert: {
+          date?: string
+          id?: string
+          questions_answered?: number
+          total_seconds?: number
+          user_id: string
+        }
+        Update: {
+          date?: string
+          id?: string
+          questions_answered?: number
+          total_seconds?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       dashboard_meta: {
         Row: {
@@ -168,6 +246,93 @@ export type Database = {
         }
         Relationships: []
       }
+      email_send_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          message_id: string | null
+          metadata: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email?: string
+          status?: string
+          template_name?: string
+        }
+        Relationships: []
+      }
+      email_send_state: {
+        Row: {
+          auth_email_ttl_minutes: number
+          batch_size: number
+          id: number
+          retry_after_until: string | null
+          send_delay_ms: number
+          transactional_email_ttl_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          auth_email_ttl_minutes?: number
+          batch_size?: number
+          id?: number
+          retry_after_until?: string | null
+          send_delay_ms?: number
+          transactional_email_ttl_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          auth_email_ttl_minutes?: number
+          batch_size?: number
+          id?: number
+          retry_after_until?: string | null
+          send_delay_ms?: number
+          transactional_email_ttl_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       lessons: {
         Row: {
           grade: string
@@ -176,6 +341,7 @@ export type Database = {
           title: string
           topic: string
           url: string
+          visibility: string
         }
         Insert: {
           grade?: string
@@ -184,6 +350,7 @@ export type Database = {
           title?: string
           topic?: string
           url?: string
+          visibility?: string
         }
         Update: {
           grade?: string
@@ -192,6 +359,7 @@ export type Database = {
           title?: string
           topic?: string
           url?: string
+          visibility?: string
         }
         Relationships: []
       }
@@ -200,7 +368,9 @@ export type Database = {
           difficulty: string | null
           grade: string | null
           id: number
+          next_review_at: string | null
           question_id: string
+          review_count: number
           rule_insight: string
           status: string
           subject: string | null
@@ -213,7 +383,9 @@ export type Database = {
           difficulty?: string | null
           grade?: string | null
           id?: number
+          next_review_at?: string | null
           question_id: string
+          review_count?: number
           rule_insight?: string
           status?: string
           subject?: string | null
@@ -226,7 +398,9 @@ export type Database = {
           difficulty?: string | null
           grade?: string | null
           id?: number
+          next_review_at?: string | null
           question_id?: string
+          review_count?: number
           rule_insight?: string
           status?: string
           subject?: string | null
@@ -307,6 +481,8 @@ export type Database = {
           explanation: string
           grade: string
           id: string
+          image_alt: string | null
+          image_url: string | null
           options: Json
           statement: string
           status: string
@@ -321,6 +497,8 @@ export type Database = {
           explanation?: string
           grade?: string
           id: string
+          image_alt?: string | null
+          image_url?: string | null
           options?: Json
           statement?: string
           status?: string
@@ -335,6 +513,8 @@ export type Database = {
           explanation?: string
           grade?: string
           id?: string
+          image_alt?: string | null
+          image_url?: string | null
           options?: Json
           statement?: string
           status?: string
@@ -453,6 +633,51 @@ export type Database = {
         }
         Relationships: []
       }
+      suppressed_emails: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          metadata: Json | null
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          metadata?: Json | null
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string
+        }
+        Relationships: []
+      }
+      topic_prerequisites: {
+        Row: {
+          created_at: string
+          id: number
+          prerequisite_topic_id: string
+          topic_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          prerequisite_topic_id: string
+          topic_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          prerequisite_topic_id?: string
+          topic_id?: string
+        }
+        Relationships: []
+      }
       topics: {
         Row: {
           grade: string
@@ -510,6 +735,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sessions: {
+        Row: {
+          duration_seconds: number | null
+          end_time: string | null
+          id: string
+          last_activity: string
+          start_time: string
+          user_id: string
+        }
+        Insert: {
+          duration_seconds?: number | null
+          end_time?: string | null
+          id?: string
+          last_activity?: string
+          start_time?: string
+          user_id: string
+        }
+        Update: {
+          duration_seconds?: number | null
+          end_time?: string | null
+          id?: string
+          last_activity?: string
+          start_time?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_subject_access: {
         Row: {
           id: number
@@ -533,7 +785,52 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      delete_email: {
+        Args: { message_id: number; queue_name: string }
+        Returns: boolean
+      }
+      enqueue_email: {
+        Args: { payload: Json; queue_name: string }
+        Returns: number
+      }
+      get_ranking: {
+        Args: never
+        Returns: {
+          correct: number
+          rate: number
+          streak: number
+          total: number
+          user_id: string
+          username: string
+        }[]
+      }
+      get_student_stats: {
+        Args: { p_user_id: string }
+        Returns: {
+          accuracy_rate: number
+          last_attempt_date: string
+          streak: number
+          total_answered: number
+          total_correct: number
+        }[]
+      }
+      move_to_dlq: {
+        Args: {
+          dlq_name: string
+          message_id: number
+          payload: Json
+          source_queue: string
+        }
+        Returns: number
+      }
+      read_email_batch: {
+        Args: { batch_size: number; queue_name: string; vt: number }
+        Returns: {
+          message: Json
+          msg_id: number
+          read_ct: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

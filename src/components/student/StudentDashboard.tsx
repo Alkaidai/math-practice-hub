@@ -1,15 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs } from '../../lib/storage';
-import { subjectLabel, formatDate } from '../../lib/ui-utils';
-import { Progress } from '../ui/progress';
+import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs, getDailyStudyStats, getAverageTimePerQuestion } from '../../lib/storage';
+import { subjectLabel, difficultyLabel, formatDate } from '../../lib/ui-utils';
 import { DiagnosticReport } from './DiagnosticReport';
 import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
+import { DailyMissions } from './DailyMissions';
 import { StudyTrail } from './StudyTrail';
+import { LoadingTimeout } from './LoadingTimeout';
+import { DiagnosticAssessment } from './DiagnosticAssessment';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { getRecommendedDifficulty, getRecommendedTopic } from '../../lib/adaptive';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
-import { Target, TrendingUp, Flame, AlertCircle } from 'lucide-react';
+import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer, Play } from 'lucide-react';
 
 interface WeakTopic {
   topicId: string;
@@ -30,7 +35,17 @@ interface DashboardData {
   weakTopics: WeakTopic[];
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
-  nextTopic: { topicId: string; topicName: string; count: number } | null;
+  allQuestions: Question[];
+  allTopics: { id: string; name: string; subject: string; grade: string; status: string }[];
+  allAttempts: Attempt[];
+  diagnosticResult: any | null;
+  diagnosticAccuracy: number;
+  nextTopic: { topicId: string; topicName: string; count: number; recommendedDifficulty: string } | null;
+  hasDiagnostic: boolean;
+  recommendedDifficulty: string;
+  studyTodaySeconds: number;
+  questionsToday: number;
+  avgTimePerQuestion: number;
 }
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
@@ -47,19 +62,29 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
+function formatStudyTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const remainMins = mins % 60;
+  return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
+}
+
 export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic }: {
   onNavigateQuestions: () => void;
   onRefazer: (questionId: string) => void;
-  onStartTopic: (topicId: string) => void;
+  onStartTopic: (topicId: string, difficulty?: string) => void;
 }) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
   const [data, setData] = useState<DashboardData | null>(null);
+  const { loading, error, execute } = useLoadWithTimeout();
+  const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
+  const load = useCallback(async () => {
+    await execute(async () => {
+      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs, dailyStats, avgTime] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
         getStudentDashboardMeta(userId),
@@ -67,9 +92,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         getTopics({ activeOnly: true }),
         getDiagnosticResult(userId),
         getAllowedSubjectSlugs(userId),
+        getDailyStudyStats(userId),
+        getAverageTimePerQuestion(userId),
       ]);
-
-      if (cancelled) return;
 
       const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
       const filteredQuestions = allQuestions.filter(q => allowedSlugs.includes(q.subject));
@@ -104,25 +129,79 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
         .slice(0, 5);
 
+      // Build question map for adaptive logic
+      const qMap = new Map(filteredQuestions.map(q => [q.id, { topicId: q.topicId, difficulty: q.difficulty, status: q.status }]));
+
+      // Compute adaptive recommendation
+      const recommended = getRecommendedTopic(attempts, qMap, topicMap);
       let nextTopic: DashboardData['nextTopic'] = null;
-      if (weakTopics.length > 0) {
+      if (recommended) {
+        const recDiff = getRecommendedDifficulty(attempts, recommended.topicId, qMap);
+        nextTopic = { topicId: recommended.topicId, topicName: recommended.topicName, count: recommended.availableQuestions, recommendedDifficulty: recDiff };
+      } else if (weakTopics.length > 0) {
         const top = weakTopics[0];
         const availableQ = filteredQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
-        nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ };
+        const recDiff = getRecommendedDifficulty(attempts, top.topicId, qMap);
+        nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ, recommendedDifficulty: recDiff };
       }
 
-      setData({ answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic });
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [userId]);
+      const globalDifficulty = getRecommendedDifficulty(attempts, undefined, qMap);
 
-  if (!data) return <p className="text-muted-foreground">Carregando...</p>;
+      const diagAccuracy = diag ? ((diag as any).accuracy_rate ?? (diag as any).accuracyRate ?? 0) : 0;
+
+      setData({
+        answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions,
+        allQuestions: filteredQuestions, allTopics: filteredTopics, allAttempts: attempts,
+        diagnosticResult: diag, diagnosticAccuracy: diagAccuracy,
+        nextTopic, hasDiagnostic: !!diag,
+        studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
+        questionsToday: dailyStats?.questionsAnswered ?? 0,
+        avgTimePerQuestion: avgTime,
+        recommendedDifficulty: globalDifficulty,
+      });
+    });
+  }, [userId, execute]);
+
+  useEffect(() => { load(); }, [load]);
+  useVisibilityRefresh(load);
+
+  if (error) return <LoadingTimeout error={error} onRetry={load} />;
+  if (loading || !data) return <p className="text-muted-foreground">Carregando painel...</p>;
+
+  // Show diagnostic assessment inline
+  if (showDiagnosticNow) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <DiagnosticAssessment onComplete={() => { setShowDiagnosticNow(false); load(); }} />
+      </div>
+    );
+  }
 
   const hasData = data.answered > 0;
 
   return (
     <div className="space-y-6">
+      {/* Diagnostic CTA - only if not done yet */}
+      {!data.hasDiagnostic && (
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Stethoscope className="h-5 w-5 text-primary" />
+              Diagnóstico Inicial
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Descubra seus pontos fortes e fracos em matemática para um plano de estudo personalizado.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowDiagnosticNow(true)}
+            className="shrink-0 rounded-lg bg-primary text-primary-foreground font-semibold text-sm px-5 py-2.5 hover:brightness-110 transition-all"
+          >
+            Iniciar diagnóstico
+          </button>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Target} label="Respondidas" value={String(data.answered)} color="bg-primary" />
@@ -131,45 +210,71 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         <StatCard icon={AlertCircle} label="Pendências" value={String(data.pendingCount)} color="bg-destructive" />
       </div>
 
-      {/* Next Step */}
+      {/* Today's Study Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(data.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
+        <StatCard icon={BookOpen} label="Questões hoje" value={String(data.questionsToday)} color="bg-[hsl(var(--accent))]" />
+        <StatCard icon={Timer} label="Tempo médio/questão" value={data.avgTimePerQuestion > 0 ? `${data.avgTimePerQuestion}s` : '—'} color="bg-[hsl(var(--muted-foreground))]" />
+        <StatCard icon={Flame} label="Dias estudando" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
+      </div>
+
+      {/* CONTINUAR TREINO - Primary CTA */}
       {data.nextTopic && (
-        <div className="bg-card rounded-xl shadow-sm border-l-4 border-l-gold p-5">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Seu próximo passo</p>
-          <p className="text-base font-bold text-foreground">
-            Treinar {data.nextTopic.topicName}
-          </p>
-          <p className="text-xs text-muted-foreground mb-3">
-            {data.nextTopic.count} exercícios disponíveis
-          </p>
-          <button
-            onClick={() => onStartTopic(data.nextTopic!.topicId)}
-            className="rounded-lg bg-gold text-gold-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all"
-          >
-            Treinar agora →
-          </button>
+        <div className="bg-gradient-to-r from-primary/10 to-gold/10 border border-primary/20 rounded-xl p-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">Próximo passo recomendado</p>
+              <p className="text-lg font-bold text-foreground">{data.nextTopic.topicName}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {data.nextTopic.count} exercícios · Nível: <span className="font-semibold capitalize">{difficultyLabel(data.nextTopic.recommendedDifficulty)}</span>
+              </p>
+            </div>
+            <button
+              onClick={() => onStartTopic(data.nextTopic!.topicId, data.nextTopic!.recommendedDifficulty)}
+              className="flex items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md"
+            >
+              <Play className="h-5 w-5" />
+              CONTINUAR TREINO
+            </button>
+          </div>
         </div>
       )}
 
       {!hasData && !data.nextTopic && (
         <div className="bg-card rounded-xl shadow-sm p-6 text-center">
           <p className="text-muted-foreground mb-3">Comece respondendo questões para ver seu progresso!</p>
-          <button onClick={onNavigateQuestions} className="rounded-lg bg-primary text-primary-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all">
-            Ir para questões
+          <button onClick={onNavigateQuestions} className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md">
+            <Play className="h-5 w-5" />
+            COMEÇAR A TREINAR
           </button>
         </div>
       )}
 
       {/* Study Trail */}
-      <StudyTrail />
+      <StudyTrail
+        hasDiagnostic={data.hasDiagnostic}
+        diagnosticAccuracy={data.diagnosticAccuracy}
+        attempts={data.allAttempts}
+        pendingNotebookCount={data.pendingCount}
+      />
 
-      {/* Diagnostic Report */}
-      <DiagnosticReport />
+      {/* Daily Missions */}
+      <DailyMissions />
+
+      {/* Diagnostic Report - only if completed */}
+      {data.hasDiagnostic && <DiagnosticReport diagnosticResult={data.diagnosticResult} attempts={data.allAttempts} />}
 
       {/* Study Plan */}
-      <StudyPlan onStartTopic={onStartTopic} />
+      <StudyPlan
+        attempts={data.allAttempts}
+        questions={data.allQuestions}
+        topics={data.allTopics as any}
+        diagnosticResult={data.diagnosticResult}
+        onStartTopic={onStartTopic}
+      />
 
       {/* Evolution Chart */}
-      <EvolutionChart />
+      <EvolutionChart attempts={data.allAttempts} />
 
       {hasData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -205,9 +310,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
                       </p>
                       <p className="text-xs text-muted-foreground">Erro {t.errorRate}% ({t.errors}/{t.total})</p>
                     </div>
-                    <button onClick={() => onStartTopic(t.topicId)} className="text-xs text-primary font-medium hover:underline ml-2">
-                      Treinar
-                    </button>
+                    <button onClick={() => onStartTopic(t.topicId)} className="text-xs text-primary font-medium hover:underline ml-2">Treinar</button>
                   </div>
                 ))}
               </div>
@@ -243,7 +346,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       )}
 
       {/* Achievements */}
-      <Achievements />
+      <Achievements attempts={data.allAttempts} streak={data.meta.streak} />
     </div>
   );
 }

@@ -75,6 +75,8 @@ export interface Question {
   createdAt: string;
   updatedAt: string;
   comments: Comment[];
+  imageUrl?: string | null;
+  imageAlt?: string | null;
 }
 
 export interface Topic {
@@ -86,6 +88,8 @@ export interface Topic {
   status: TopicStatus;
 }
 
+export type LessonVisibility = 'visible' | 'coming_soon';
+
 export interface Lesson {
   id: string;
   title: string;
@@ -93,6 +97,7 @@ export interface Lesson {
   topic: string;
   subject: string;
   grade: string;
+  visibility: LessonVisibility;
 }
 
 export interface Attempt {
@@ -115,6 +120,8 @@ export interface NotebookItem {
   whatIErred: string;
   ruleInsight: string;
   updatedAt: string;
+  nextReviewAt: string | null;
+  reviewCount: number;
 }
 
 export interface Report {

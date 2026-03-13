@@ -1,7 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
-import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess } from '../../lib/storage';
+import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess, toggleLessonVisibility } from '../../lib/storage';
+import { AdminAnalytics } from './AdminAnalytics';
+import { StudentSelector, useStudentList } from './StudentSelector';
+import { AdminPrerequisites } from './AdminPrerequisites';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem, SubjectItem } from '../../lib/types';
@@ -15,10 +18,42 @@ import {
 import {
   LayoutDashboard, FileText, BookOpen, GraduationCap, Folder, Upload, Download,
   Trophy, BarChart3, Users, MessageSquare, Notebook, AlertTriangle, Settings,
-  ArrowLeft, LogOut,
+  ArrowLeft, LogOut, ImageIcon, X, Trash2, Activity, Link2,
 } from 'lucide-react';
 
-type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
+type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'analytics' | 'prerequisites' | 'settings';
+
+// Reusable paginated table component for admin lists
+function AdminPaginatedTable<T>({ items, perPage, renderHeader, renderRow }: {
+  items: T[];
+  perPage: number;
+  renderHeader: () => React.ReactNode;
+  renderRow: (item: T, index: number) => React.ReactNode;
+}) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(items.length / perPage));
+  const paged = items.slice(page * perPage, (page + 1) * perPage);
+
+  useEffect(() => { setPage(0); }, [items.length]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">{items.length} item(ns) · Página {page + 1} de {totalPages}</p>
+        <div className="flex gap-1">
+          <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="text-xs px-3 py-1 border border-border rounded disabled:opacity-40">← Anterior</button>
+          <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="text-xs px-3 py-1 border border-border rounded disabled:opacity-40">Próxima →</button>
+        </div>
+      </div>
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead className="sticky top-0 bg-muted z-10">{renderHeader()}</thead>
+          <tbody>{paged.map((item, i) => renderRow(item, page * perPage + i))}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 const ADMIN_NAV = [
   { id: 'dashboard' as Panel, label: 'Painel', icon: LayoutDashboard, group: null },
@@ -26,10 +61,12 @@ const ADMIN_NAV = [
   { id: 'subjects' as Panel, label: 'Disciplinas', icon: BookOpen, group: 'Conteúdo' },
   { id: 'lessons' as Panel, label: 'Aulas', icon: GraduationCap, group: 'Conteúdo' },
   { id: 'cadastros' as Panel, label: 'Tópicos', icon: Folder, group: 'Conteúdo' },
+  { id: 'prerequisites' as Panel, label: 'Pré-requisitos', icon: Link2, group: 'Conteúdo' },
   { id: 'import' as Panel, label: 'Importar', icon: Upload, group: 'Conteúdo' },
   { id: 'export' as Panel, label: 'Exportar', icon: Download, group: 'Conteúdo' },
   { id: 'ranking' as Panel, label: 'Ranking', icon: Trophy, group: 'Análise' },
   { id: 'topic-stats' as Panel, label: 'Estatísticas', icon: BarChart3, group: 'Análise' },
+  { id: 'analytics' as Panel, label: 'Engajamento', icon: Activity, group: 'Análise' },
   { id: 'users' as Panel, label: 'Usuários', icon: Users, group: 'Pessoas' },
   { id: 'comments' as Panel, label: 'Comentários', icon: MessageSquare, group: 'Pessoas' },
   { id: 'notebook' as Panel, label: 'Caderno', icon: Notebook, group: 'Pessoas' },
@@ -155,6 +192,8 @@ export function AdminApp() {
             {panel === 'export' && <AdminExport />}
             {panel === 'ranking' && <AdminRanking key={refreshKey} />}
             {panel === 'topic-stats' && <AdminTopicStats key={refreshKey} />}
+            {panel === 'analytics' && <AdminAnalytics key={refreshKey} />}
+            {panel === 'prerequisites' && <AdminPrerequisites key={refreshKey} />}
             {panel === 'settings' && <AdminSettings key={refreshKey} />}
           </main>
         </div>
@@ -240,6 +279,8 @@ function AdminRanking() {
   const [ranking, setRanking] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [diagnostics, setDiagnostics] = useState<any[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const students = useStudentList();
 
   useEffect(() => {
     Promise.all([getRanking(), getAllDiagnosticResults()]).then(([r, d]) => {
@@ -251,12 +292,18 @@ function AdminRanking() {
 
   if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
+  const filteredRanking = selectedStudent ? ranking.filter(r => r.username === selectedStudent) : ranking;
+  const filteredDiagnostics = selectedStudent ? diagnostics.filter((d: any) => d.user_id === selectedStudent) : diagnostics;
+
   return (
     <div className="space-y-4">
-      <h2 className="font-heading text-sm font-bold uppercase">🏆 Ranking de Alunos</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="font-heading text-sm font-bold uppercase">🏆 Ranking de Alunos</h2>
+        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
+      </div>
 
-      {ranking.length === 0 ? (
-        <p className="font-body text-sm text-muted-foreground">Nenhum dado de ranking ainda.</p>
+      {filteredRanking.length === 0 ? (
+        <p className="font-body text-sm text-muted-foreground">Nenhum dado de ranking {selectedStudent ? 'para este aluno' : 'ainda'}.</p>
       ) : (
         <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
           <table className="w-full text-sm border-collapse">
@@ -268,24 +315,27 @@ function AdminRanking() {
               </tr>
             </thead>
             <tbody>
-              {ranking.map((r, i) => (
-                <tr key={r.userId} className="hover:bg-muted/50">
-                  <td className="p-2 border border-border font-heading text-xs font-bold">
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
-                  </td>
-                  <td className="p-2 border border-border font-heading text-xs font-bold">{r.username}</td>
-                  <td className="p-2 border border-border font-heading text-xs">{r.total}</td>
-                  <td className="p-2 border border-border font-heading text-xs">{r.correct}</td>
-                  <td className="p-2 border border-border font-heading text-xs">{r.rate}%</td>
-                  <td className="p-2 border border-border font-heading text-xs">{r.streak} dia{r.streak === 1 ? '' : 's'}</td>
-                </tr>
-              ))}
+              {filteredRanking.map((r, i) => {
+                const globalIndex = ranking.indexOf(r);
+                return (
+                  <tr key={r.userId} className="hover:bg-muted/50">
+                    <td className="p-2 border border-border font-heading text-xs font-bold">
+                      {globalIndex === 0 ? '🥇' : globalIndex === 1 ? '🥈' : globalIndex === 2 ? '🥉' : globalIndex + 1}
+                    </td>
+                    <td className="p-2 border border-border font-heading text-xs font-bold">{r.username}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{r.total}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{r.correct}</td>
+                    <td className="p-2 border border-border font-heading text-xs">{r.rate}%</td>
+                    <td className="p-2 border border-border font-heading text-xs">{r.streak} dia{r.streak === 1 ? '' : 's'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {diagnostics.length > 0 && (
+      {filteredDiagnostics.length > 0 && (
         <div>
           <h3 className="font-heading text-sm font-bold uppercase mt-4 mb-2">📊 Diagnósticos Realizados</h3>
           <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
@@ -298,7 +348,7 @@ function AdminRanking() {
                 </tr>
               </thead>
               <tbody>
-                {diagnostics.map((d: any) => (
+                {filteredDiagnostics.map((d: any) => (
                   <tr key={d.id} className="hover:bg-muted/50">
                     <td className="p-2 border border-border font-heading text-xs font-bold">{d.user_id}</td>
                     <td className="p-2 border border-border font-heading text-xs">{formatDate(d.completed_at)}</td>
@@ -322,6 +372,8 @@ function AdminRanking() {
 
 function AdminTopicStats() {
   const [data, setData] = useState<{ topics: Topic[]; attempts: Attempt[]; questions: Question[] } | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const students = useStudentList();
 
   useEffect(() => {
     Promise.all([getTopics(), getAttempts(), loadQuestionBank()]).then(([topics, attempts, questions]) => {
@@ -331,7 +383,8 @@ function AdminTopicStats() {
 
   if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
-  const { topics, attempts, questions } = data;
+  const { topics, questions } = data;
+  const attempts = selectedStudent ? data.attempts.filter(a => a.userId === selectedStudent) : data.attempts;
   const questionMap = new Map(questions.map(q => [q.id, q]));
 
   const stats = new Map<string, { total: number; correct: number; errors: number }>();
@@ -358,7 +411,10 @@ function AdminTopicStats() {
 
   return (
     <div className="space-y-4">
-      <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
+        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
+      </div>
 
       {topicStats.length === 0 ? (
         <p className="font-body text-sm text-muted-foreground">Nenhum tópico encontrado.</p>
@@ -654,10 +710,13 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
   const [form, setForm] = useState({
     grade: '7EF', subject: '', difficulty: 'easy', topicId: '', status: 'published',
     statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '',
+    imageUrl: '' as string | null, imageAlt: '',
   });
   const [feedback, setFeedback] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
     const [t, q, s] = await Promise.all([getTopics({ activeOnly: true }), loadQuestionBank(), getSubjects({ activeOnly: true })]);
@@ -672,8 +731,32 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
 
   const resetForm = () => {
     setEditingId(null);
-    setForm({ grade: '7EF', subject: 'math', difficulty: 'easy', topicId: topics[0]?.id ?? '', status: 'published', statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '' });
+    setForm({ grade: '7EF', subject: 'math', difficulty: 'easy', topicId: topics[0]?.id ?? '', status: 'published', statement: '', options: ['', '', '', '', ''], correctLetter: '', explanation: '', imageUrl: null, imageAlt: '' });
     setFeedback('');
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() ?? 'png';
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from('question-images').upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('question-images').getPublicUrl(path);
+      setForm(f => ({ ...f, imageUrl: urlData.publicUrl }));
+      setFeedback('Imagem carregada.');
+    } catch (err: any) {
+      setFeedback(`❌ Erro no upload: ${err.message}`);
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveImage = async () => {
+    setForm(f => ({ ...f, imageUrl: null, imageAlt: '' }));
+    setFeedback('Imagem removida.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -688,6 +771,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
       grade: form.grade, subject: form.subject, difficulty: form.difficulty, topicId: form.topicId,
       statement: form.statement, options: form.options, correctIndex,
       explanation: form.explanation, status: form.status,
+      imageUrl: form.imageUrl || null, imageAlt: form.imageAlt || null,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: [],
     };
 
@@ -713,6 +797,7 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
       options: [...q.options, '', '', '', '', ''].slice(0, 5),
       correctLetter: ['A','B','C','D','E'][q.correctIndex] ?? '',
       explanation: q.explanation,
+      imageUrl: q.imageUrl ?? null, imageAlt: q.imageAlt ?? '',
     });
   };
 
@@ -821,51 +906,75 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
           </select>
           <textarea value={form.explanation} onChange={e => setForm(f => ({ ...f, explanation: e.target.value }))} placeholder="Explicação" className="flex-1 border border-border bg-background p-2 font-body text-sm min-h-[40px]" required />
         </div>
+        {/* Image upload */}
+        <div className="border border-dashed border-border rounded-lg p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="font-heading text-xs font-bold">Imagem da questão (opcional)</span>
+          </div>
+          {form.imageUrl ? (
+            <div className="flex items-start gap-3">
+              <img src={form.imageUrl} alt={form.imageAlt || 'Preview'} className="max-h-32 rounded-lg border border-border object-contain" />
+              <div className="flex-1 space-y-1">
+                <input value={form.imageAlt} onChange={e => setForm(f => ({ ...f, imageAlt: e.target.value }))} placeholder="Texto alternativo (acessibilidade)" className="w-full border border-border bg-background px-2 py-1 font-body text-xs" />
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Substituir</button>
+                  <button type="button" onClick={handleRemoveImage} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5 flex items-center gap-1"><Trash2 className="h-3 w-3" />Remover</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="font-heading text-xs border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50">
+              {uploading ? 'Carregando...' : '+ Adicionar imagem'}
+            </button>
+          )}
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+        </div>
         <button type="submit" className="font-heading text-xs bg-primary text-primary-foreground px-4 py-1.5 border border-primary">Salvar questão</button>
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
 
-      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-0 bg-muted z-10">
-            <tr>
-              <th className="p-2 border border-border w-8">
-                <Checkbox
-                  checked={selectedIds.size === questions.length && questions.length > 0}
-                  onCheckedChange={toggleSelectAll}
-                />
-              </th>
-              {['Série','Disciplina','Dificuldade','Tópico','Enunciado','Status','Ações'].map(h => (
-                <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {questions.map(q => (
-              <tr key={q.id} className={`hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-primary/5' : ''}`}>
-                <td className="p-2 border border-border">
-                  <Checkbox
-                    checked={selectedIds.has(q.id)}
-                    onCheckedChange={() => toggleSelect(q.id)}
-                  />
-                </td>
-                <td className="p-2 border border-border font-heading text-xs">{q.grade}</td>
-                <td className="p-2 border border-border font-heading text-xs">{subjectLabel(q.subject)}</td>
-                <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
-                <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
-                <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
-                <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
-                <td className="p-2 border border-border">
-                  <div className="flex gap-1">
-                    <button onClick={() => handleEdit(q)} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Editar</button>
-                    <button onClick={() => handleDelete(q.id)} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
-                  </div>
-                </td>
-              </tr>
+      {/* Pagination for admin questions */}
+      <AdminPaginatedTable
+        items={questions}
+        perPage={30}
+        renderHeader={() => (
+          <tr>
+            <th className="p-2 border border-border w-8">
+              <Checkbox
+                checked={selectedIds.size === questions.length && questions.length > 0}
+                onCheckedChange={toggleSelectAll}
+              />
+            </th>
+            {['Série','Disciplina','Dificuldade','Tópico','Enunciado','🖼️','Status','Ações'].map(h => (
+              <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        )}
+        renderRow={(q: Question) => (
+          <tr key={q.id} className={`hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-primary/5' : ''}`}>
+            <td className="p-2 border border-border">
+              <Checkbox
+                checked={selectedIds.has(q.id)}
+                onCheckedChange={() => toggleSelect(q.id)}
+              />
+            </td>
+            <td className="p-2 border border-border font-heading text-xs">{q.grade}</td>
+            <td className="p-2 border border-border font-heading text-xs">{subjectLabel(q.subject)}</td>
+            <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
+            <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
+            <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
+            <td className="p-2 border border-border font-heading text-xs text-center">{q.imageUrl ? '🖼️' : '—'}</td>
+            <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
+            <td className="p-2 border border-border">
+              <div className="flex gap-1">
+                <button onClick={() => handleEdit(q)} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Editar</button>
+                <button onClick={() => handleDelete(q.id)} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
+              </div>
+            </td>
+          </tr>
+        )}
+      />
     </div>
   );
 }
@@ -904,12 +1013,18 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
     onRefresh();
   };
 
+  const handleToggleVisibility = async (lessonId: string) => {
+    await toggleLessonVisibility(lessonId);
+    await loadData();
+    onRefresh();
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-sm font-bold uppercase">Aulas</h2>
       <form onSubmit={handleSubmit} className="border border-border bg-card p-3 space-y-2">
         <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Título da aula" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
-        <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Link da aula" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
+        <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Link do vídeo (ex: YouTube)" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
         <div className="grid grid-cols-3 gap-2">
           <select value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
             {Object.entries(SUBJECTS_MAP).map(([c, l]) => <option key={c} value={c}>{l}</option>)}
@@ -925,27 +1040,43 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
 
-      <table className="w-full text-sm border-collapse">
-        <thead><tr className="bg-muted">
-          {['Título','Disciplina','Série','Tópico','Ações'].map(h => <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>)}
-        </tr></thead>
-        <tbody>
-          {lessons.map(l => (
-            <tr key={l.id}>
-              <td className="p-2 border border-border font-body text-xs">{l.title}</td>
-              <td className="p-2 border border-border font-heading text-xs">{subjectLabel(l.subject)}</td>
-              <td className="p-2 border border-border font-heading text-xs">{l.grade}</td>
-              <td className="p-2 border border-border font-heading text-xs">{topics.find(t => t.id === l.topic)?.name ?? l.topic}</td>
-              <td className="p-2 border border-border">
-                <div className="flex gap-1">
-                  <button onClick={() => { setEditingId(l.id); setForm({ title: l.title, url: l.url, subject: l.subject, grade: l.grade, topic: l.topic }); }} className="font-heading text-[10px] border border-border px-2 py-0.5">Editar</button>
-                  <button onClick={async () => { await deleteLesson(l.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <AdminPaginatedTable
+        items={lessons}
+        perPage={20}
+        renderHeader={() => (
+          <tr className="bg-muted">
+            {['Título', 'Disciplina', 'Série', 'Tópico', 'Status', 'Ações'].map(h => (
+              <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+            ))}
+          </tr>
+        )}
+        renderRow={(l) => (
+          <tr key={l.id}>
+            <td className="p-2 border border-border font-body text-xs">{l.title}</td>
+            <td className="p-2 border border-border font-heading text-xs">{subjectLabel(l.subject)}</td>
+            <td className="p-2 border border-border font-heading text-xs">{l.grade}</td>
+            <td className="p-2 border border-border font-heading text-xs">{topics.find(t => t.id === l.topic)?.name ?? l.topic}</td>
+            <td className="p-2 border border-border">
+              <button
+                onClick={() => handleToggleVisibility(l.id)}
+                className={`font-heading text-[10px] px-2 py-0.5 rounded ${
+                  l.visibility === 'visible'
+                    ? 'bg-primary/10 text-primary border border-primary/30'
+                    : 'bg-muted text-muted-foreground border border-border'
+                }`}
+              >
+                {l.visibility === 'visible' ? '✓ Visível' : '⏳ Em Breve'}
+              </button>
+            </td>
+            <td className="p-2 border border-border">
+              <div className="flex gap-1">
+                <button onClick={() => { setEditingId(l.id); setForm({ title: l.title, url: l.url, subject: l.subject, grade: l.grade, topic: l.topic }); }} className="font-heading text-[10px] border border-border px-2 py-0.5">Editar</button>
+                <button onClick={async () => { await deleteLesson(l.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
+              </div>
+            </td>
+          </tr>
+        )}
+      />
     </div>
   );
 }
@@ -1783,7 +1914,7 @@ function AdminExport() {
       const [questions, topics] = await Promise.all([loadQuestionBank(), getTopics({})]);
       const topicMap = new Map(topics.map(t => [t.id, t.name]));
 
-      const headers = ['pergunta', 'a', 'b', 'c', 'd', 'e', 'correta', 'topico', 'explicacao', 'serie', 'disciplina', 'dificuldade', 'status'];
+      const headers = ['pergunta', 'a', 'b', 'c', 'd', 'e', 'correta', 'topico', 'explicacao', 'serie', 'disciplina', 'dificuldade', 'status', 'image_url', 'image_alt'];
       const escapeCSV = (val: string) => {
         if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`;
         return val;
@@ -1802,6 +1933,8 @@ function AdminExport() {
           subjectLabel(q.subject),
           difficultyLabel(q.difficulty),
           statusLabel(q.status),
+          escapeCSV(q.imageUrl ?? ''),
+          escapeCSV(q.imageAlt ?? ''),
         ].join(',');
       });
 
@@ -1914,6 +2047,8 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         serie: header.findIndex(h => ['série', 'serie', 'grade', 'ano'].includes(h)),
         disciplina: header.findIndex(h => ['disciplina', 'matéria', 'materia', 'subject'].includes(h)),
         dificuldade: header.findIndex(h => ['dificuldade', 'difficulty', 'nivel', 'nível'].includes(h)),
+        imageUrl: header.findIndex(h => ['image_url', 'imagem', 'imagem_url', 'url_imagem'].includes(h)),
+        imageAlt: header.findIndex(h => ['image_alt', 'alt_imagem', 'texto_alternativo', 'imagem_alt'].includes(h)),
       };
 
       if (colMap.pergunta === -1) {
@@ -1941,6 +2076,10 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         const diffRaw = get(colMap.dificuldade);
         const difficulty = DIFFICULTIES_REVERSE[diffRaw] ?? (Object.keys(DIFFICULTIES_MAP).includes(diffRaw) ? diffRaw : defaultDifficulty);
 
+        const imageUrl = get(colMap.imageUrl) || null;
+        const imageAlt = get(colMap.imageAlt) || null;
+        const imageValid = !imageUrl || /^https?:\/\/.+/i.test(imageUrl);
+
         return {
           statement: get(colMap.pergunta),
           options: [get(colMap.altA), get(colMap.altB), get(colMap.altC), get(colMap.altD), get(colMap.altE)],
@@ -1952,7 +2091,10 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
           grade,
           subject,
           difficulty,
-          valid: !!get(colMap.pergunta) && correctIndex >= 0,
+          imageUrl,
+          imageAlt,
+          imageValid,
+          valid: !!get(colMap.pergunta) && correctIndex >= 0 && imageValid,
         };
       });
 
@@ -1984,6 +2126,8 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         comments: [],
+        imageUrl: p.imageUrl ?? null,
+        imageAlt: p.imageAlt ?? null,
       }));
 
       await saveQuestionsBulk(questions);
@@ -1998,7 +2142,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
     }
   };
 
-  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação\n"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4"\n"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3"`;
+  const sampleCSV = `pergunta,a,b,c,d,e,correta,tópico,explicação,image_url,image_alt\n"Quanto é 2+2?","3","4","5","6","7","B","Aritmética","2+2=4","",""\n"Qual a raiz de 9?","2","3","4","5","6","B","Raízes","√9=3","https://exemplo.com/raiz.png","Diagrama de raiz quadrada"`;
 
   return (
     <div className="space-y-4">
@@ -2009,7 +2153,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
           <h3 className="font-heading text-xs font-bold mb-1">Formato esperado do CSV</h3>
           <p className="font-body text-xs text-muted-foreground mb-2">
             Colunas obrigatórias: <strong>pergunta, a, b, c, d, e, correta</strong>.
-            Opcionais: <strong>tópico, explicação, série, disciplina, dificuldade</strong>.
+            Opcionais: <strong>tópico, explicação, série, disciplina, dificuldade, image_url, image_alt</strong>.
           </p>
           <details className="text-xs">
             <summary className="font-heading cursor-pointer text-primary">Ver exemplo de CSV</summary>
@@ -2061,7 +2205,7 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-muted sticky top-0">
-                  {['#', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dific.', 'Status'].map(h => (
+                  {['#', 'Pergunta', 'Correta', 'Tópico', 'Série', 'Disciplina', 'Dific.', '🖼️', 'Status'].map(h => (
                     <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
                   ))}
                 </tr>
@@ -2076,6 +2220,9 @@ function AdminImport({ onRefresh }: { onRefresh: () => void }) {
                     <td className="p-2 border border-border font-heading text-xs">{p.grade}</td>
                     <td className="p-2 border border-border font-heading text-xs">{subjectLabel(p.subject)}</td>
                     <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(p.difficulty)}</td>
+                    <td className="p-2 border border-border font-heading text-xs text-center" title={p.imageUrl || ''}>
+                      {p.imageUrl ? (p.imageValid !== false ? '🖼️' : '⚠️') : '—'}
+                    </td>
                     <td className="p-2 border border-border font-heading text-xs">{p.valid ? '✅' : '❌'}</td>
                   </tr>
                 ))}

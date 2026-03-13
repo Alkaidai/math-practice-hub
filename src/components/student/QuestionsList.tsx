@@ -3,19 +3,43 @@ import { useAuth } from '../../contexts/AuthContext';
 import { loadQuestionBank, getTopics, getNotebook, addAttempt, upsertNotebookItem, addComment, addReport, getAttempts, saveStudentDashboardMeta, getLessons, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, optionLetter, formatDate, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson } from '../../lib/types';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { LoadingTimeout } from './LoadingTimeout';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useQuestionTimer } from '../../hooks/useQuestionTimer';
+import { detectCognitiveBlock, getTopicPrerequisites, buildPrerequisiteMap } from '../../lib/adaptive';
+import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson, Attempt } from '../../lib/types';
+import { CheckCircle2, XCircle, AlertTriangle, BookOpen } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AnswerState {
   selectedIndex: number;
   isCorrect: boolean;
 }
 
-export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQuestionId?: string | null; initialTopicId?: string | null }) {
+// Shuffle options and return new options array + mapping
+function shuffleOptions(options: string[], correctIndex: number): { shuffled: string[]; newCorrectIndex: number; indexMap: number[] } {
+  const indices = options.map((_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const shuffled = indices.map(i => options[i]);
+  const newCorrectIndex = indices.indexOf(correctIndex);
+  return { shuffled, newCorrectIndex, indexMap: indices };
+}
+
+export function QuestionsList({ initialQuestionId, initialTopicId, initialDifficulty, onQuestionAnswered }: {
+  initialQuestionId?: string | null;
+  initialTopicId?: string | null;
+  initialDifficulty?: string | null;
+  onQuestionAnswered?: () => void;
+}) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
+  const { startQuestion, stopQuestion, getAbandonedQuestions, clearAll } = useQuestionTimer();
 
-  const [filters, setFilters] = useState<QuestionFilters>({ grade: '', subject: '', difficulty: '', topicId: initialTopicId ?? '', search: '' });
+  const [filters, setFilters] = useState<QuestionFilters>({ grade: '', subject: '', difficulty: initialDifficulty ?? '', topicId: initialTopicId ?? '', search: '' });
   const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
   const [activeTab, setActiveTab] = useState<Record<string, string>>({});
   const [, setRefresh] = useState(0);
@@ -26,19 +50,25 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
   const [allLessons, setAllLessons] = useState<Lesson[]>([]);
   const [allowedSlugs, setAllowedSlugs] = useState<string[]>([]);
+  const [cognitiveBlock, setCognitiveBlock] = useState<ReturnType<typeof detectCognitiveBlock>>(null);
   const [loading, setLoading] = useState(true);
+  const { error: loadError, execute } = useLoadWithTimeout();
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const [topics, questions, notebook, lessons, slugs] = await Promise.all([
+  // Store shuffled options per question
+  const [shuffledMap, setShuffledMap] = useState<Record<string, { options: string[]; correctIndex: number }>>({});
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    await execute(async () => {
+      const [topics, questions, notebook, lessons, slugs, attempts, prereqs] = await Promise.all([
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
         userId ? getNotebook(userId) : Promise.resolve([]),
         getLessons(),
         userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
+        userId ? getAttempts(userId) : Promise.resolve([]),
+        getTopicPrerequisites(),
       ]);
-      if (cancelled) return;
       const filteredTopics = topics.filter(t => slugs.includes(t.subject));
       const filteredQuestions = questions.filter(q => slugs.includes(q.subject));
       setAllTopics(filteredTopics);
@@ -46,11 +76,25 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
       setNotebookItems(notebook);
       setAllLessons(lessons);
       setAllowedSlugs(slugs);
+
+      // Detect cognitive block
+      const qMap = new Map(filteredQuestions.map(q => [q.id, { topicId: q.topicId }]));
+      const tMap = new Map(filteredTopics.map(t => [t.id, t.name]));
+      const prereqMap = buildPrerequisiteMap(prereqs);
+      setCognitiveBlock(detectCognitiveBlock(attempts, qMap, tMap, prereqMap));
+
+      const newShuffled: Record<string, { options: string[]; correctIndex: number }> = {};
+      filteredQuestions.forEach(q => {
+        const { shuffled, newCorrectIndex } = shuffleOptions(q.options, q.correctIndex);
+        newShuffled[q.id] = { options: shuffled, correctIndex: newCorrectIndex };
+      });
+      setShuffledMap(newShuffled);
       setLoading(false);
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [userId]);
+    });
+  }, [userId, execute]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useVisibilityRefresh(loadData);
 
   const topicMap = useMemo(() => new Map(allTopics.map(t => [t.id, t.name])), [allTopics]);
 
@@ -77,12 +121,43 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
 
   const handleConfirm = async (q: Question, selectedIndex: number) => {
     if (!user) return;
-    const isCorrect = selectedIndex === q.correctIndex;
+    const shuffled = shuffledMap[q.id];
+    const isCorrect = shuffled ? selectedIndex === shuffled.correctIndex : selectedIndex === q.correctIndex;
+
+    // Get timing data from question timer
+    const timing = stopQuestion(q.id);
+
+    // Calculate attempt number
+    const { data: prevAttempts } = await supabase
+      .from('attempts')
+      .select('id')
+      .eq('user_id', user.username)
+      .eq('question_id', q.id);
+    const attemptNumber = (prevAttempts?.length ?? 0) + 1;
+
     setAnswers(prev => ({ ...prev, [q.id]: { selectedIndex, isCorrect } }));
     setActiveTab(prev => ({ ...prev, [q.id]: 'gabarito' }));
-    await addAttempt({ userId: user.username, questionId: q.id, selectedIndex, isCorrect, answeredAt: new Date().toISOString(), topicId: q.topicId });
+
+    await addAttempt({
+      userId: user.username,
+      questionId: q.id,
+      selectedIndex,
+      isCorrect,
+      answeredAt: new Date().toISOString(),
+      topicId: q.topicId,
+      timeSpentSeconds: timing.timeSpentSeconds,
+      possibleGuess: timing.possibleGuess,
+      difficultyDetected: timing.difficultyDetected,
+      attemptNumber,
+    });
+
+    // Notify session tracker
+    onQuestionAnswered?.();
+
     if (!isCorrect) {
-      const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
+      const reviewIn3Days = new Date();
+      reviewIn3Days.setDate(reviewIn3Days.getDate() + 3);
+      const item = await upsertNotebookItem(user.username, q.id, { status: 'pending', nextReviewAt: reviewIn3Days.toISOString(), reviewCount: 0 });
       setNotebookItems(prev => {
         const idx = prev.findIndex(n => n.questionId === q.id);
         if (idx >= 0) { const next = [...prev]; next[idx] = item; return next; }
@@ -99,7 +174,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const handleComment = async (questionId: string, text: string) => {
     if (!user || !text.trim()) return;
     await addComment(questionId, { author: { username: user.username, role: user.role }, text: text.trim(), status: 'open', replies: [] });
-    const updated = await loadQuestionBank();
+    const updated = await loadQuestionBank({ forceRefresh: true });
     setAllQuestions(updated);
   };
 
@@ -135,6 +210,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const pagedQuestions = questions.slice(page * perPage, (page + 1) * perPage);
 
   if (loading) return <p className="text-muted-foreground">Carregando questões...</p>;
+  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
 
   return (
     <div className="space-y-5">
@@ -162,6 +238,40 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
         </div>
       </div>
 
+      {/* Cognitive Block Alert */}
+      {cognitiveBlock && (
+        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              Possível travamento detectado em "{cognitiveBlock.topicName}"
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Você errou {cognitiveBlock.consecutiveErrors} questões seguidas nesse tópico.
+              {cognitiveBlock.prerequisiteTopicName
+                ? ` Recomendamos revisar "${cognitiveBlock.prerequisiteTopicName}" antes de continuar.`
+                : ' Tente revisar o conteúdo ou assistir uma aula sobre o tópico.'}
+            </p>
+            <div className="flex gap-2 mt-3">
+              {cognitiveBlock.prerequisiteTopicId && (
+                <button
+                  onClick={() => handleFilter('topicId', cognitiveBlock.prerequisiteTopicId!)}
+                  className="rounded-lg text-xs font-medium bg-primary text-primary-foreground px-4 py-1.5 hover:brightness-110 transition-all flex items-center gap-1"
+                >
+                  <BookOpen className="h-3.5 w-3.5" /> Revisar pré-requisito
+                </button>
+              )}
+              <button
+                onClick={() => setCognitiveBlock(null)}
+                className="rounded-lg text-xs font-medium border border-border px-4 py-1.5 hover:bg-muted transition-all"
+              >
+                Continuar mesmo assim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {questions.length === 0 ? (
         <div className="bg-card rounded-xl shadow-sm p-8 text-center">
           <p className="text-muted-foreground">Nenhuma questão encontrada com os filtros atuais.</p>
@@ -182,47 +292,47 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
             </div>
           </div>
 
-          <div className="space-y-4">
-            {pagedQuestions.map((q, idx) => (
-              <QuestionCard
-                key={q.id}
-                question={q}
-                index={page * perPage + idx}
-                answer={answers[q.id]}
-                activeTab={activeTab[q.id] ?? 'gabarito'}
-                notebookItem={notebookMap.get(q.id)}
-                topicLabel={topicMap.get(q.topicId) ?? '—'}
-                user={user}
-                lessons={lessonsForQuestion(q)}
-                onConfirm={(selectedIndex) => handleConfirm(q, selectedIndex)}
-                onTabChange={(tab) => setActiveTab(prev => ({ ...prev, [q.id]: tab }))}
-                onComment={(text) => handleComment(q.id, text)}
-                onReport={(type, message) => handleReport(q, type, message)}
-                onAddNotebook={async () => {
-                  if (user) {
-                    const item = await upsertNotebookItem(user.username, q.id, { status: 'pending' });
-                    setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
-                    setActiveTab(prev => ({ ...prev, [q.id]: 'caderno' }));
-                  }
-                }}
-                onSaveNotebook={async (whatIErred, ruleInsight, mastered) => {
-                  if (user) {
-                    const item = await upsertNotebookItem(user.username, q.id, { whatIErred, ruleInsight, ...(mastered ? { status: 'mastered' } : {}) });
-                    setNotebookItems(prev => [...prev.filter(n => n.questionId !== q.id), item]);
-                  }
-                }}
-              />
-            ))}
-          </div>
+          {/* Start timers for visible questions */}
+          <QuestionsWithTimer
+            questions={pagedQuestions}
+            shuffledMap={shuffledMap}
+            page={page}
+            perPage={perPage}
+            answers={answers}
+            activeTab={activeTab}
+            notebookMap={notebookMap}
+            topicMap={topicMap}
+            user={user}
+            allLessons={allLessons}
+            lessonsForQuestion={lessonsForQuestion}
+            startQuestion={startQuestion}
+            onConfirm={handleConfirm}
+            onTabChange={(qId, tab) => setActiveTab(prev => ({ ...prev, [qId]: tab }))}
+            onComment={handleComment}
+            onReport={handleReport}
+            onAddNotebook={async (qId) => {
+              if (user) {
+                const item = await upsertNotebookItem(user.username, qId, { status: 'pending' });
+                setNotebookItems(prev => [...prev.filter(n => n.questionId !== qId), item]);
+                setActiveTab(prev => ({ ...prev, [qId]: 'caderno' }));
+              }
+            }}
+            onSaveNotebook={async (qId, whatIErred, ruleInsight) => {
+              if (user) {
+                const item = await upsertNotebookItem(user.username, qId, { whatIErred, ruleInsight });
+                setNotebookItems(prev => [...prev.filter(n => n.questionId !== qId), item]);
+              }
+            }}
+          />
 
           <div className="flex items-center justify-center gap-3 pt-2">
-            <button disabled={page === 0} onClick={() => { setPage(page - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-lg text-sm border border-border px-4 py-2 disabled:opacity-40 hover:bg-muted transition-colors">
+            <button disabled={page === 0} onClick={() => { setPage(page - 1); document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-lg text-sm border border-border px-4 py-2 disabled:opacity-40 hover:bg-muted transition-colors">
               ← Anterior
             </button>
             <span className="text-sm text-muted-foreground">
               {page + 1} / {totalPages}
             </span>
-            <button disabled={page >= totalPages - 1} onClick={() => { setPage(page + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-lg text-sm border border-border px-4 py-2 disabled:opacity-40 hover:bg-muted transition-colors">
+            <button disabled={page >= totalPages - 1} onClick={() => { setPage(page + 1); document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-lg text-sm border border-border px-4 py-2 disabled:opacity-40 hover:bg-muted transition-colors">
               Próxima →
             </button>
           </div>
@@ -233,10 +343,12 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
 }
 
 function QuestionCard({
-  question: q, index, answer, activeTab, notebookItem, topicLabel, user, lessons,
+  question: q, shuffledOptions, shuffledCorrectIndex, index, answer, activeTab, notebookItem, topicLabel, user, lessons,
   onConfirm, onTabChange, onComment, onReport, onAddNotebook, onSaveNotebook
 }: {
   question: Question;
+  shuffledOptions: string[];
+  shuffledCorrectIndex: number;
   index: number;
   answer?: AnswerState;
   activeTab: string;
@@ -249,7 +361,7 @@ function QuestionCard({
   onComment: (text: string) => void;
   onReport: (type: string, message: string) => void;
   onAddNotebook: () => void;
-  onSaveNotebook: (whatIErred: string, ruleInsight: string, mastered: boolean) => void;
+  onSaveNotebook: (whatIErred: string, ruleInsight: string) => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const locked = !!answer;
@@ -267,6 +379,12 @@ function QuestionCard({
       <div className="p-5">
         <header className="mb-4">
           <h3 className="text-base font-medium text-foreground leading-relaxed">{index + 1}. {q.statement}</h3>
+          {q.imageUrl && (
+            <div className="mt-3 mb-2">
+              <img src={q.imageUrl} alt={q.imageAlt || 'Imagem da questão'} className="max-w-full max-h-80 rounded-xl border border-border object-contain mx-auto" loading="lazy" />
+              {q.imageAlt && <p className="text-xs text-muted-foreground text-center mt-1">{q.imageAlt}</p>}
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-2">
             {[q.grade, subjectLabel(q.subject), difficultyLabel(q.difficulty), topicLabel].map((tag, i) => (
               <span key={i} className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-md">{tag}</span>
@@ -275,9 +393,9 @@ function QuestionCard({
         </header>
 
         <div className="space-y-2 mb-4">
-          {q.options.map((opt, i) => {
+          {shuffledOptions.map((opt, i) => {
             let cls = 'rounded-lg border-2 p-3 flex items-center gap-3 cursor-pointer transition-all text-sm';
-            if (locked && i === q.correctIndex) cls += ' border-success bg-success/5';
+            if (locked && i === shuffledCorrectIndex) cls += ' border-success bg-success/5';
             else if (locked && answer?.selectedIndex === i && !answer.isCorrect) cls += ' border-destructive bg-destructive/5';
             else if (!locked && selected === i) cls += ' border-primary bg-primary/5';
             else cls += ' border-border hover:border-primary/40';
@@ -289,7 +407,7 @@ function QuestionCard({
                   {optionLetter(i)}
                 </span>
                 <span className="flex-1">{opt}</span>
-                {locked && i === q.correctIndex && <CheckCircle2 className="h-5 w-5 text-success shrink-0" />}
+                {locked && i === shuffledCorrectIndex && <CheckCircle2 className="h-5 w-5 text-success shrink-0" />}
                 {locked && answer?.selectedIndex === i && !answer.isCorrect && <XCircle className="h-5 w-5 text-destructive shrink-0" />}
               </label>
             );
@@ -318,29 +436,34 @@ function QuestionCard({
           ))}
         </div>
         <div className="p-5 bg-muted/10">
-          <TabPanel tab={activeTab} question={q} answer={answer} user={user} notebookItem={notebookItem} lessons={lessons} onComment={onComment} onReport={onReport} onAddNotebook={onAddNotebook} onSaveNotebook={onSaveNotebook} />
+          <TabPanel tab={activeTab} question={q} answer={answer} user={user} notebookItem={notebookItem} lessons={lessons}
+            shuffledCorrectIndex={shuffledCorrectIndex} shuffledOptions={shuffledOptions}
+            onComment={onComment} onReport={onReport} onAddNotebook={onAddNotebook} onSaveNotebook={onSaveNotebook} />
         </div>
       </div>
     </article>
   );
 }
 
-function TabPanel({ tab, question: q, answer, user, notebookItem, lessons, onComment, onReport, onAddNotebook, onSaveNotebook }: {
+function TabPanel({ tab, question: q, answer, user, notebookItem, lessons, shuffledCorrectIndex, shuffledOptions, onComment, onReport, onAddNotebook, onSaveNotebook }: {
   tab: string; question: Question; answer?: AnswerState; user: any; notebookItem?: any; lessons: any[];
+  shuffledCorrectIndex: number; shuffledOptions: string[];
   onComment: (text: string) => void; onReport: (type: string, message: string) => void;
-  onAddNotebook: () => void; onSaveNotebook: (w: string, r: string, m: boolean) => void;
+  onAddNotebook: () => void; onSaveNotebook: (w: string, r: string) => void;
 }) {
   const [commentText, setCommentText] = useState('');
   const [reportType, setReportType] = useState('enunciado');
   const [reportDesc, setReportDesc] = useState('');
   const [whatIErred, setWhatIErred] = useState(notebookItem?.whatIErred ?? '');
   const [ruleInsight, setRuleInsight] = useState(notebookItem?.ruleInsight ?? '');
+  const [notebookSaving, setNotebookSaving] = useState(false);
+  const [notebookSaved, setNotebookSaved] = useState(false);
 
   if (tab === 'gabarito') {
     if (!answer) return <p className="text-sm text-muted-foreground">Responda a questão para liberar o gabarito comentado.</p>;
     return (
       <div className="space-y-2">
-        <p className="text-sm"><strong>Resposta correta:</strong> ({optionLetter(q.correctIndex)}) {q.options[q.correctIndex]}</p>
+        <p className="text-sm"><strong>Resposta correta:</strong> ({optionLetter(shuffledCorrectIndex)}) {shuffledOptions[shuffledCorrectIndex]}</p>
         <p className="text-sm text-muted-foreground">{q.explanation}</p>
       </div>
     );
@@ -386,6 +509,15 @@ function TabPanel({ tab, question: q, answer, user, notebookItem, lessons, onCom
   }
 
   if (tab === 'caderno') {
+    const handleSaveNotebook = async () => {
+      if (notebookSaving) return;
+      setNotebookSaving(true);
+      onSaveNotebook(whatIErred, ruleInsight);
+      setNotebookSaving(false);
+      setNotebookSaved(true);
+      setTimeout(() => setNotebookSaved(false), 2000);
+    };
+
     return (
       <div className="space-y-2">
         {notebookItem ? (
@@ -395,10 +527,18 @@ function TabPanel({ tab, question: q, answer, user, notebookItem, lessons, onCom
             <textarea value={whatIErred} onChange={e => setWhatIErred(e.target.value)} className="w-full rounded-lg border border-input bg-background p-3 text-sm min-h-[40px]" />
             <label className="text-xs text-muted-foreground block">Regra / insight</label>
             <textarea value={ruleInsight} onChange={e => setRuleInsight(e.target.value)} className="w-full rounded-lg border border-input bg-background p-3 text-sm min-h-[40px]" />
-            <div className="flex gap-2 mt-1">
-              <button onClick={() => onSaveNotebook(whatIErred, ruleInsight, false)} className="rounded-lg text-xs text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">Salvar</button>
-              <button onClick={() => onSaveNotebook(whatIErred, ruleInsight, true)} className="rounded-lg text-xs bg-success text-success-foreground px-4 py-1.5 hover:brightness-110 transition-all">✓ Dominado</button>
-            </div>
+            {!notebookSaved ? (
+              <div className="flex gap-2 mt-1">
+                <button onClick={handleSaveNotebook} disabled={notebookSaving}
+                  className="rounded-lg text-xs text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50">
+                  {notebookSaving ? 'Salvando...' : 'Salvar anotação'}
+                </button>
+              </div>
+            ) : (
+              <p className="flex items-center gap-1 text-xs text-success font-medium mt-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Anotação salva!
+              </p>
+            )}
           </>
         ) : (
           <button onClick={onAddNotebook} className="rounded-lg text-xs text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">+ Adicionar ao caderno</button>
@@ -423,4 +563,67 @@ function TabPanel({ tab, question: q, answer, user, notebookItem, lessons, onCom
   }
 
   return null;
+}
+
+/** Wrapper that starts question timers when questions become visible */
+function QuestionsWithTimer({
+  questions, shuffledMap, page, perPage, answers, activeTab, notebookMap, topicMap, user, allLessons, lessonsForQuestion,
+  startQuestion, onConfirm, onTabChange, onComment, onReport, onAddNotebook, onSaveNotebook,
+}: {
+  questions: Question[];
+  shuffledMap: Record<string, { options: string[]; correctIndex: number }>;
+  page: number;
+  perPage: number;
+  answers: Record<string, AnswerState>;
+  activeTab: Record<string, string>;
+  notebookMap: Map<string, NotebookItem>;
+  topicMap: Map<string, string>;
+  user: any;
+  allLessons: Lesson[];
+  lessonsForQuestion: (q: Question) => Lesson[];
+  startQuestion: (id: string) => void;
+  onConfirm: (q: Question, selectedIndex: number) => void;
+  onTabChange: (qId: string, tab: string) => void;
+  onComment: (qId: string, text: string) => void;
+  onReport: (q: Question, type: string, message: string) => void;
+  onAddNotebook: (qId: string) => void;
+  onSaveNotebook: (qId: string, whatIErred: string, ruleInsight: string) => void;
+}) {
+  // Start timers for unanswered questions when they appear
+  useEffect(() => {
+    questions.forEach(q => {
+      if (!answers[q.id]) {
+        startQuestion(q.id);
+      }
+    });
+  }, [questions.map(q => q.id).join(',')]);
+
+  return (
+    <div className="space-y-4">
+      {questions.map((q, idx) => {
+        const sq = shuffledMap[q.id];
+        return (
+          <QuestionCard
+            key={q.id}
+            question={q}
+            shuffledOptions={sq?.options ?? q.options}
+            shuffledCorrectIndex={sq?.correctIndex ?? q.correctIndex}
+            index={page * perPage + idx}
+            answer={answers[q.id]}
+            activeTab={activeTab[q.id] ?? 'gabarito'}
+            notebookItem={notebookMap.get(q.id)}
+            topicLabel={topicMap.get(q.topicId) ?? '—'}
+            user={user}
+            lessons={lessonsForQuestion(q)}
+            onConfirm={(selectedIndex) => onConfirm(q, selectedIndex)}
+            onTabChange={(tab) => onTabChange(q.id, tab)}
+            onComment={(text) => onComment(q.id, text)}
+            onReport={(type, message) => onReport(q, type, message)}
+            onAddNotebook={() => onAddNotebook(q.id)}
+            onSaveNotebook={(w, r) => onSaveNotebook(q.id, w, r)}
+          />
+        );
+      })}
+    </div>
+  );
 }

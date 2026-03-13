@@ -257,14 +257,28 @@ async function loadCommentsForQuestions(questionIds: string[]): Promise<Map<stri
   return map;
 }
 
-export async function loadQuestionBank(): Promise<Question[]> {
+// Simple in-memory cache for question bank
+let _questionCache: { data: Question[]; ts: number } | null = null;
+const CACHE_TTL = 30_000; // 30 seconds
+
+export async function loadQuestionBank(options: { withComments?: boolean; forceRefresh?: boolean } = {}): Promise<Question[]> {
+  const { withComments = false, forceRefresh = false } = options;
+
+  // Use cache for reads without comments
+  if (!withComments && !forceRefresh && _questionCache && Date.now() - _questionCache.ts < CACHE_TTL) {
+    return _questionCache.data;
+  }
+
   const { data } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
   if (!data) return [];
 
-  const questionIds = data.map((q: any) => q.id);
-  const commentsMap = await loadCommentsForQuestions(questionIds);
+  let commentsMap = new Map<string, Comment[]>();
+  if (withComments) {
+    const questionIds = data.map((q: any) => q.id);
+    commentsMap = await loadCommentsForQuestions(questionIds);
+  }
 
-  return data.map((row: any) => ({
+  const result = data.map((row: any) => ({
     id: row.id,
     grade: row.grade,
     subject: row.subject,
@@ -278,7 +292,19 @@ export async function loadQuestionBank(): Promise<Question[]> {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     comments: commentsMap.get(row.id) ?? [],
+    imageUrl: row.image_url ?? null,
+    imageAlt: row.image_alt ?? null,
   }));
+
+  if (!withComments) {
+    _questionCache = { data: result, ts: Date.now() };
+  }
+
+  return result;
+}
+
+export function invalidateQuestionCache() {
+  _questionCache = null;
 }
 
 export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
@@ -295,9 +321,12 @@ export async function saveQuestionBank(bank: Question[]): Promise<Question[]> {
     status: q.status,
     created_at: q.createdAt,
     updated_at: q.updatedAt,
+    image_url: q.imageUrl ?? null,
+    image_alt: q.imageAlt ?? null,
   }));
 
   await supabase.from('questions').upsert(rows);
+  invalidateQuestionCache();
   return bank;
 }
 
@@ -315,15 +344,19 @@ export async function saveQuestionsBulk(questions: Partial<Question>[]): Promise
     status: q.status ?? 'published',
     created_at: q.createdAt ?? nowIso(),
     updated_at: q.updatedAt ?? nowIso(),
+    image_url: q.imageUrl ?? null,
+    image_alt: q.imageAlt ?? null,
   }));
 
   const { data } = await supabase.from('questions').upsert(rows).select();
+  invalidateQuestionCache();
   return (data ?? []).map((row: any) => ({
     id: row.id, grade: row.grade, subject: row.subject, difficulty: row.difficulty,
     topicId: row.topic_id ?? '', statement: row.statement,
     options: Array.isArray(row.options) ? row.options : JSON.parse(row.options ?? '[]'),
     correctIndex: row.correct_index, explanation: row.explanation, status: row.status,
     createdAt: row.created_at, updatedAt: row.updated_at, comments: [],
+    imageUrl: row.image_url ?? null, imageAlt: row.image_alt ?? null,
   }));
 }
 
@@ -339,11 +372,13 @@ export async function getQuestionById(id: string): Promise<Question | null> {
     correctIndex: row.correct_index, explanation: row.explanation, status: row.status,
     createdAt: row.created_at, updatedAt: row.updated_at,
     comments: commentsMap.get(row.id) ?? [],
+    imageUrl: row.image_url ?? null, imageAlt: row.image_alt ?? null,
   };
 }
 
 export async function deleteQuestion(id: string): Promise<void> {
   await supabase.from('questions').delete().eq('id', id);
+  invalidateQuestionCache();
 }
 
 // ---- Topics ----
@@ -467,7 +502,15 @@ export async function getAttempts(userId?: string): Promise<Attempt[]> {
   }));
 }
 
-export async function addAttempt(attempt: Partial<Attempt> & { topicId?: string }): Promise<Attempt> {
+export async function addAttempt(attempt: Partial<Attempt> & {
+  topicId?: string;
+  timeSpentSeconds?: number;
+  possibleGuess?: boolean;
+  difficultyDetected?: boolean;
+  questionAbandoned?: boolean;
+  questionSkipped?: boolean;
+  attemptNumber?: number;
+}): Promise<Attempt> {
   const row: any = {
     user_id: attempt.userId ?? '',
     question_id: attempt.questionId ?? '',
@@ -475,6 +518,12 @@ export async function addAttempt(attempt: Partial<Attempt> & { topicId?: string 
     is_correct: attempt.isCorrect ?? false,
     answered_at: attempt.answeredAt ?? nowIso(),
     topic_id: attempt.topicId ?? null,
+    time_spent_seconds: attempt.timeSpentSeconds ?? 0,
+    possible_guess: attempt.possibleGuess ?? false,
+    difficulty_detected: attempt.difficultyDetected ?? false,
+    question_abandoned: attempt.questionAbandoned ?? false,
+    question_skipped: attempt.questionSkipped ?? false,
+    attempt_number: attempt.attemptNumber ?? 1,
   };
   const { data } = await supabase.from('attempts').insert(row).select().single();
   const d = (data ?? row) as any;
@@ -499,6 +548,8 @@ export async function getNotebook(userId?: string): Promise<NotebookItem[]> {
     grade: row.grade, subject: row.subject, difficulty: row.difficulty, topicId: row.topic_id,
     status: row.status, whatIErred: row.what_i_erred, ruleInsight: row.rule_insight,
     updatedAt: row.updated_at,
+    nextReviewAt: row.next_review_at ?? null,
+    reviewCount: row.review_count ?? 0,
   }));
 }
 
@@ -518,6 +569,8 @@ export async function upsertNotebookItem(userId: string, questionId: string, pat
     rule_insight: patch.ruleInsight ?? '',
     updated_at: nowIso(),
   };
+  if (patch.nextReviewAt !== undefined) row.next_review_at = patch.nextReviewAt;
+  if (patch.reviewCount !== undefined) row.review_count = patch.reviewCount;
 
   const { data } = await supabase
     .from('notebook_items')
@@ -531,6 +584,8 @@ export async function upsertNotebookItem(userId: string, questionId: string, pat
     grade: d.grade, subject: d.subject, difficulty: d.difficulty, topicId: d.topic_id,
     status: d.status, whatIErred: d.what_i_erred, ruleInsight: d.rule_insight,
     updatedAt: d.updated_at,
+    nextReviewAt: d.next_review_at ?? null,
+    reviewCount: d.review_count ?? 0,
   };
 }
 
@@ -634,12 +689,15 @@ export async function getTrainingPlanById(planId: string): Promise<(TrainingPlan
 
 // ---- Lessons ----
 
-export async function getLessons(): Promise<Lesson[]> {
-  const { data } = await supabase.from('lessons').select('*');
+export async function getLessons(options: { visibleOnly?: boolean } = {}): Promise<Lesson[]> {
+  let query = supabase.from('lessons').select('*');
+  if (options.visibleOnly) query = query.eq('visibility', 'visible');
+  const { data } = await query;
   if (!data) return [];
   return data.map((row: any) => ({
     id: row.id, title: row.title, url: row.url,
     topic: row.topic, subject: row.subject, grade: row.grade,
+    visibility: row.visibility ?? 'coming_soon',
   }));
 }
 
@@ -647,6 +705,7 @@ export async function saveLessons(lessons: Lesson[]): Promise<Lesson[]> {
   await supabase.from('lessons').upsert(lessons.map(l => ({
     id: l.id, title: l.title, url: l.url,
     topic: l.topic, subject: l.subject, grade: l.grade,
+    visibility: l.visibility ?? 'coming_soon',
   })));
   return lessons;
 }
@@ -659,9 +718,20 @@ export async function saveLesson(lesson: Partial<Lesson>): Promise<Lesson> {
     topic: lesson.topic ?? '',
     subject: lesson.subject ?? '',
     grade: lesson.grade ?? '',
+    visibility: lesson.visibility ?? 'coming_soon',
   };
   await supabase.from('lessons').insert(row);
   return row as Lesson;
+}
+
+export async function toggleLessonVisibility(lessonId: string): Promise<Lesson | null> {
+  const { data: current } = await supabase.from('lessons').select('visibility').eq('id', lessonId).single();
+  if (!current) return null;
+  const newVis = (current as any).visibility === 'visible' ? 'coming_soon' : 'visible';
+  const { data } = await supabase.from('lessons').update({ visibility: newVis }).eq('id', lessonId).select().single();
+  if (!data) return null;
+  const row = data as any;
+  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade, visibility: row.visibility };
 }
 
 export async function updateLesson(lessonId: string, patch: Partial<Lesson>): Promise<Lesson | null> {
@@ -671,11 +741,12 @@ export async function updateLesson(lessonId: string, patch: Partial<Lesson>): Pr
   if (patch.topic !== undefined) update.topic = patch.topic;
   if (patch.subject !== undefined) update.subject = patch.subject;
   if (patch.grade !== undefined) update.grade = patch.grade;
+  if (patch.visibility !== undefined) update.visibility = patch.visibility;
 
   const { data } = await supabase.from('lessons').update(update).eq('id', lessonId).select().single();
   if (!data) return null;
   const row = data as any;
-  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade };
+  return { id: row.id, title: row.title, url: row.url, topic: row.topic, subject: row.subject, grade: row.grade, visibility: row.visibility ?? 'coming_soon' };
 }
 
 export async function deleteLesson(lessonId: string): Promise<void> {
@@ -783,38 +854,46 @@ export async function getAllAppSettings(): Promise<Record<string, string>> {
   return result;
 }
 
-// ---- Ranking ----
+// ---- Ranking (optimized with RPC) ----
 
 export async function getRanking(): Promise<{ userId: string; username: string; total: number; correct: number; rate: number; streak: number }[]> {
-  const [attempts, users, metas] = await Promise.all([
-    getAttempts(),
-    loadUsers(),
-    supabase.from('dashboard_meta').select('*'),
-  ]);
+  const { data, error } = await supabase.rpc('get_ranking');
+  if (error || !data) {
+    // Fallback to old method if RPC fails
+    const [attempts, users, metas] = await Promise.all([
+      getAttempts(),
+      loadUsers(),
+      supabase.from('dashboard_meta').select('*'),
+    ]);
+    const userMap = new Map(users.map(u => [u.username, u]));
+    const streakMap = new Map<string, number>();
+    ((metas.data ?? []) as any[]).forEach(m => streakMap.set(m.user_id, m.streak ?? 0));
+    const agg = new Map<string, { total: number; correct: number }>();
+    attempts.forEach(a => {
+      const prev = agg.get(a.userId) ?? { total: 0, correct: 0 };
+      prev.total += 1;
+      if (a.isCorrect) prev.correct += 1;
+      agg.set(a.userId, prev);
+    });
+    return [...agg.entries()]
+      .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student' && userMap.get(uid)!.rankingVisible !== false)
+      .map(([uid, stats]) => ({
+        userId: uid, username: uid,
+        total: stats.total, correct: stats.correct,
+        rate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
+        streak: streakMap.get(uid) ?? 0,
+      }))
+      .sort((a, b) => b.correct - a.correct || b.rate - a.rate || b.streak - a.streak);
+  }
 
-  const userMap = new Map(users.map(u => [u.username, u]));
-  const streakMap = new Map<string, number>();
-  ((metas.data ?? []) as any[]).forEach(m => streakMap.set(m.user_id, m.streak ?? 0));
-
-  const agg = new Map<string, { total: number; correct: number }>();
-  attempts.forEach(a => {
-    const prev = agg.get(a.userId) ?? { total: 0, correct: 0 };
-    prev.total += 1;
-    if (a.isCorrect) prev.correct += 1;
-    agg.set(a.userId, prev);
-  });
-
-  return [...agg.entries()]
-    .filter(([uid]) => userMap.has(uid) && userMap.get(uid)!.role === 'student' && userMap.get(uid)!.rankingVisible !== false)
-    .map(([uid, stats]) => ({
-      userId: uid,
-      username: uid,
-      total: stats.total,
-      correct: stats.correct,
-      rate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
-      streak: streakMap.get(uid) ?? 0,
-    }))
-    .sort((a, b) => b.correct - a.correct || b.rate - a.rate || b.streak - a.streak);
+  return (data as any[]).map(r => ({
+    userId: r.user_id,
+    username: r.username,
+    total: Number(r.total),
+    correct: Number(r.correct),
+    rate: r.rate,
+    streak: r.streak,
+  }));
 }
 
 // ---- Diagnostic ----
@@ -848,6 +927,42 @@ export async function getAllDiagnosticResults(): Promise<any[]> {
 
 export async function initStorageFromSeeds(): Promise<void> {
   // Data is already in the database, no seeding needed
+}
+
+export async function getDailyStudyStats(userId: string, date?: string): Promise<{ totalSeconds: number; questionsAnswered: number } | null> {
+  const d = date ?? new Date().toISOString().split('T')[0];
+  const { data } = await supabase
+    .from('daily_study_stats')
+    .select('total_seconds, questions_answered')
+    .eq('user_id', userId)
+    .eq('date', d)
+    .single();
+  if (!data) return null;
+  return { totalSeconds: (data as any).total_seconds ?? 0, questionsAnswered: (data as any).questions_answered ?? 0 };
+}
+
+export async function getAverageTimePerQuestion(userId: string): Promise<number> {
+  // Use count + sum approach to avoid fetching all rows
+  const { count } = await supabase
+    .from('attempts')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gt('time_spent_seconds', 0);
+
+  if (!count || count === 0) return 0;
+
+  // Fetch only the aggregation we need (limited to recent 200 for performance)
+  const { data } = await supabase
+    .from('attempts')
+    .select('time_spent_seconds')
+    .eq('user_id', userId)
+    .gt('time_spent_seconds', 0)
+    .order('answered_at', { ascending: false })
+    .limit(200);
+
+  if (!data || data.length === 0) return 0;
+  const total = data.reduce((sum: number, r: any) => sum + (r.time_spent_seconds ?? 0), 0);
+  return Math.round(total / data.length);
 }
 
 export async function resetToSeed(): Promise<void> {
