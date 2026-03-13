@@ -8,7 +8,7 @@ import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
 import { DailyMissions } from './DailyMissions';
 import { StudyTrail } from './StudyTrail';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState } from './ScreenStates';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
