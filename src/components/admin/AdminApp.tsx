@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
-import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess, toggleLessonVisibility } from '../../lib/storage';
+import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem, SubjectItem } from '../../lib/types';
@@ -19,38 +19,6 @@ import {
 } from 'lucide-react';
 
 type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
-
-// Reusable paginated table component for admin lists
-function AdminPaginatedTable<T>({ items, perPage, renderHeader, renderRow }: {
-  items: T[];
-  perPage: number;
-  renderHeader: () => React.ReactNode;
-  renderRow: (item: T, index: number) => React.ReactNode;
-}) {
-  const [page, setPage] = useState(0);
-  const totalPages = Math.max(1, Math.ceil(items.length / perPage));
-  const paged = items.slice(page * perPage, (page + 1) * perPage);
-
-  useEffect(() => { setPage(0); }, [items.length]);
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">{items.length} item(ns) · Página {page + 1} de {totalPages}</p>
-        <div className="flex gap-1">
-          <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="text-xs px-3 py-1 border border-border rounded disabled:opacity-40">← Anterior</button>
-          <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="text-xs px-3 py-1 border border-border rounded disabled:opacity-40">Próxima →</button>
-        </div>
-      </div>
-      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-0 bg-muted z-10">{renderHeader()}</thead>
-          <tbody>{paged.map((item, i) => renderRow(item, page * perPage + i))}</tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
 const ADMIN_NAV = [
   { id: 'dashboard' as Panel, label: 'Painel', icon: LayoutDashboard, group: null },
@@ -910,47 +878,48 @@ function AdminQuestions({ onRefresh }: { onRefresh: () => void }) {
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
 
-      {/* Pagination for admin questions */}
-      <AdminPaginatedTable
-        items={questions}
-        perPage={30}
-        renderHeader={() => (
-          <tr>
-            <th className="p-2 border border-border w-8">
-              <Checkbox
-                checked={selectedIds.size === questions.length && questions.length > 0}
-                onCheckedChange={toggleSelectAll}
-              />
-            </th>
-            {['Série','Disciplina','Dificuldade','Tópico','Enunciado','🖼️','Status','Ações'].map(h => (
-              <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead className="sticky top-0 bg-muted z-10">
+            <tr>
+              <th className="p-2 border border-border w-8">
+                <Checkbox
+                  checked={selectedIds.size === questions.length && questions.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </th>
+              {['Série','Disciplina','Dificuldade','Tópico','Enunciado','🖼️','Status','Ações'].map(h => (
+                <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {questions.map(q => (
+              <tr key={q.id} className={`hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-primary/5' : ''}`}>
+                <td className="p-2 border border-border">
+                  <Checkbox
+                    checked={selectedIds.has(q.id)}
+                    onCheckedChange={() => toggleSelect(q.id)}
+                  />
+                </td>
+                <td className="p-2 border border-border font-heading text-xs">{q.grade}</td>
+                <td className="p-2 border border-border font-heading text-xs">{subjectLabel(q.subject)}</td>
+                <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
+                <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
+                <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
+                <td className="p-2 border border-border font-heading text-xs text-center">{q.imageUrl ? '🖼️' : '—'}</td>
+                <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
+                <td className="p-2 border border-border">
+                  <div className="flex gap-1">
+                    <button onClick={() => handleEdit(q)} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Editar</button>
+                    <button onClick={() => handleDelete(q.id)} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
+                  </div>
+                </td>
+              </tr>
             ))}
-          </tr>
-        )}
-        renderRow={(q: Question) => (
-          <tr key={q.id} className={`hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-primary/5' : ''}`}>
-            <td className="p-2 border border-border">
-              <Checkbox
-                checked={selectedIds.has(q.id)}
-                onCheckedChange={() => toggleSelect(q.id)}
-              />
-            </td>
-            <td className="p-2 border border-border font-heading text-xs">{q.grade}</td>
-            <td className="p-2 border border-border font-heading text-xs">{subjectLabel(q.subject)}</td>
-            <td className="p-2 border border-border font-heading text-xs">{difficultyLabel(q.difficulty)}</td>
-            <td className="p-2 border border-border font-heading text-xs">{allTopics.find(t => t.id === q.topicId)?.name ?? '-'}</td>
-            <td className="p-2 border border-border font-body text-xs">{q.statement.slice(0, 80)}{q.statement.length > 80 ? '...' : ''}</td>
-            <td className="p-2 border border-border font-heading text-xs text-center">{q.imageUrl ? '🖼️' : '—'}</td>
-            <td className="p-2 border border-border font-heading text-xs">{statusLabel(q.status)}</td>
-            <td className="p-2 border border-border">
-              <div className="flex gap-1">
-                <button onClick={() => handleEdit(q)} className="font-heading text-[10px] border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground">Editar</button>
-                <button onClick={() => handleDelete(q.id)} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
-              </div>
-            </td>
-          </tr>
-        )}
-      />
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -989,18 +958,12 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
     onRefresh();
   };
 
-  const handleToggleVisibility = async (lessonId: string) => {
-    await toggleLessonVisibility(lessonId);
-    await loadData();
-    onRefresh();
-  };
-
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-sm font-bold uppercase">Aulas</h2>
       <form onSubmit={handleSubmit} className="border border-border bg-card p-3 space-y-2">
         <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Título da aula" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
-        <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Link do vídeo (ex: YouTube)" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
+        <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Link da aula" className="w-full border border-border bg-background px-2 py-1 font-body text-sm" required />
         <div className="grid grid-cols-3 gap-2">
           <select value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} className="border border-border bg-background px-2 py-1 font-heading text-xs">
             {Object.entries(SUBJECTS_MAP).map(([c, l]) => <option key={c} value={c}>{l}</option>)}
@@ -1016,43 +979,27 @@ function AdminLessons({ onRefresh }: { onRefresh: () => void }) {
         {feedback && <p className="font-heading text-xs text-primary">{feedback}</p>}
       </form>
 
-      <AdminPaginatedTable
-        items={lessons}
-        perPage={20}
-        renderHeader={() => (
-          <tr className="bg-muted">
-            {['Título', 'Disciplina', 'Série', 'Tópico', 'Status', 'Ações'].map(h => (
-              <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>
-            ))}
-          </tr>
-        )}
-        renderRow={(l) => (
-          <tr key={l.id}>
-            <td className="p-2 border border-border font-body text-xs">{l.title}</td>
-            <td className="p-2 border border-border font-heading text-xs">{subjectLabel(l.subject)}</td>
-            <td className="p-2 border border-border font-heading text-xs">{l.grade}</td>
-            <td className="p-2 border border-border font-heading text-xs">{topics.find(t => t.id === l.topic)?.name ?? l.topic}</td>
-            <td className="p-2 border border-border">
-              <button
-                onClick={() => handleToggleVisibility(l.id)}
-                className={`font-heading text-[10px] px-2 py-0.5 rounded ${
-                  l.visibility === 'visible'
-                    ? 'bg-primary/10 text-primary border border-primary/30'
-                    : 'bg-muted text-muted-foreground border border-border'
-                }`}
-              >
-                {l.visibility === 'visible' ? '✓ Visível' : '⏳ Em Breve'}
-              </button>
-            </td>
-            <td className="p-2 border border-border">
-              <div className="flex gap-1">
-                <button onClick={() => { setEditingId(l.id); setForm({ title: l.title, url: l.url, subject: l.subject, grade: l.grade, topic: l.topic }); }} className="font-heading text-[10px] border border-border px-2 py-0.5">Editar</button>
-                <button onClick={async () => { await deleteLesson(l.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
-              </div>
-            </td>
-          </tr>
-        )}
-      />
+      <table className="w-full text-sm border-collapse">
+        <thead><tr className="bg-muted">
+          {['Título','Disciplina','Série','Tópico','Ações'].map(h => <th key={h} className="font-heading text-xs text-left p-2 border border-border font-bold">{h}</th>)}
+        </tr></thead>
+        <tbody>
+          {lessons.map(l => (
+            <tr key={l.id}>
+              <td className="p-2 border border-border font-body text-xs">{l.title}</td>
+              <td className="p-2 border border-border font-heading text-xs">{subjectLabel(l.subject)}</td>
+              <td className="p-2 border border-border font-heading text-xs">{l.grade}</td>
+              <td className="p-2 border border-border font-heading text-xs">{topics.find(t => t.id === l.topic)?.name ?? l.topic}</td>
+              <td className="p-2 border border-border">
+                <div className="flex gap-1">
+                  <button onClick={() => { setEditingId(l.id); setForm({ title: l.title, url: l.url, subject: l.subject, grade: l.grade, topic: l.topic }); }} className="font-heading text-[10px] border border-border px-2 py-0.5">Editar</button>
+                  <button onClick={async () => { await deleteLesson(l.id); await loadData(); onRefresh(); }} className="font-heading text-[10px] text-destructive border border-destructive px-2 py-0.5">Excluir</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -3,8 +3,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import { ErrorState } from './ErrorState';
-import { CheckCircle2, Search } from 'lucide-react';
 import type { Question, Topic, NotebookItem } from '../../lib/types';
 
 export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string) => void }) {
@@ -12,31 +10,22 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const userId = user?.username ?? '';
 
   const [filters, setFilters] = useState({ grade: '', subject: '', difficulty: '', topicId: '', status: '' });
-  const [search, setSearch] = useState('');
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const [questions, topics, notebook, allowedSlugs] = await Promise.all([
-        loadQuestionBank(),
-        getTopics({ activeOnly: true }),
-        getNotebook(userId),
-        getAllowedSubjectSlugs(userId),
-      ]);
-      setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
-      setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
-      setNotebookItems(notebook);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
+    const [questions, topics, notebook, allowedSlugs] = await Promise.all([
+      loadQuestionBank(),
+      getTopics({ activeOnly: true }),
+      getNotebook(userId),
+      getAllowedSubjectSlugs(userId),
+    ]);
+    setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
+    setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
+    setNotebookItems(notebook);
+    setLoading(false);
   }, [userId]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -58,27 +47,11 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       if (filters.difficulty && difficulty !== difficultyCode(filters.difficulty)) return false;
       if (filters.topicId && topicId !== filters.topicId) return false;
       if (filters.status && item.status !== filters.status) return false;
-
-      // Search filter
-      if (search) {
-        const needle = search.toLowerCase();
-        const topicName = allTopics.find(t => t.id === topicId)?.name ?? '';
-        const statement = q?.statement ?? '';
-        const qId = item.questionId ?? '';
-        if (
-          !qId.toLowerCase().includes(needle) &&
-          !statement.toLowerCase().includes(needle) &&
-          !topicName.toLowerCase().includes(needle) &&
-          !subjectLabel(subject).toLowerCase().includes(needle)
-        ) return false;
-      }
-
       return true;
     });
-  }, [notebookItems, filters, search, questionsMap, allTopics]);
+  }, [notebookItems, filters, questionsMap]);
 
-  if (loading) return <p className="text-muted-foreground">Carregando caderno de erros...</p>;
-  if (error) return <ErrorState message="Erro ao carregar o caderno de erros." onRetry={loadData} />;
+  if (loading) return <p className="text-muted-foreground">Carregando...</p>;
 
   const pending = items.filter(i => i.status === 'pending');
   const mastered = items.filter(i => i.status === 'mastered');
@@ -101,18 +74,9 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
         </div>
       </div>
 
-      {/* Search + Filters */}
-      <div className="bg-card rounded-xl shadow-sm p-4 space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por ID, tema, texto da questão..."
-            className="w-full rounded-lg border border-input bg-background pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Filtros</h3>
+      {/* Filters */}
+      <div className="bg-card rounded-xl shadow-sm p-4">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Filtros</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <select value={filters.grade} onChange={e => setFilters(f => ({ ...f, grade: e.target.value }))} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
             <option value="">Todas séries</option>
@@ -168,16 +132,9 @@ function NotebookCard({ item, question: q, userId, onRefazer, onSave }: {
 }) {
   const [whatIErred, setWhatIErred] = useState(item.whatIErred);
   const [ruleInsight, setRuleInsight] = useState(item.ruleInsight);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   const handleSave = async (mastered: boolean) => {
-    if (saving) return;
-    setSaving(true);
     await upsertNotebookItem(userId, q.id, { whatIErred, ruleInsight, ...(mastered ? { status: 'mastered' } : {}) });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
     onSave();
   };
 
@@ -194,25 +151,16 @@ function NotebookCard({ item, question: q, userId, onRefazer, onSave }: {
       <label className="text-xs text-muted-foreground block mt-2 mb-1">Regra / insight</label>
       <textarea value={ruleInsight} onChange={e => setRuleInsight(e.target.value)} className="w-full rounded-lg border border-input bg-background p-3 text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-primary/30" />
 
-      <div className="flex items-center gap-2 mt-3">
-        <button onClick={() => handleSave(false)} disabled={saving}
-          className="rounded-lg text-xs font-medium text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50">
-          {saving ? 'Salvando...' : 'Salvar'}
+      <div className="flex gap-2 mt-3">
+        <button onClick={() => handleSave(false)} className="rounded-lg text-xs font-medium text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
+          Salvar
         </button>
         <button onClick={onRefazer} className="rounded-lg text-xs font-medium text-primary border border-primary/30 px-4 py-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
           Refazer
         </button>
-        {item.status === 'pending' && (
-          <button onClick={() => handleSave(true)} disabled={saving}
-            className="rounded-lg text-xs font-medium bg-success text-success-foreground px-4 py-1.5 hover:brightness-110 transition-all disabled:opacity-50">
-            ✓ Dominado
-          </button>
-        )}
-        {saved && (
-          <span className="flex items-center gap-1 text-xs text-success font-medium">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Salvo!
-          </span>
-        )}
+        <button onClick={() => handleSave(true)} className="rounded-lg text-xs font-medium bg-success text-success-foreground px-4 py-1.5 hover:brightness-110 transition-all">
+          ✓ Dominado
+        </button>
       </div>
     </article>
   );
