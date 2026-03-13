@@ -151,12 +151,15 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
           </div>
           <button
             onClick={startTimer}
-            disabled={questions.length === 0}
+            disabled={loadingQuestions || questions.length === 0}
             className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-body px-8 py-3 hover:bg-primary-light transition-all shadow-colored disabled:opacity-40 active:scale-[0.98]"
           >
-            <Play className="h-5 w-5" /> Iniciar Treino
+            <Play className="h-5 w-5" /> {loadingQuestions ? 'Carregando...' : 'Iniciar Treino'}
           </button>
-          {questions.length === 0 && <p className="text-caption text-muted-foreground">Carregando questões...</p>}
+          {!loadingQuestions && questions.length === 0 && (
+            <p className="text-caption text-muted-foreground">Nenhuma questão disponível no momento.</p>
+          )}
+          {loadingQuestions && <p className="text-caption text-muted-foreground">Carregando questões...</p>}
         </div>
       </div>
     );
