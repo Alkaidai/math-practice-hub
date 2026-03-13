@@ -260,8 +260,8 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load);
 
-  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando trilhas...</p>;
-  if (error) return <LoadingTimeout error={error} onRetry={load} />;
+  if (loading) return <LoadingState message="Carregando trilhas..." />;
+  if (error) return <ScreenErrorState error={error} onRetry={load} />;
 
   if (trails.length === 0) return (
     <div className="bg-card rounded-xl shadow-sm p-8 text-center border border-border">

@@ -103,8 +103,8 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
     });
   }, [notebookItems, filters, search, questionsMap, allTopics]);
 
-  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando caderno de erros...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (loading) return <LoadingState message="Carregando caderno de erros..." />;
+  if (loadError) return <ScreenErrorState error={loadError} onRetry={loadData} />;
 
   const pending = items.filter(i => i.status === 'pending');
   const mastered = items.filter(i => i.status === 'mastered');

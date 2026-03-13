@@ -164,7 +164,7 @@ export function StudentApp() {
 
   if (!diagChecked) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <p className="text-body text-muted-foreground">Carregando...</p>
+      <LoadingState />
     </div>
   );
 

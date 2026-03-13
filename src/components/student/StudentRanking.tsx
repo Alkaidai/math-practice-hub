@@ -34,8 +34,8 @@ export function StudentRanking() {
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load);
 
-  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
+  if (loading) return <LoadingState message="Carregando ranking..." />;
+  if (loadError) return <ScreenErrorState error={loadError} onRetry={load} />;
   if (!visible) return (
     <div className="bg-card rounded-xl shadow-sm p-8 text-center border border-border">
       <Trophy className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
