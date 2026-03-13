@@ -307,8 +307,6 @@ export type Database = {
           explanation: string
           grade: string
           id: string
-          image_alt: string | null
-          image_url: string | null
           options: Json
           statement: string
           status: string
@@ -323,8 +321,6 @@ export type Database = {
           explanation?: string
           grade?: string
           id: string
-          image_alt?: string | null
-          image_url?: string | null
           options?: Json
           statement?: string
           status?: string
@@ -339,8 +335,6 @@ export type Database = {
           explanation?: string
           grade?: string
           id?: string
-          image_alt?: string | null
-          image_url?: string | null
           options?: Json
           statement?: string
           status?: string

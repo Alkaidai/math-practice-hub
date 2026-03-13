@@ -75,8 +75,6 @@ export interface Question {
   createdAt: string;
   updatedAt: string;
   comments: Comment[];
-  imageUrl?: string | null;
-  imageAlt?: string | null;
 }
 
 export interface Topic {

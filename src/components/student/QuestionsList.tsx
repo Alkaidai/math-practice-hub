@@ -267,12 +267,6 @@ function QuestionCard({
       <div className="p-5">
         <header className="mb-4">
           <h3 className="text-base font-medium text-foreground leading-relaxed">{index + 1}. {q.statement}</h3>
-          {q.imageUrl && (
-            <div className="mt-3 mb-2">
-              <img src={q.imageUrl} alt={q.imageAlt || 'Imagem da questão'} className="max-w-full max-h-80 rounded-xl border border-border object-contain mx-auto" loading="lazy" />
-              {q.imageAlt && <p className="text-xs text-muted-foreground text-center mt-1">{q.imageAlt}</p>}
-            </div>
-          )}
           <div className="flex items-center gap-2 mt-2">
             {[q.grade, subjectLabel(q.subject), difficultyLabel(q.difficulty), topicLabel].map((tag, i) => (
               <span key={i} className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-md">{tag}</span>
