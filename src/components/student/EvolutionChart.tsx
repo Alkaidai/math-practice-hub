@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { Attempt } from '../../lib/types';
+import { TrendingUp } from 'lucide-react';
 
 interface WeekData {
   label: string;
@@ -40,8 +41,11 @@ export function EvolutionChart({ attempts }: EvolutionChartProps) {
   if (data.length < 2) return null;
 
   return (
-    <div className="bg-card rounded-xl shadow-sm p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">📈 Evolução ao Longo do Tempo</h3>
+    <div className="bg-card rounded-xl shadow-sm p-5 border border-border">
+      <h3 className="text-body font-semibold text-foreground mb-4 flex items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-primary" />
+        Evolução ao Longo do Tempo
+      </h3>
       <div className="h-52">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
@@ -52,13 +56,13 @@ export function EvolutionChart({ attempts }: EvolutionChartProps) {
               contentStyle={{
                 backgroundColor: 'hsl(var(--card))',
                 border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
+                borderRadius: '12px',
                 fontSize: 12,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                boxShadow: 'var(--shadow-lg)',
               }}
               formatter={(value: number) => [`${value}%`, 'Acerto']}
             />
-            <Line type="monotone" dataKey="rate" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ fill: 'hsl(var(--primary))', r: 4 }} />
+            <Line type="monotone" dataKey="rate" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ fill: 'hsl(var(--primary))', r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

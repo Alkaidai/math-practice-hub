@@ -15,6 +15,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { getRecommendedDifficulty, getRecommendedTopic } from '../../lib/adaptive';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
 import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer, Play } from 'lucide-react';
+import { Progress } from '../ui/progress';
 
 interface WeakTopic {
   topicId: string;
@@ -48,15 +49,25 @@ interface DashboardData {
   avgTimePerQuestion: number;
 }
 
-function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
+const STAT_CONFIGS = [
+  { key: 'answered', icon: Target, label: 'Exercícios resolvidos', colorClass: 'bg-primary text-primary-foreground', softBg: 'bg-primary-soft' },
+  { key: 'streak', icon: Flame, label: 'Sequência', colorClass: 'bg-gold text-gold-foreground', softBg: 'bg-gold-soft' },
+  { key: 'rate', icon: TrendingUp, label: '% de acertos', colorClass: 'bg-success text-success-foreground', softBg: 'bg-success-soft' },
+  { key: 'study', icon: Clock, label: 'Estudo hoje', colorClass: 'bg-info text-info-foreground', softBg: 'bg-info-soft' },
+] as const;
+
+function StatCard({ icon: Icon, label, value, subValue, colorClass, softBg }: {
+  icon: React.ElementType; label: string; value: string; subValue?: string; colorClass: string; softBg: string;
+}) {
   return (
-    <div className="bg-card rounded-xl shadow-sm p-5 flex items-start gap-4">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
-        <Icon className="h-5 w-5 text-white" />
+    <div className={`${softBg} rounded-xl p-4 flex items-start gap-3 transition-all hover:shadow-sm`}>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClass} shadow-xs`}>
+        <Icon className="h-5 w-5" />
       </div>
-      <div>
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-xl font-bold text-foreground mt-0.5">{value}</p>
+      <div className="min-w-0">
+        <p className="text-caption text-muted-foreground uppercase tracking-wide">{label}</p>
+        <p className="text-h2 font-bold text-foreground mt-0.5 leading-tight">{value}</p>
+        {subValue && <p className="text-caption text-muted-foreground">{subValue}</p>}
       </div>
     </div>
   );
@@ -129,10 +140,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
         .slice(0, 5);
 
-      // Build question map for adaptive logic
       const qMap = new Map(filteredQuestions.map(q => [q.id, { topicId: q.topicId, difficulty: q.difficulty, status: q.status }]));
 
-      // Compute adaptive recommendation
       const recommended = getRecommendedTopic(attempts, qMap, topicMap);
       let nextTopic: DashboardData['nextTopic'] = null;
       if (recommended) {
@@ -166,9 +175,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   useVisibilityRefresh(load);
 
   if (error) return <LoadingTimeout error={error} onRetry={load} />;
-  if (loading || !data) return <p className="text-muted-foreground">Carregando painel...</p>;
+  if (loading || !data) return <p className="text-body text-muted-foreground animate-fade-in">Carregando painel...</p>;
 
-  // Show diagnostic assessment inline
   if (showDiagnosticNow) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -180,22 +188,22 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   const hasData = data.answered > 0;
 
   return (
-    <div className="space-y-6">
-      {/* Diagnostic CTA - only if not done yet */}
+    <div className="space-y-6 animate-fade-in">
+      {/* Diagnostic CTA */}
       {!data.hasDiagnostic && (
-        <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
+        <div className="bg-primary-soft border border-primary/20 rounded-xl p-5 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <p className="text-body font-semibold text-foreground flex items-center gap-2">
               <Stethoscope className="h-5 w-5 text-primary" />
               Diagnóstico Inicial
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Descubra seus pontos fortes e fracos em matemática para um plano de estudo personalizado.
+            <p className="text-caption text-muted-foreground mt-1">
+              Descubra seus pontos fortes e fracos para um plano personalizado.
             </p>
           </div>
           <button
             onClick={() => setShowDiagnosticNow(true)}
-            className="shrink-0 rounded-lg bg-primary text-primary-foreground font-semibold text-sm px-5 py-2.5 hover:brightness-110 transition-all"
+            className="shrink-0 rounded-xl bg-primary text-primary-foreground font-semibold text-body px-6 py-2.5 hover:bg-primary-light transition-all shadow-colored active:scale-[0.98]"
           >
             Iniciar diagnóstico
           </button>
@@ -204,34 +212,26 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Target} label="Respondidas" value={String(data.answered)} color="bg-primary" />
-        <StatCard icon={TrendingUp} label="Acertos" value={`${data.rate}%`} color="bg-success" />
-        <StatCard icon={Flame} label="Sequência" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
-        <StatCard icon={AlertCircle} label="Pendências" value={String(data.pendingCount)} color="bg-destructive" />
+        <StatCard icon={Target} label="Exercícios resolvidos" value={String(data.answered)} subValue={`${data.questionsToday} hoje`} colorClass="bg-primary text-primary-foreground" softBg="bg-primary-soft" />
+        <StatCard icon={Flame} label="Sequência" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} subValue="Meta 5 dias" colorClass="bg-gold text-gold-foreground" softBg="bg-gold-soft" />
+        <StatCard icon={TrendingUp} label="% de acertos" value={`${data.rate}%`} subValue={data.rate < 50 ? `Suba para 50%` : 'Continue assim!'} colorClass="bg-success text-success-foreground" softBg="bg-success-soft" />
+        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(data.studyTodaySeconds)} subValue="Meta 20 min" colorClass="bg-info text-info-foreground" softBg="bg-info-soft" />
       </div>
 
-      {/* Today's Study Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(data.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
-        <StatCard icon={BookOpen} label="Questões hoje" value={String(data.questionsToday)} color="bg-[hsl(var(--accent))]" />
-        <StatCard icon={Timer} label="Tempo médio/questão" value={data.avgTimePerQuestion > 0 ? `${data.avgTimePerQuestion}s` : '—'} color="bg-[hsl(var(--muted-foreground))]" />
-        <StatCard icon={Flame} label="Dias estudando" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
-      </div>
-
-      {/* CONTINUAR TREINO - Primary CTA */}
+      {/* CONTINUAR TREINO */}
       {data.nextTopic && (
-        <div className="bg-gradient-to-r from-primary/10 to-gold/10 border border-primary/20 rounded-xl p-6">
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+          <p className="text-overline text-muted-foreground mb-1 uppercase tracking-wider">Próximo tópico recomendado:</p>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">Próximo passo recomendado</p>
-              <p className="text-lg font-bold text-foreground">{data.nextTopic.topicName}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-h2 font-bold text-foreground">{data.nextTopic.topicName}</p>
+              <p className="text-caption text-muted-foreground mt-1">
                 {data.nextTopic.count} exercícios · Nível: <span className="font-semibold capitalize">{difficultyLabel(data.nextTopic.recommendedDifficulty)}</span>
               </p>
             </div>
             <button
               onClick={() => onStartTopic(data.nextTopic!.topicId, data.nextTopic!.recommendedDifficulty)}
-              className="flex items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md"
+              className="flex items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold text-body-lg px-8 py-3.5 hover:bg-primary-light transition-all shadow-colored active:scale-[0.98]"
             >
               <Play className="h-5 w-5" />
               CONTINUAR TREINO
@@ -241,9 +241,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       )}
 
       {!hasData && !data.nextTopic && (
-        <div className="bg-card rounded-xl shadow-sm p-6 text-center">
-          <p className="text-muted-foreground mb-3">Comece respondendo questões para ver seu progresso!</p>
-          <button onClick={onNavigateQuestions} className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md">
+        <div className="bg-card rounded-xl shadow-sm p-8 text-center border border-border">
+          <p className="text-body text-muted-foreground mb-4">Comece respondendo questões para ver seu progresso!</p>
+          <button onClick={onNavigateQuestions} className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-body px-8 py-3 hover:bg-primary-light transition-all shadow-colored active:scale-[0.98]">
             <Play className="h-5 w-5" />
             COMEÇAR A TREINAR
           </button>
@@ -261,7 +261,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       {/* Daily Missions */}
       <DailyMissions />
 
-      {/* Diagnostic Report - only if completed */}
+      {/* Diagnostic Report */}
       {data.hasDiagnostic && <DiagnosticReport diagnosticResult={data.diagnosticResult} attempts={data.allAttempts} />}
 
       {/* Study Plan */}
@@ -279,49 +279,61 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       {hasData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Notebook Summary */}
-          <div className="bg-card rounded-xl shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-3">📓 Caderno de Erros</h3>
+          <div className="bg-card rounded-xl shadow-sm p-5 border border-border">
+            <h3 className="text-body font-semibold text-foreground mb-3 flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" />
+              Caderno de Erros
+            </h3>
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-destructive/5 p-3 text-center">
-                <p className="text-xs text-muted-foreground">Pendentes</p>
-                <p className="text-xl font-bold text-destructive">{data.pendingCount}</p>
+              <div className="rounded-xl bg-destructive-soft p-3 text-center">
+                <p className="text-caption text-muted-foreground">Pendentes</p>
+                <p className="text-h2 font-bold text-destructive">{data.pendingCount}</p>
               </div>
-              <div className="rounded-lg bg-success/10 p-3 text-center">
-                <p className="text-xs text-muted-foreground">Dominados</p>
-                <p className="text-xl font-bold text-success">{data.masteredCount}</p>
+              <div className="rounded-xl bg-success-soft p-3 text-center">
+                <p className="text-caption text-muted-foreground">Dominados</p>
+                <p className="text-h2 font-bold text-success">{data.masteredCount}</p>
               </div>
-              <div className="rounded-lg bg-muted p-3 text-center">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="text-xl font-bold text-foreground">{data.totalReviewed}</p>
+              <div className="rounded-xl bg-muted p-3 text-center">
+                <p className="text-caption text-muted-foreground">Total</p>
+                <p className="text-h2 font-bold text-foreground">{data.totalReviewed}</p>
               </div>
             </div>
           </div>
 
           {/* Weak Topics */}
-          <div className="bg-card rounded-xl shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Tópicos Fracos (Top 5)</h3>
+          <div className="bg-card rounded-xl shadow-sm p-5 border border-border">
+            <h3 className="text-body font-semibold text-foreground mb-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              Tópicos Fracos (Top 5)
+            </h3>
             {data.weakTopics.length > 0 ? (
               <div className="space-y-2.5">
                 {data.weakTopics.map((t, i) => (
-                  <div key={t.topicId} className="flex items-center justify-between">
+                  <div key={t.topicId} className="flex items-center justify-between group">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground truncate">
-                        <span className="text-xs text-muted-foreground mr-1">{i + 1}.</span> {t.label}
+                      <p className="text-body text-foreground truncate">
+                        <span className="text-caption text-muted-foreground mr-1 font-mono">{i + 1}.</span> {t.label}
                       </p>
-                      <p className="text-xs text-muted-foreground">Erro {t.errorRate}% ({t.errors}/{t.total})</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Progress value={100 - t.errorRate} className="h-1.5 flex-1 max-w-[120px]" indicatorClassName={t.errorRate > 60 ? 'bg-destructive' : t.errorRate > 30 ? 'bg-gold' : 'bg-success'} />
+                        <p className="text-caption text-muted-foreground">Erro {t.errorRate}%</p>
+                      </div>
                     </div>
-                    <button onClick={() => onStartTopic(t.topicId)} className="text-xs text-primary font-medium hover:underline ml-2">Treinar</button>
+                    <button onClick={() => onStartTopic(t.topicId)} className="text-caption text-primary font-semibold hover:underline ml-2 opacity-0 group-hover:opacity-100 transition-opacity">Treinar</button>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Sem dados suficientes.</p>
+              <p className="text-body text-muted-foreground">Sem dados suficientes.</p>
             )}
           </div>
 
           {/* Recent Errors */}
-          <div className="bg-card rounded-xl shadow-sm p-5 lg:col-span-2">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Revisar Erros (Últimas 5)</h3>
+          <div className="bg-card rounded-xl shadow-sm p-5 lg:col-span-2 border border-border">
+            <h3 className="text-body font-semibold text-foreground mb-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-warning" />
+              Revisar Erros (Últimas 5)
+            </h3>
             <div className="space-y-3">
               {data.wrongLatest.length > 0 ? data.wrongLatest.map(a => {
                 const q = data.questions.get(a.questionId);
@@ -329,16 +341,16 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
                 return (
                   <div key={a.id} className="flex items-start justify-between gap-3 pb-3 border-b border-border last:border-0">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground">{q.statement.slice(0, 95)}{q.statement.length > 95 ? '...' : ''}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{formatDate(a.answeredAt)} · {q.grade} · {subjectLabel(q.subject)}</p>
+                      <p className="text-body text-foreground">{q.statement.slice(0, 95)}{q.statement.length > 95 ? '...' : ''}</p>
+                      <p className="text-caption text-muted-foreground mt-0.5">{formatDate(a.answeredAt)} · {q.grade} · {subjectLabel(q.subject)}</p>
                     </div>
-                    <button onClick={() => onRefazer(q.id)} className="shrink-0 rounded-lg text-xs text-primary border border-primary/30 px-3 py-1 hover:bg-primary hover:text-primary-foreground transition-colors">
+                    <button onClick={() => onRefazer(q.id)} className="shrink-0 rounded-lg text-caption font-semibold text-primary border border-primary/30 px-3 py-1.5 hover:bg-primary hover:text-primary-foreground transition-all active:scale-[0.98]">
                       Refazer
                     </button>
                   </div>
                 );
               }) : (
-                <p className="text-sm text-muted-foreground">Nenhuma questão errada até agora. 🎉</p>
+                <p className="text-body text-muted-foreground">Nenhuma questão errada até agora.</p>
               )}
             </div>
           </div>

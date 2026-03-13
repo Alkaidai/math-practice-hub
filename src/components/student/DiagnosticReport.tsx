@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Progress } from '../ui/progress';
 import type { Attempt } from '../../lib/types';
+import { BarChart3 } from 'lucide-react';
 
 interface DiagResult {
   totalQuestions: number;
@@ -43,59 +44,62 @@ export function DiagnosticReport({ diagnosticResult, attempts }: DiagnosticRepor
   const levelColor = result.recommendedPlan.level === 'avançado' ? 'text-success' : result.recommendedPlan.level === 'intermediário' ? 'text-gold' : 'text-destructive';
 
   return (
-    <div className="bg-card rounded-xl shadow-sm p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">📊 Relatório do Diagnóstico</h3>
+    <div className="bg-card rounded-xl shadow-sm p-5 border border-border">
+      <h3 className="text-body font-semibold text-foreground mb-4 flex items-center gap-2">
+        <BarChart3 className="h-4 w-4 text-primary" />
+        Relatório do Diagnóstico
+      </h3>
 
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-xs text-muted-foreground">Questões</p>
-          <p className="text-xl font-bold text-foreground">{result.totalQuestions}</p>
+        <div className="rounded-xl bg-muted p-3 text-center">
+          <p className="text-caption text-muted-foreground">Questões</p>
+          <p className="text-h2 font-bold text-foreground">{result.totalQuestions}</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-xs text-muted-foreground">Acertos</p>
-          <p className="text-xl font-bold text-foreground">{result.correctAnswers}</p>
+        <div className="rounded-xl bg-muted p-3 text-center">
+          <p className="text-caption text-muted-foreground">Acertos</p>
+          <p className="text-h2 font-bold text-foreground">{result.correctAnswers}</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-xs text-muted-foreground">Aproveitamento</p>
-          <p className="text-xl font-bold text-foreground">{result.accuracyRate}%</p>
+        <div className="rounded-xl bg-muted p-3 text-center">
+          <p className="text-caption text-muted-foreground">Aproveitamento</p>
+          <p className="text-h2 font-bold text-foreground">{result.accuracyRate}%</p>
         </div>
       </div>
 
-      <p className="text-sm font-medium mb-4">
+      <p className="text-body font-medium mb-4">
         Nível identificado: <span className={`font-bold uppercase ${levelColor}`}>{result.recommendedPlan.level}</span>
       </p>
 
       {currentRate !== null && (
-        <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 mb-4">
-          <p className="text-xs text-muted-foreground mb-2">Evolução desde o diagnóstico</p>
+        <div className="rounded-xl bg-primary-soft border border-primary/20 p-4 mb-4">
+          <p className="text-caption text-muted-foreground mb-2">Evolução desde o diagnóstico</p>
           <div className="flex items-center gap-3 mb-2">
-            <span className="text-sm text-muted-foreground">Diagnóstico: {result.accuracyRate}%</span>
-            <span className="text-sm text-foreground">→</span>
-            <span className={`text-sm font-bold ${currentRate > result.accuracyRate ? 'text-success' : 'text-foreground'}`}>
+            <span className="text-body text-muted-foreground">Diagnóstico: {result.accuracyRate}%</span>
+            <span className="text-body text-foreground">→</span>
+            <span className={`text-body font-bold ${currentRate > result.accuracyRate ? 'text-success' : 'text-foreground'}`}>
               Atual: {currentRate}%
             </span>
           </div>
-          <Progress value={currentRate} className="h-2" />
+          <Progress value={currentRate} className="h-2" indicatorClassName={currentRate > result.accuracyRate ? 'bg-success' : ''} />
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {result.strengths.length > 0 && (
-          <div className="rounded-lg bg-success/5 border border-success/20 p-4">
-            <p className="text-xs font-semibold text-success mb-2">✅ Pontos fortes</p>
+          <div className="rounded-xl bg-success-soft border border-success/20 p-4">
+            <p className="text-caption font-semibold text-success mb-2 flex items-center gap-1">Pontos fortes</p>
             <ul className="space-y-1">
               {result.strengths.slice(0, 5).map((s, i) => (
-                <li key={i} className="text-sm text-foreground">• {s}</li>
+                <li key={i} className="text-body text-foreground">• {s}</li>
               ))}
             </ul>
           </div>
         )}
         {result.weaknesses.length > 0 && (
-          <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-4">
-            <p className="text-xs font-semibold text-destructive mb-2">⚠️ Pontos a melhorar</p>
+          <div className="rounded-xl bg-destructive-soft border border-destructive/20 p-4">
+            <p className="text-caption font-semibold text-destructive mb-2 flex items-center gap-1">Pontos a melhorar</p>
             <ul className="space-y-1">
               {result.weaknesses.slice(0, 5).map((w, i) => (
-                <li key={i} className="text-sm text-foreground">• {w}</li>
+                <li key={i} className="text-body text-foreground">• {w}</li>
               ))}
             </ul>
           </div>

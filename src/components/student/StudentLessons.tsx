@@ -5,7 +5,7 @@ import { subjectLabel } from '../../lib/ui-utils';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
-import { Search, PlayCircle, Clock } from 'lucide-react';
+import { Search, PlayCircle, Clock, ExternalLink } from 'lucide-react';
 import type { Lesson, Topic } from '../../lib/types';
 
 function getYouTubeEmbedUrl(url: string): string | null {
@@ -79,27 +79,27 @@ export function StudentLessons() {
   const visibleLessons = filtered.filter(l => l.visibility === 'visible');
   const comingSoonLessons = filtered.filter(l => l.visibility === 'coming_soon');
 
-  if (loading) return <p className="text-muted-foreground">Carregando aulas...</p>;
+  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando aulas...</p>;
   if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 animate-fade-in">
       {/* Filters */}
-      <div className="bg-card rounded-xl shadow-sm p-4 space-y-3">
+      <div className="bg-card rounded-xl shadow-sm p-4 space-y-3 border border-border">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar aulas por título ou tema..."
-            className="w-full rounded-lg border border-input bg-background pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-xl border border-input bg-background pl-10 pr-3 py-2.5 text-body focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
           />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <select
             value={filterSubject}
             onChange={e => { setFilterSubject(e.target.value); setFilterTopic(''); }}
-            className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            className="rounded-xl border border-input bg-background px-3 py-2.5 text-body focus:ring-2 focus:ring-primary/30"
           >
             <option value="">Todas disciplinas</option>
             {subjects.map(s => <option key={s} value={s}>{subjectLabel(s)}</option>)}
@@ -107,7 +107,7 @@ export function StudentLessons() {
           <select
             value={filterTopic}
             onChange={e => setFilterTopic(e.target.value)}
-            className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            className="rounded-xl border border-input bg-background px-3 py-2.5 text-body focus:ring-2 focus:ring-primary/30"
           >
             <option value="">Todos tópicos</option>
             {topics
@@ -120,16 +120,16 @@ export function StudentLessons() {
       {/* Visible lessons */}
       {visibleLessons.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <h3 className="text-body font-semibold text-foreground flex items-center gap-2">
             <PlayCircle className="h-4 w-4 text-primary" />
             Aulas disponíveis ({visibleLessons.length})
           </h3>
-          <div className="max-h-[600px] overflow-y-auto space-y-4 pr-1">
+          <div className="max-h-[600px] overflow-y-auto custom-scrollbar space-y-4 pr-1">
             {visibleLessons.map(lesson => {
               const embedUrl = getYouTubeEmbedUrl(lesson.url);
               const topic = topicsMap.get(lesson.topic);
               return (
-                <article key={lesson.id} className="bg-card rounded-xl shadow-sm overflow-hidden">
+                <article key={lesson.id} className="bg-card rounded-xl shadow-sm overflow-hidden border border-border hover:shadow-md transition-shadow">
                   {embedUrl ? (
                     <div className="aspect-video">
                       <iframe
@@ -141,15 +141,16 @@ export function StudentLessons() {
                       />
                     </div>
                   ) : (
-                    <div className="p-4 bg-muted/50">
-                      <a href={lesson.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
-                        Abrir aula em nova aba ↗
+                    <div className="p-4 bg-muted/50 flex items-center gap-2">
+                      <ExternalLink className="h-4 w-4 text-primary" />
+                      <a href={lesson.url} target="_blank" rel="noopener noreferrer" className="text-body text-primary hover:underline font-medium">
+                        Abrir aula em nova aba
                       </a>
                     </div>
                   )}
                   <div className="p-4">
-                    <h4 className="text-sm font-medium text-foreground">{lesson.title}</h4>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <h4 className="text-body font-medium text-foreground">{lesson.title}</h4>
+                    <p className="text-caption text-muted-foreground mt-1">
                       {subjectLabel(lesson.subject)} · {lesson.grade}
                       {topic && ` · ${topic.name}`}
                     </p>
@@ -164,7 +165,7 @@ export function StudentLessons() {
       {/* Coming soon */}
       {comingSoonLessons.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+          <h3 className="text-body font-semibold text-muted-foreground flex items-center gap-2">
             <Clock className="h-4 w-4" />
             Em breve ({comingSoonLessons.length})
           </h3>
@@ -173,13 +174,13 @@ export function StudentLessons() {
               const topic = topicsMap.get(lesson.topic);
               return (
                 <div key={lesson.id} className="bg-card rounded-xl shadow-sm p-4 border border-dashed border-border opacity-70">
-                  <h4 className="text-sm font-medium text-foreground">{lesson.title}</h4>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <h4 className="text-body font-medium text-foreground">{lesson.title}</h4>
+                  <p className="text-caption text-muted-foreground mt-1">
                     {subjectLabel(lesson.subject)} · {lesson.grade}
                     {topic && ` · ${topic.name}`}
                   </p>
-                  <span className="inline-block mt-2 text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                    ⏳ Em breve
+                  <span className="inline-flex items-center gap-1 mt-2 text-overline text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                    <Clock className="h-3 w-3" /> Em breve
                   </span>
                 </div>
               );
@@ -189,7 +190,10 @@ export function StudentLessons() {
       )}
 
       {filtered.length === 0 && (
-        <p className="text-muted-foreground text-center py-8">Nenhuma aula encontrada.</p>
+        <div className="bg-card rounded-xl shadow-sm p-8 text-center border border-border">
+          <PlayCircle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-body text-muted-foreground">Nenhuma aula encontrada.</p>
+        </div>
       )}
     </div>
   );
