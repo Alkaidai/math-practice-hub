@@ -89,8 +89,8 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
         newShuffled[q.id] = { options: shuffled, correctIndex: newCorrectIndex };
       });
       setShuffledMap(newShuffled);
-      setLoading(false);
     });
+    } finally { setLoading(false); }
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
