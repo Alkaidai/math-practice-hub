@@ -3,9 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import { LoadingTimeout } from './LoadingTimeout';
-import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { ErrorState } from './ErrorState';
 import { CheckCircle2, Search } from 'lucide-react';
 import type { Question, Topic, NotebookItem } from '../../lib/types';
 
@@ -19,11 +17,12 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [notebookItems, setNotebookItems] = useState<NotebookItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { error: loadError, execute } = useLoadWithTimeout();
+  const [error, setError] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    await execute(async () => {
+    setError(false);
+    try {
       const [questions, topics, notebook, allowedSlugs] = await Promise.all([
         loadQuestionBank(),
         getTopics({ activeOnly: true }),
@@ -33,12 +32,14 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
       setAllQuestions(questions.filter(q => allowedSlugs.includes(q.subject)));
       setAllTopics(topics.filter(t => allowedSlugs.includes(t.subject)));
       setNotebookItems(notebook);
+    } catch {
+      setError(true);
+    } finally {
       setLoading(false);
-    });
-  }, [userId, execute]);
+    }
+  }, [userId]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData);
 
   const questionsMap = useMemo(() => new Map(allQuestions.map(q => [q.id, q])), [allQuestions]);
 
@@ -77,7 +78,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   }, [notebookItems, filters, search, questionsMap, allTopics]);
 
   if (loading) return <p className="text-muted-foreground">Carregando caderno de erros...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (error) return <ErrorState message="Erro ao carregar o caderno de erros." onRetry={loadData} />;
 
   const pending = items.filter(i => i.status === 'pending');
   const mastered = items.filter(i => i.status === 'mastered');

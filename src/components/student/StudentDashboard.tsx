@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, formatDate } from '../../lib/ui-utils';
@@ -8,10 +8,8 @@ import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
 import { StudyTrail } from './StudyTrail';
-import { LoadingTimeout } from './LoadingTimeout';
+import { ErrorState } from './ErrorState';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
-import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
 import { Target, TrendingUp, Flame, AlertCircle, Stethoscope } from 'lucide-react';
 
@@ -60,11 +58,12 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   const { user } = useAuth();
   const userId = user?.username ?? '';
   const [data, setData] = useState<DashboardData | null>(null);
-  const { loading, error, execute } = useLoadWithTimeout();
+  const [error, setError] = useState(false);
   const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
 
-  const load = useCallback(async () => {
-    await execute(async () => {
+  const load = async () => {
+    setError(false);
+    try {
       const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
@@ -116,14 +115,15 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       }
 
       setData({ answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag });
-    });
-  }, [userId, execute]);
+    } catch {
+      setError(true);
+    }
+  };
 
-  useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  useEffect(() => { load(); }, [userId]);
 
-  if (error) return <LoadingTimeout error={error} onRetry={load} />;
-  if (loading || !data) return <p className="text-muted-foreground">Carregando painel...</p>;
+  if (error) return <ErrorState message="Erro ao carregar o painel." onRetry={load} />;
+  if (!data) return <p className="text-muted-foreground">Carregando painel...</p>;
 
   // Show diagnostic assessment inline
   if (showDiagnosticNow) {

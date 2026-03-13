@@ -3,9 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { loadQuestionBank, getTopics, getNotebook, addAttempt, upsertNotebookItem, addComment, addReport, getAttempts, saveStudentDashboardMeta, getLessons, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, optionLetter, formatDate, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import { LoadingTimeout } from './LoadingTimeout';
-import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { ErrorState } from './ErrorState';
 import type { Question, QuestionFilters, Comment as CommentType, Topic, NotebookItem, Lesson } from '../../lib/types';
 import { CheckCircle2, XCircle } from 'lucide-react';
 
@@ -42,14 +40,15 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const [allLessons, setAllLessons] = useState<Lesson[]>([]);
   const [allowedSlugs, setAllowedSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const { error: loadError, execute } = useLoadWithTimeout();
+  const [error, setError] = useState(false);
 
   // Store shuffled options per question
   const [shuffledMap, setShuffledMap] = useState<Record<string, { options: string[]; correctIndex: number }>>({});
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    await execute(async () => {
+    setError(false);
+    try {
       const [topics, questions, notebook, lessons, slugs] = await Promise.all([
         getTopics({ activeOnly: true }),
         loadQuestionBank(),
@@ -65,18 +64,21 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
       setAllLessons(lessons);
       setAllowedSlugs(slugs);
 
+      // Shuffle options for all questions
       const newShuffled: Record<string, { options: string[]; correctIndex: number }> = {};
       filteredQuestions.forEach(q => {
         const { shuffled, newCorrectIndex } = shuffleOptions(q.options, q.correctIndex);
         newShuffled[q.id] = { options: shuffled, correctIndex: newCorrectIndex };
       });
       setShuffledMap(newShuffled);
+    } catch {
+      setError(true);
+    } finally {
       setLoading(false);
-    });
-  }, [userId, execute]);
+    }
+  }, [userId]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData);
 
   const topicMap = useMemo(() => new Map(allTopics.map(t => [t.id, t.name])), [allTopics]);
 
@@ -167,7 +169,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId }: { initialQu
   const pagedQuestions = questions.slice(page * perPage, (page + 1) * perPage);
 
   if (loading) return <p className="text-muted-foreground">Carregando questões...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (error) return <ErrorState message="Erro ao carregar as questões." onRetry={loadData} />;
 
   return (
     <div className="space-y-5">

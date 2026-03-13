@@ -1,10 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
-import { LoadingTimeout } from './LoadingTimeout';
-import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { ErrorState } from './ErrorState';
 import { AlertTriangle, CheckCircle2, BookOpen, Clock } from 'lucide-react';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
@@ -45,11 +43,14 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   const { user } = useAuth();
   const userId = externalUserId ?? user?.username ?? '';
   const [groups, setGroups] = useState<SubjectGroup[]>([]);
-  const { loading, error: loadError, execute } = useLoadWithTimeout();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [sortBy, setSortBy] = useState<'priority' | 'name' | 'rate'>('priority');
 
-  const load = useCallback(async () => {
-    await execute(async () => {
+  const load = async () => {
+    setLoading(true);
+    setError(false);
+    try {
       const [attempts, topics, subjects, questions, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getTopics({ activeOnly: true }),
@@ -107,14 +108,17 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
         .filter(g => g.topics.length > 0);
 
       setGroups(result);
-    });
-  }, [userId, execute, externalUserId]);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  useEffect(() => { load(); }, [userId]);
 
   if (loading) return <p className="text-muted-foreground">Carregando mapa de tópicos...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
+  if (error) return <ErrorState message="Erro ao carregar o mapa de tópicos." onRetry={load} />;
   if (groups.length === 0) return (
     <div className="bg-card rounded-xl shadow-sm p-8 text-center">
       <p className="text-muted-foreground">Nenhum tópico disponível ainda.</p>
