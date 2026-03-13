@@ -35,46 +35,28 @@ export type Database = {
       attempts: {
         Row: {
           answered_at: string
-          attempt_number: number | null
-          difficulty_detected: boolean | null
           id: number
           is_correct: boolean
-          possible_guess: boolean | null
-          question_abandoned: boolean | null
           question_id: string
-          question_skipped: boolean | null
           selected_index: number
-          time_spent_seconds: number | null
           topic_id: string | null
           user_id: string
         }
         Insert: {
           answered_at?: string
-          attempt_number?: number | null
-          difficulty_detected?: boolean | null
           id?: number
           is_correct?: boolean
-          possible_guess?: boolean | null
-          question_abandoned?: boolean | null
           question_id: string
-          question_skipped?: boolean | null
           selected_index?: number
-          time_spent_seconds?: number | null
           topic_id?: string | null
           user_id: string
         }
         Update: {
           answered_at?: string
-          attempt_number?: number | null
-          difficulty_detected?: boolean | null
           id?: number
           is_correct?: boolean
-          possible_guess?: boolean | null
-          question_abandoned?: boolean | null
           question_id?: string
-          question_skipped?: boolean | null
           selected_index?: number
-          time_spent_seconds?: number | null
           topic_id?: string | null
           user_id?: string
         }
@@ -125,66 +107,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      daily_missions: {
-        Row: {
-          completed: boolean
-          completed_at: string | null
-          created_at: string
-          current_value: number
-          date: string
-          id: number
-          mission_type: string
-          target_value: number
-          user_id: string
-        }
-        Insert: {
-          completed?: boolean
-          completed_at?: string | null
-          created_at?: string
-          current_value?: number
-          date?: string
-          id?: never
-          mission_type: string
-          target_value?: number
-          user_id: string
-        }
-        Update: {
-          completed?: boolean
-          completed_at?: string | null
-          created_at?: string
-          current_value?: number
-          date?: string
-          id?: never
-          mission_type?: string
-          target_value?: number
-          user_id?: string
-        }
-        Relationships: []
-      }
-      daily_study_stats: {
-        Row: {
-          date: string
-          id: string
-          questions_answered: number
-          total_seconds: number
-          user_id: string
-        }
-        Insert: {
-          date?: string
-          id?: string
-          questions_answered?: number
-          total_seconds?: number
-          user_id: string
-        }
-        Update: {
-          date?: string
-          id?: string
-          questions_answered?: number
-          total_seconds?: number
-          user_id?: string
-        }
-        Relationships: []
       }
       dashboard_meta: {
         Row: {
@@ -368,9 +290,7 @@ export type Database = {
           difficulty: string | null
           grade: string | null
           id: number
-          next_review_at: string | null
           question_id: string
-          review_count: number
           rule_insight: string
           status: string
           subject: string | null
@@ -383,9 +303,7 @@ export type Database = {
           difficulty?: string | null
           grade?: string | null
           id?: number
-          next_review_at?: string | null
           question_id: string
-          review_count?: number
           rule_insight?: string
           status?: string
           subject?: string | null
@@ -398,9 +316,7 @@ export type Database = {
           difficulty?: string | null
           grade?: string | null
           id?: number
-          next_review_at?: string | null
           question_id?: string
-          review_count?: number
           rule_insight?: string
           status?: string
           subject?: string | null
@@ -657,27 +573,6 @@ export type Database = {
         }
         Relationships: []
       }
-      topic_prerequisites: {
-        Row: {
-          created_at: string
-          id: number
-          prerequisite_topic_id: string
-          topic_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: never
-          prerequisite_topic_id: string
-          topic_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: never
-          prerequisite_topic_id?: string
-          topic_id?: string
-        }
-        Relationships: []
-      }
       topics: {
         Row: {
           grade: string
@@ -731,33 +626,6 @@ export type Database = {
           qty?: number
           question_ids?: Json
           topic?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_sessions: {
-        Row: {
-          duration_seconds: number | null
-          end_time: string | null
-          id: string
-          last_activity: string
-          start_time: string
-          user_id: string
-        }
-        Insert: {
-          duration_seconds?: number | null
-          end_time?: string | null
-          id?: string
-          last_activity?: string
-          start_time?: string
-          user_id: string
-        }
-        Update: {
-          duration_seconds?: number | null
-          end_time?: string | null
-          id?: string
-          last_activity?: string
-          start_time?: string
           user_id?: string
         }
         Relationships: []

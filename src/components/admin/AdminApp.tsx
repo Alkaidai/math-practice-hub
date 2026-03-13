@@ -2,9 +2,6 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from '../student/LoginForm';
 import { loadQuestionBank, saveQuestionBank, saveQuestionsBulk, deleteQuestion, getTopics, getAttempts, loadUsers, getUsersByRole, getLessons, saveLesson, updateLesson, deleteLesson, getNotebook, getReports, setReportStatus, updateReport, addReply, setCommentStatus, getTrainingPlans, addTrainingPlan, upsertUser, createTopic, updateTopic, toggleTopicStatus, deleteTopic, getRanking, getAppSetting, setAppSetting, getAllAppSettings, getAllDiagnosticResults, getDiagnosticResult, resetDiagnostic, toggleUserStatus, getSubjects, createSubject, updateSubject, deleteSubject, getUserSubjectAccess, setUserSubjectAccess, toggleLessonVisibility } from '../../lib/storage';
-import { AdminAnalytics } from './AdminAnalytics';
-import { StudentSelector, useStudentList } from './StudentSelector';
-import { AdminPrerequisites } from './AdminPrerequisites';
 import { subjectLabel, difficultyLabel, statusLabel, formatDate, uid, subjectCode, difficultyCode } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP, SUBJECTS_REVERSE, DIFFICULTIES_REVERSE } from '../../lib/constants';
 import type { Question, Topic, Lesson, Report, User, Attempt, NotebookItem, SubjectItem } from '../../lib/types';
@@ -18,10 +15,10 @@ import {
 import {
   LayoutDashboard, FileText, BookOpen, GraduationCap, Folder, Upload, Download,
   Trophy, BarChart3, Users, MessageSquare, Notebook, AlertTriangle, Settings,
-  ArrowLeft, LogOut, ImageIcon, X, Trash2, Activity, Link2,
+  ArrowLeft, LogOut, ImageIcon, X, Trash2,
 } from 'lucide-react';
 
-type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'analytics' | 'prerequisites' | 'settings';
+type Panel = 'dashboard' | 'questions' | 'lessons' | 'cadastros' | 'subjects' | 'users' | 'comments' | 'notebook' | 'reports' | 'import' | 'export' | 'ranking' | 'topic-stats' | 'settings';
 
 // Reusable paginated table component for admin lists
 function AdminPaginatedTable<T>({ items, perPage, renderHeader, renderRow }: {
@@ -61,12 +58,10 @@ const ADMIN_NAV = [
   { id: 'subjects' as Panel, label: 'Disciplinas', icon: BookOpen, group: 'Conteúdo' },
   { id: 'lessons' as Panel, label: 'Aulas', icon: GraduationCap, group: 'Conteúdo' },
   { id: 'cadastros' as Panel, label: 'Tópicos', icon: Folder, group: 'Conteúdo' },
-  { id: 'prerequisites' as Panel, label: 'Pré-requisitos', icon: Link2, group: 'Conteúdo' },
   { id: 'import' as Panel, label: 'Importar', icon: Upload, group: 'Conteúdo' },
   { id: 'export' as Panel, label: 'Exportar', icon: Download, group: 'Conteúdo' },
   { id: 'ranking' as Panel, label: 'Ranking', icon: Trophy, group: 'Análise' },
   { id: 'topic-stats' as Panel, label: 'Estatísticas', icon: BarChart3, group: 'Análise' },
-  { id: 'analytics' as Panel, label: 'Engajamento', icon: Activity, group: 'Análise' },
   { id: 'users' as Panel, label: 'Usuários', icon: Users, group: 'Pessoas' },
   { id: 'comments' as Panel, label: 'Comentários', icon: MessageSquare, group: 'Pessoas' },
   { id: 'notebook' as Panel, label: 'Caderno', icon: Notebook, group: 'Pessoas' },
@@ -192,8 +187,6 @@ export function AdminApp() {
             {panel === 'export' && <AdminExport />}
             {panel === 'ranking' && <AdminRanking key={refreshKey} />}
             {panel === 'topic-stats' && <AdminTopicStats key={refreshKey} />}
-            {panel === 'analytics' && <AdminAnalytics key={refreshKey} />}
-            {panel === 'prerequisites' && <AdminPrerequisites key={refreshKey} />}
             {panel === 'settings' && <AdminSettings key={refreshKey} />}
           </main>
         </div>
@@ -279,8 +272,6 @@ function AdminRanking() {
   const [ranking, setRanking] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [diagnostics, setDiagnostics] = useState<any[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState('');
-  const students = useStudentList();
 
   useEffect(() => {
     Promise.all([getRanking(), getAllDiagnosticResults()]).then(([r, d]) => {
@@ -292,18 +283,12 @@ function AdminRanking() {
 
   if (loading) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
-  const filteredRanking = selectedStudent ? ranking.filter(r => r.username === selectedStudent) : ranking;
-  const filteredDiagnostics = selectedStudent ? diagnostics.filter((d: any) => d.user_id === selectedStudent) : diagnostics;
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="font-heading text-sm font-bold uppercase">🏆 Ranking de Alunos</h2>
-        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
-      </div>
+      <h2 className="font-heading text-sm font-bold uppercase">🏆 Ranking de Alunos</h2>
 
-      {filteredRanking.length === 0 ? (
-        <p className="font-body text-sm text-muted-foreground">Nenhum dado de ranking {selectedStudent ? 'para este aluno' : 'ainda'}.</p>
+      {ranking.length === 0 ? (
+        <p className="font-body text-sm text-muted-foreground">Nenhum dado de ranking ainda.</p>
       ) : (
         <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
           <table className="w-full text-sm border-collapse">
@@ -315,27 +300,24 @@ function AdminRanking() {
               </tr>
             </thead>
             <tbody>
-              {filteredRanking.map((r, i) => {
-                const globalIndex = ranking.indexOf(r);
-                return (
-                  <tr key={r.userId} className="hover:bg-muted/50">
-                    <td className="p-2 border border-border font-heading text-xs font-bold">
-                      {globalIndex === 0 ? '🥇' : globalIndex === 1 ? '🥈' : globalIndex === 2 ? '🥉' : globalIndex + 1}
-                    </td>
-                    <td className="p-2 border border-border font-heading text-xs font-bold">{r.username}</td>
-                    <td className="p-2 border border-border font-heading text-xs">{r.total}</td>
-                    <td className="p-2 border border-border font-heading text-xs">{r.correct}</td>
-                    <td className="p-2 border border-border font-heading text-xs">{r.rate}%</td>
-                    <td className="p-2 border border-border font-heading text-xs">{r.streak} dia{r.streak === 1 ? '' : 's'}</td>
-                  </tr>
-                );
-              })}
+              {ranking.map((r, i) => (
+                <tr key={r.userId} className="hover:bg-muted/50">
+                  <td className="p-2 border border-border font-heading text-xs font-bold">
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                  </td>
+                  <td className="p-2 border border-border font-heading text-xs font-bold">{r.username}</td>
+                  <td className="p-2 border border-border font-heading text-xs">{r.total}</td>
+                  <td className="p-2 border border-border font-heading text-xs">{r.correct}</td>
+                  <td className="p-2 border border-border font-heading text-xs">{r.rate}%</td>
+                  <td className="p-2 border border-border font-heading text-xs">{r.streak} dia{r.streak === 1 ? '' : 's'}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
 
-      {filteredDiagnostics.length > 0 && (
+      {diagnostics.length > 0 && (
         <div>
           <h3 className="font-heading text-sm font-bold uppercase mt-4 mb-2">📊 Diagnósticos Realizados</h3>
           <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
@@ -348,7 +330,7 @@ function AdminRanking() {
                 </tr>
               </thead>
               <tbody>
-                {filteredDiagnostics.map((d: any) => (
+                {diagnostics.map((d: any) => (
                   <tr key={d.id} className="hover:bg-muted/50">
                     <td className="p-2 border border-border font-heading text-xs font-bold">{d.user_id}</td>
                     <td className="p-2 border border-border font-heading text-xs">{formatDate(d.completed_at)}</td>
@@ -372,8 +354,6 @@ function AdminRanking() {
 
 function AdminTopicStats() {
   const [data, setData] = useState<{ topics: Topic[]; attempts: Attempt[]; questions: Question[] } | null>(null);
-  const [selectedStudent, setSelectedStudent] = useState('');
-  const students = useStudentList();
 
   useEffect(() => {
     Promise.all([getTopics(), getAttempts(), loadQuestionBank()]).then(([topics, attempts, questions]) => {
@@ -383,8 +363,7 @@ function AdminTopicStats() {
 
   if (!data) return <p className="font-body text-muted-foreground">Carregando...</p>;
 
-  const { topics, questions } = data;
-  const attempts = selectedStudent ? data.attempts.filter(a => a.userId === selectedStudent) : data.attempts;
+  const { topics, attempts, questions } = data;
   const questionMap = new Map(questions.map(q => [q.id, q]));
 
   const stats = new Map<string, { total: number; correct: number; errors: number }>();
@@ -411,10 +390,7 @@ function AdminTopicStats() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
-        <StudentSelector students={students} value={selectedStudent} onChange={setSelectedStudent} />
-      </div>
+      <h2 className="font-heading text-sm font-bold uppercase">📊 Estatísticas por Tópico</h2>
 
       {topicStats.length === 0 ? (
         <p className="font-body text-sm text-muted-foreground">Nenhum tópico encontrado.</p>

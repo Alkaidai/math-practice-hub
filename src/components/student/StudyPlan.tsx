@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { getDiagnosticResult, getAttempts, getTopics, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
 import type { Topic, Question, Attempt } from '../../lib/types';
 
@@ -9,72 +11,87 @@ interface TopicProgress {
   answered: number;
   correct: number;
   progress: number;
+  recommended: number;
 }
 
-interface StudyPlanProps {
-  attempts: Attempt[];
-  questions: Question[];
-  topics: Topic[];
-  diagnosticResult: any | null;
-  onStartTopic: (topicId: string) => void;
-}
+export function StudyPlan({ onStartTopic }: { onStartTopic: (topicId: string) => void }) {
+  const { user } = useAuth();
+  const userId = user?.username ?? '';
+  const [topicProgress, setTopicProgress] = useState<TopicProgress[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export function StudyPlan({ attempts, questions, topics, diagnosticResult, onStartTopic }: StudyPlanProps) {
-  const topicProgress = useMemo(() => {
-    const topicMap = new Map(topics.map(t => [t.id, t.name]));
-    const questionMap = new Map(questions.map(q => [q.id, q]));
+  useEffect(() => {
+    async function load() {
+      const [diag, attempts, topics, questions, allowedSlugs] = await Promise.all([
+        getDiagnosticResult(userId),
+        getAttempts(userId),
+        getTopics({ activeOnly: true }),
+        loadQuestionBank(),
+        getAllowedSubjectSlugs(userId),
+      ]);
 
-    const publishedByTopic = new Map<string, number>();
-    questions.filter(q => q.status !== 'draft').forEach(q => {
-      if (q.topicId) publishedByTopic.set(q.topicId, (publishedByTopic.get(q.topicId) ?? 0) + 1);
-    });
+      const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
+      const filteredQuestions = questions.filter(q => allowedSlugs.includes(q.subject));
 
-    const attemptsByTopic = new Map<string, { answered: number; correct: number }>();
-    attempts.forEach(a => {
-      const q = questionMap.get(a.questionId);
-      if (!q?.topicId) return;
-      const prev = attemptsByTopic.get(q.topicId) ?? { answered: 0, correct: 0 };
-      prev.answered += 1;
-      if (a.isCorrect) prev.correct += 1;
-      attemptsByTopic.set(q.topicId, prev);
-    });
+      const topicMap = new Map(filteredTopics.map(t => [t.id, t.name]));
+      const publishedByTopic = new Map<string, number>();
+      filteredQuestions.filter(q => q.status !== 'draft').forEach(q => {
+        if (q.topicId) publishedByTopic.set(q.topicId, (publishedByTopic.get(q.topicId) ?? 0) + 1);
+      });
 
-    let weakTopicIds: string[] = [];
-    if (diagnosticResult) {
-      const d = diagnosticResult as any;
-      const breakdown = (d.topic_breakdown ?? d.topicBreakdown ?? []) as any[];
-      weakTopicIds = breakdown
-        .filter((b: any) => b.rate < 70)
-        .sort((a: any, b: any) => a.rate - b.rate)
-        .map((b: any) => b.topicId)
-        .filter(Boolean);
+      const attemptsByTopic = new Map<string, { answered: number; correct: number }>();
+      attempts.forEach(a => {
+        const q = filteredQuestions.find(qq => qq.id === a.questionId);
+        if (!q?.topicId) return;
+        const prev = attemptsByTopic.get(q.topicId) ?? { answered: 0, correct: 0 };
+        prev.answered += 1;
+        if (a.isCorrect) prev.correct += 1;
+        attemptsByTopic.set(q.topicId, prev);
+      });
+
+      let weakTopicIds: string[] = [];
+      if (diag) {
+        const d = diag as any;
+        const breakdown = (d.topic_breakdown ?? d.topicBreakdown ?? []) as any[];
+        weakTopicIds = breakdown
+          .filter((b: any) => b.rate < 70)
+          .sort((a: any, b: any) => a.rate - b.rate)
+          .map((b: any) => b.topicId)
+          .filter(Boolean);
+      }
+
+      if (weakTopicIds.length === 0) {
+        weakTopicIds = [...attemptsByTopic.entries()]
+          .filter(([, s]) => s.answered > 0)
+          .map(([tid, s]) => ({ tid, rate: Math.round((s.correct / s.answered) * 100) }))
+          .sort((a, b) => a.rate - b.rate)
+          .slice(0, 5)
+          .map(x => x.tid);
+      }
+
+      if (weakTopicIds.length === 0) {
+        weakTopicIds = filteredTopics.filter(t => (publishedByTopic.get(t.id) ?? 0) > 0).map(t => t.id).slice(0, 5);
+      }
+
+      const progress: TopicProgress[] = weakTopicIds.map(tid => {
+        const stats = attemptsByTopic.get(tid) ?? { answered: 0, correct: 0 };
+        const totalQ = publishedByTopic.get(tid) ?? 0;
+        const recommended = Math.max(5, totalQ);
+        const prog = totalQ > 0 ? Math.min(100, Math.round((stats.correct / totalQ) * 100)) : 0;
+        return {
+          topicId: tid, topicName: topicMap.get(tid) ?? tid,
+          totalQuestions: totalQ, answered: stats.answered, correct: stats.correct,
+          progress: prog, recommended,
+        };
+      });
+
+      setTopicProgress(progress);
+      setLoading(false);
     }
+    load();
+  }, [userId]);
 
-    if (weakTopicIds.length === 0) {
-      weakTopicIds = [...attemptsByTopic.entries()]
-        .filter(([, s]) => s.answered > 0)
-        .map(([tid, s]) => ({ tid, rate: Math.round((s.correct / s.answered) * 100) }))
-        .sort((a, b) => a.rate - b.rate)
-        .slice(0, 5)
-        .map(x => x.tid);
-    }
-
-    if (weakTopicIds.length === 0) {
-      weakTopicIds = topics.filter(t => (publishedByTopic.get(t.id) ?? 0) > 0).map(t => t.id).slice(0, 5);
-    }
-
-    return weakTopicIds.map(tid => {
-      const stats = attemptsByTopic.get(tid) ?? { answered: 0, correct: 0 };
-      const totalQ = publishedByTopic.get(tid) ?? 0;
-      const prog = totalQ > 0 ? Math.min(100, Math.round((stats.correct / totalQ) * 100)) : 0;
-      return {
-        topicId: tid, topicName: topicMap.get(tid) ?? tid,
-        totalQuestions: totalQ, answered: stats.answered, correct: stats.correct,
-        progress: prog,
-      };
-    });
-  }, [attempts, questions, topics, diagnosticResult]);
-
+  if (loading) return null;
   if (topicProgress.length === 0) return null;
 
   return (

@@ -4,7 +4,7 @@ import { getLessons, getTopics, getAllowedSubjectSlugs } from '../../lib/storage
 import { subjectLabel } from '../../lib/ui-utils';
 import { LoadingTimeout } from './LoadingTimeout';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
-import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { Search, PlayCircle, Clock } from 'lucide-react';
 import type { Lesson, Topic } from '../../lib/types';
 
@@ -30,24 +30,28 @@ export function StudentLessons() {
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const { loading, error: loadError, execute } = useLoadWithTimeout();
+  const [loading, setLoading] = useState(true);
+  const { error: loadError, execute } = useLoadWithTimeout();
   const [search, setSearch] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
 
   const loadData = useCallback(async () => {
+    setLoading(true);
     await execute(async () => {
       const [allLessons, allTopics, allowedSlugs] = await Promise.all([
-        cachedFetch(CACHE_KEYS.LESSONS, () => getLessons()),
-        cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
-        cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)),
+        getLessons(),
+        getTopics({ activeOnly: true }),
+        getAllowedSubjectSlugs(userId),
       ]);
-      setLessons(allLessons.filter((l: any) => allowedSlugs.includes(l.subject)));
-      setTopics(allTopics.filter((t: any) => allowedSlugs.includes(t.subject)));
+      setLessons(allLessons.filter(l => allowedSlugs.includes(l.subject)));
+      setTopics(allTopics.filter(t => allowedSlugs.includes(t.subject)));
+      setLoading(false);
     });
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useVisibilityRefresh(loadData);
 
   const topicsMap = useMemo(() => new Map(topics.map(t => [t.id, t])), [topics]);
 
@@ -75,8 +79,8 @@ export function StudentLessons() {
   const visibleLessons = filtered.filter(l => l.visibility === 'visible');
   const comingSoonLessons = filtered.filter(l => l.visibility === 'coming_soon');
 
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
   if (loading) return <p className="text-muted-foreground">Carregando aulas...</p>;
+  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
 
   return (
     <div className="space-y-5">

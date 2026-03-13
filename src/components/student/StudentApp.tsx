@@ -3,11 +3,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from './LoginForm';
 import { StudentDashboard } from './StudentDashboard';
 import { QuestionsList } from './QuestionsList';
-import { TimedTraining } from './TimedTraining';
 import { StudentNotebook } from './StudentNotebook';
 import { StudentRanking } from './StudentRanking';
 import { KnowledgeMap } from './KnowledgeMap';
-import { LearningTrails } from './LearningTrails';
 import { StudentLessons } from './StudentLessons';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { ScrollToTop } from './ScrollToTop';
@@ -17,15 +15,13 @@ import {
   SidebarGroup, SidebarGroupContent, SidebarMenu,
   SidebarMenuItem, SidebarMenuButton, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap, Timer, Route } from 'lucide-react';
+import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap } from 'lucide-react';
 
-type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'trails' | 'notebook' | 'ranking' | 'lessons';
+type Tab = 'dashboard' | 'questions' | 'knowledgeMap' | 'notebook' | 'ranking' | 'lessons';
 
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { key: 'questions', label: 'Treinar', icon: PenLine },
-  { key: 'timed', label: 'Cronômetro', icon: Timer },
-  { key: 'trails', label: 'Trilhas', icon: Route },
   { key: 'lessons', label: 'Aulas', icon: GraduationCap },
   { key: 'knowledgeMap', label: 'Mapa de tópicos', icon: Map },
   { key: 'notebook', label: 'Caderno de erros', icon: BookOpen },
@@ -90,7 +86,6 @@ export function StudentApp() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [targetQuestion, setTargetQuestion] = useState<string | null>(null);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
-  const [difficultyFilter, setDifficultyFilter] = useState<string | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [diagChecked, setDiagChecked] = useState(false);
   // Key to force remount components on tab switch, clearing stale state
@@ -115,14 +110,12 @@ export function StudentApp() {
   const handleTabChange = (t: Tab) => {
     setTab(t);
     setTopicFilter(null);
-    setDifficultyFilter(null);
     setTabKey(k => k + 1);
   };
 
   const handleRefazer = (questionId: string) => {
     setTargetQuestion(questionId);
     setTopicFilter(null);
-    setDifficultyFilter(null);
     setTab('questions');
     setTabKey(k => k + 1);
     setTimeout(() => {
@@ -130,21 +123,18 @@ export function StudentApp() {
     }, 100);
   };
 
-  const handleStartTopic = (topicId: string, difficulty?: string) => {
+  const handleStartTopic = (topicId: string) => {
     setTargetQuestion(null);
     setTopicFilter(topicId);
-    setDifficultyFilter(difficulty ?? null);
     setTab('questions');
     setTabKey(k => k + 1);
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    );
-  }
+  if (authLoading) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <p className="text-muted-foreground">Carregando...</p>
+    </div>
+  );
 
   if (!user) return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -186,9 +176,7 @@ export function StudentApp() {
           </header>
           <main className="flex-1 p-4 md:p-6 overflow-auto">
             {tab === 'dashboard' && <StudentDashboard key={tabKey} onNavigateQuestions={() => handleTabChange('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
-            {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} initialDifficulty={difficultyFilter} />}
-            {tab === 'timed' && <TimedTraining key={tabKey} />}
-            {tab === 'trails' && <LearningTrails key={tabKey} onStartTopic={handleStartTopic} />}
+            {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} />}
             {tab === 'knowledgeMap' && <KnowledgeMap key={tabKey} onStartTopic={handleStartTopic} />}
             {tab === 'lessons' && <StudentLessons key={tabKey} />}
             {tab === 'notebook' && <StudentNotebook key={tabKey} onRefazer={handleRefazer} />}

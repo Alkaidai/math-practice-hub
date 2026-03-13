@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+const DEFAULT_TIMEOUT_MS = 12000; // 12 seconds
 const MAX_RETRIES = 1;
-const ABSOLUTE_MAX_MS = 35000; // Must be > DEFAULT_TIMEOUT_MS to avoid premature kills
 
 interface UseLoadWithTimeoutOptions {
   timeoutMs?: number;
@@ -17,141 +16,83 @@ interface UseLoadWithTimeoutReturn {
   reset: () => void;
 }
 
-const TIMEOUT_MESSAGE = 'Não foi possível carregar os dados. Verifique sua conexão.';
-const GENERIC_MESSAGE = 'Ocorreu um erro ao carregar os dados.';
-
-function isAuthError(err: any): boolean {
-  return (
-    err?.status === 401 ||
-    err?.status === 403 ||
-    err?.message?.includes('JWT') ||
-    err?.message?.includes('token') ||
-    err?.message?.includes('refresh_token')
-  );
-}
-
-function withTimeout(task: () => Promise<void>, timeoutMs: number): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
-
-    Promise.resolve()
-      .then(task)
-      .then(resolve)
-      .catch(reject)
-      .finally(() => clearTimeout(timer));
-  });
-}
-
 export function useLoadWithTimeout(options: UseLoadWithTimeoutOptions = {}): UseLoadWithTimeoutReturn {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, maxRetries = MAX_RETRIES } = options;
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
-
   const mountedRef = useRef(true);
-  const requestIdRef = useRef(0);
-  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearSafetyTimer = useCallback(() => {
-    if (safetyTimerRef.current) {
-      clearTimeout(safetyTimerRef.current);
-      safetyTimerRef.current = null;
-    }
-  }, []);
-
-  const finishRequest = useCallback((requestId: number, next: { loading: boolean; error: string | null; timedOut: boolean }) => {
-    if (!mountedRef.current) return;
-    if (requestId !== requestIdRef.current) return;
-
-    clearSafetyTimer();
-    setLoading(next.loading);
-    setError(next.error);
-    setTimedOut(next.timedOut);
-  }, [clearSafetyTimer]);
+  const retryCountRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
-
-    return () => {
-      mountedRef.current = false;
-      clearSafetyTimer();
-    };
-  }, [clearSafetyTimer]);
-
-  useEffect(() => {
-    if (!loading) return;
-
-    const initialSafetyTimer = setTimeout(() => {
-      if (!mountedRef.current) return;
-      if (requestIdRef.current !== 0) return;
-
-      setLoading(false);
-      setTimedOut(true);
-      setError(TIMEOUT_MESSAGE);
-    }, ABSOLUTE_MAX_MS);
-
-    return () => clearTimeout(initialSafetyTimer);
-  }, [loading]);
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const execute = useCallback(async (fn: () => Promise<void>) => {
     if (!mountedRef.current) return;
-
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-
-    console.log(`[LoadWithTimeout] execute started (reqId=${requestId})`);
     setLoading(true);
     setError(null);
     setTimedOut(false);
 
-    clearSafetyTimer();
-    safetyTimerRef.current = setTimeout(() => {
-      console.warn(`[LoadWithTimeout] ⚠️ ABSOLUTE SAFETY TIMEOUT (${ABSOLUTE_MAX_MS}ms) fired (reqId=${requestId})`);
-      finishRequest(requestId, { loading: false, error: TIMEOUT_MESSAGE, timedOut: true });
-    }, ABSOLUTE_MAX_MS);
+    const attempt = async (): Promise<void> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
       try {
-        await withTimeout(fn, timeoutMs);
-        console.log(`[LoadWithTimeout] execute success (reqId=${requestId}, attempt=${attempt})`);
-        finishRequest(requestId, { loading: false, error: null, timedOut: false });
-        return;
+        await Promise.race([
+          fn(),
+          new Promise<never>((_, reject) => {
+            controller.signal.addEventListener('abort', () =>
+              reject(new Error('TIMEOUT'))
+            );
+          }),
+        ]);
+        if (mountedRef.current) {
+          retryCountRef.current = 0;
+          setLoading(false);
+          setError(null);
+        }
       } catch (err: any) {
-        if (!mountedRef.current || requestId !== requestIdRef.current) {
-          console.log(`[LoadWithTimeout] request stale or unmounted (reqId=${requestId})`);
+        if (!mountedRef.current) return;
+
+        const isTimeout = err?.message === 'TIMEOUT';
+        const isAuthError = err?.status === 401 || err?.status === 403 ||
+          err?.message?.includes('JWT') || err?.message?.includes('token') ||
+          err?.message?.includes('refresh_token');
+
+        if (isAuthError) {
+          setLoading(false);
+          setError('session_expired');
           return;
         }
 
-        if (isAuthError(err)) {
-          console.warn(`[LoadWithTimeout] auth error detected (reqId=${requestId}):`, err?.message);
-          finishRequest(requestId, { loading: false, error: 'session_expired', timedOut: false });
-          return;
+        if (retryCountRef.current < maxRetries) {
+          retryCountRef.current += 1;
+          clearTimeout(timer);
+          return attempt();
         }
 
-        const isLastAttempt = attempt >= maxRetries;
-        const timeoutError = err?.message === 'TIMEOUT';
-        console.warn(`[LoadWithTimeout] attempt ${attempt} failed (reqId=${requestId}): ${timeoutError ? 'TIMEOUT' : err?.message}`);
-
-        if (!isLastAttempt) continue;
-
-        finishRequest(requestId, {
-          loading: false,
-          error: timeoutError ? TIMEOUT_MESSAGE : GENERIC_MESSAGE,
-          timedOut: timeoutError,
-        });
-        return;
+        setLoading(false);
+        setTimedOut(isTimeout);
+        setError(isTimeout
+          ? 'Não foi possível carregar os dados. Verifique sua conexão.'
+          : 'Ocorreu um erro ao carregar os dados.');
+      } finally {
+        clearTimeout(timer);
       }
-    }
-  }, [clearSafetyTimer, finishRequest, maxRetries, timeoutMs]);
+    };
+
+    retryCountRef.current = 0;
+    await attempt();
+  }, [timeoutMs, maxRetries]);
 
   const reset = useCallback(() => {
-    requestIdRef.current += 1;
-    clearSafetyTimer();
+    retryCountRef.current = 0;
     setLoading(true);
     setError(null);
     setTimedOut(false);
-  }, [clearSafetyTimer]);
+  }, []);
 
   return { loading, error, timedOut, execute, reset };
 }

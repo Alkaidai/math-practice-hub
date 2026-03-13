@@ -1,25 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import {
-  getAttempts, getNotebook, getStudentDashboardMeta, getTopics,
-  loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs,
-  getDailyStudyStats, getAverageTimePerQuestion,
-} from '../../lib/storage';
-import { cachedFetch, CACHE_KEYS } from '../../lib/cache';
-import { subjectLabel, difficultyLabel, formatDate } from '../../lib/ui-utils';
+import { getAttempts, getNotebook, getStudentDashboardMeta, getTopics, loadQuestionBank, getDiagnosticResult, getAllowedSubjectSlugs } from '../../lib/storage';
+import { subjectLabel, formatDate } from '../../lib/ui-utils';
+import { Progress } from '../ui/progress';
 import { DiagnosticReport } from './DiagnosticReport';
 import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
-import { DailyMissions } from './DailyMissions';
 import { StudyTrail } from './StudyTrail';
 import { LoadingTimeout } from './LoadingTimeout';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
-import { getRecommendedDifficulty, getRecommendedTopic } from '../../lib/adaptive';
+import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import type { Question, Attempt, DashboardMeta } from '../../lib/types';
-import { Target, TrendingUp, Flame, AlertCircle, Stethoscope, Clock, BookOpen, Timer, Play } from 'lucide-react';
-
-// ─── Types ───
+import { Target, TrendingUp, Flame, AlertCircle, Stethoscope } from 'lucide-react';
 
 interface WeakTopic {
   topicId: string;
@@ -37,23 +31,12 @@ interface DashboardData {
   masteredCount: number;
   totalReviewed: number;
   meta: DashboardMeta;
-  allAttempts: Attempt[];
-  studyTodaySeconds: number;
-  questionsToday: number;
   weakTopics: WeakTopic[];
   wrongLatest: Attempt[];
   questions: Map<string, Question>;
-  allQuestions: Question[];
-  allTopics: { id: string; name: string; subject: string; grade: string; status: string }[];
-  diagnosticResult: any | null;
-  diagnosticAccuracy: number;
-  nextTopic: { topicId: string; topicName: string; count: number; recommendedDifficulty: string } | null;
+  nextTopic: { topicId: string; topicName: string; count: number } | null;
   hasDiagnostic: boolean;
-  recommendedDifficulty: string;
-  avgTimePerQuestion: number;
 }
-
-// ─── Helpers ───
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
   return (
@@ -69,62 +52,40 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
-function formatStudyTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const mins = Math.floor(seconds / 60);
-  if (mins < 60) return `${mins} min`;
-  const hrs = Math.floor(mins / 60);
-  const remainMins = mins % 60;
-  return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
-}
-
-// ─── Main Component ───
-
 export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic }: {
   onNavigateQuestions: () => void;
   onRefazer: (questionId: string) => void;
-  onStartTopic: (topicId: string, difficulty?: string) => void;
+  onStartTopic: (topicId: string) => void;
 }) {
   const { user } = useAuth();
   const userId = user?.username ?? '';
-
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { loading, error, execute } = useLoadWithTimeout();
   const [showDiagnosticNow, setShowDiagnosticNow] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const defaultMeta: DashboardMeta = { streak: 0, lastAttemptDate: null, lastFilters: { grade: '', subject: '', difficulty: '', topicId: '', search: '' } };
-
-      const [attempts, notebook, meta, dailyStats, allTopics, allQuestions, allowedSlugs, diagResult, avgTime] = await Promise.all([
+    await execute(async () => {
+      const [attempts, notebook, meta, allQuestions, topics, diag, allowedSlugs] = await Promise.all([
         getAttempts(userId),
         getNotebook(userId),
-        getStudentDashboardMeta(userId).catch(() => defaultMeta),
-        getDailyStudyStats(userId).catch(() => null),
-        cachedFetch(CACHE_KEYS.TOPICS, () => getTopics({ activeOnly: true })),
-        cachedFetch(CACHE_KEYS.QUESTION_BANK, () => loadQuestionBank()),
-        cachedFetch(CACHE_KEYS.ALLOWED_SLUGS(userId), () => getAllowedSubjectSlugs(userId)),
+        getStudentDashboardMeta(userId),
+        loadQuestionBank(),
+        getTopics({ activeOnly: true }),
         getDiagnosticResult(userId),
-        getAverageTimePerQuestion(userId),
+        getAllowedSubjectSlugs(userId),
       ]);
 
-      const filteredTopics = allTopics.filter((t: any) => allowedSlugs.includes(t.subject));
-      const filteredQuestions = allQuestions.filter((q: any) => allowedSlugs.includes(q.subject));
+      const filteredTopics = topics.filter(t => allowedSlugs.includes(t.subject));
+      const filteredQuestions = allQuestions.filter(q => allowedSlugs.includes(q.subject));
 
       const answered = attempts.length;
       const correct = attempts.filter(a => a.isCorrect).length;
       const rate = answered ? Math.round((correct / answered) * 100) : 0;
-      const pendingCount = notebook.filter((i: any) => i.status === 'pending').length;
-      const masteredCount = notebook.filter((i: any) => i.status === 'mastered').length;
+      const pendingCount = notebook.filter(i => i.status === 'pending').length;
+      const masteredCount = notebook.filter(i => i.status === 'mastered').length;
       const totalReviewed = notebook.length;
-
-      // Compute weak topics
-      const questions = new Map(filteredQuestions.map((q: Question) => [q.id, q]));
-      const topicMap = new Map(filteredTopics.map((t: any) => [t.id, t.name]));
+      const questions = new Map(filteredQuestions.map(q => [q.id, q]));
+      const topicMap = new Map(filteredTopics.map(t => [t.id, t.name]));
 
       const agg = new Map<string, { topicId: string; label: string; total: number; errors: number }>();
       attempts.forEach(a => {
@@ -147,57 +108,24 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         .sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime())
         .slice(0, 5);
 
-      // Next topic recommendation
-      const qMap = new Map(filteredQuestions.map((q: Question) => [q.id, { topicId: q.topicId, difficulty: q.difficulty, status: q.status }]));
-      const recommended = getRecommendedTopic(attempts, qMap, topicMap);
       let nextTopic: DashboardData['nextTopic'] = null;
-      if (recommended) {
-        const recDiff = getRecommendedDifficulty(attempts, recommended.topicId, qMap);
-        nextTopic = { topicId: recommended.topicId, topicName: recommended.topicName, count: recommended.availableQuestions, recommendedDifficulty: recDiff };
-      } else if (weakTopics.length > 0) {
+      if (weakTopics.length > 0) {
         const top = weakTopics[0];
-        const availableQ = filteredQuestions.filter((q: Question) => q.topicId === top.topicId && q.status !== 'draft').length;
-        const recDiff = getRecommendedDifficulty(attempts, top.topicId, qMap);
-        nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ, recommendedDifficulty: recDiff };
+        const availableQ = filteredQuestions.filter(q => q.topicId === top.topicId && q.status !== 'draft').length;
+        nextTopic = { topicId: top.topicId, topicName: top.label, count: availableQ };
       }
 
-      const globalDifficulty = getRecommendedDifficulty(attempts, undefined, qMap);
-      const diagAccuracy = diagResult ? (diagResult.accuracy_rate ?? diagResult.accuracyRate ?? 0) : 0;
-
-      setData({
-        answered, correct, rate, pendingCount, masteredCount, totalReviewed,
-        meta,
-        allAttempts: attempts,
-        studyTodaySeconds: dailyStats?.totalSeconds ?? 0,
-        questionsToday: dailyStats?.questionsAnswered ?? 0,
-        weakTopics,
-        wrongLatest,
-        questions,
-        allQuestions: filteredQuestions,
-        allTopics: filteredTopics as any,
-        diagnosticResult: diagResult,
-        diagnosticAccuracy: diagAccuracy,
-        nextTopic,
-        hasDiagnostic: !!diagResult,
-        recommendedDifficulty: globalDifficulty,
-        avgTimePerQuestion: avgTime,
-      });
-    } catch (err: any) {
-      console.error('[Dashboard] Load error:', err?.message);
-      setError('Ocorreu um erro ao carregar os dados.');
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
+      setData({ answered, correct, rate, pendingCount, masteredCount, totalReviewed, meta, weakTopics, wrongLatest, questions, nextTopic, hasDiagnostic: !!diag });
+    });
+  }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
+  useVisibilityRefresh(load);
 
-  // ─── Render states ───
+  if (error) return <LoadingTimeout error={error} onRetry={load} />;
+  if (loading || !data) return <p className="text-muted-foreground">Carregando painel...</p>;
 
-  if (error && !data) return <LoadingTimeout error={error} onRetry={load} />;
-  if (loading && !data) return <p className="text-muted-foreground">Carregando painel...</p>;
-  if (!data) return null;
-
+  // Show diagnostic assessment inline
   if (showDiagnosticNow) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -210,7 +138,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
 
   return (
     <div className="space-y-6">
-      {/* Diagnostic CTA */}
+      {/* Diagnostic CTA - only if not done yet */}
       {!data.hasDiagnostic && (
         <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 flex items-center justify-between">
           <div>
@@ -239,73 +167,42 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         <StatCard icon={AlertCircle} label="Pendências" value={String(data.pendingCount)} color="bg-destructive" />
       </div>
 
-      {/* Today's Study Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Clock} label="Estudo hoje" value={formatStudyTime(data.studyTodaySeconds)} color="bg-[hsl(var(--primary))]" />
-        <StatCard icon={BookOpen} label="Questões hoje" value={String(data.questionsToday)} color="bg-[hsl(var(--accent))]" />
-        <StatCard icon={Timer} label="Tempo médio/questão" value={data.avgTimePerQuestion > 0 ? `${data.avgTimePerQuestion}s` : '—'} color="bg-[hsl(var(--muted-foreground))]" />
-        <StatCard icon={Flame} label="Dias estudando" value={`${data.meta.streak} dia${data.meta.streak === 1 ? '' : 's'}`} color="bg-gold" />
-      </div>
-
-      {/* CONTINUAR TREINO */}
-      {data.nextTopic ? (
-        <div className="bg-gradient-to-r from-primary/10 to-gold/10 border border-primary/20 rounded-xl p-6">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">Próximo passo recomendado</p>
-              <p className="text-lg font-bold text-foreground">{data.nextTopic.topicName}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {data.nextTopic.count} exercícios · Nível: <span className="font-semibold capitalize">{difficultyLabel(data.nextTopic.recommendedDifficulty)}</span>
-              </p>
-            </div>
-            <button
-              onClick={() => onStartTopic(data.nextTopic!.topicId, data.nextTopic!.recommendedDifficulty)}
-              className="flex items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md"
-            >
-              <Play className="h-5 w-5" />
-              CONTINUAR TREINO
-            </button>
-          </div>
-        </div>
-      ) : !hasData ? (
-        <div className="bg-card rounded-xl shadow-sm p-6 text-center">
-          <p className="text-muted-foreground mb-3">Comece respondendo questões para ver seu progresso!</p>
-          <button onClick={onNavigateQuestions} className="flex items-center gap-2 mx-auto rounded-xl bg-primary text-primary-foreground font-bold text-base px-8 py-3 hover:brightness-110 transition-all shadow-md">
-            <Play className="h-5 w-5" />
-            COMEÇAR A TREINAR
+      {/* Next Step */}
+      {data.nextTopic && (
+        <div className="bg-card rounded-xl shadow-sm border-l-4 border-l-gold p-5">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Seu próximo passo</p>
+          <p className="text-base font-bold text-foreground">Treinar {data.nextTopic.topicName}</p>
+          <p className="text-xs text-muted-foreground mb-3">{data.nextTopic.count} exercícios disponíveis</p>
+          <button onClick={() => onStartTopic(data.nextTopic!.topicId)} className="rounded-lg bg-gold text-gold-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all">
+            Treinar agora →
           </button>
         </div>
-      ) : null}
+      )}
+
+      {!hasData && !data.nextTopic && (
+        <div className="bg-card rounded-xl shadow-sm p-6 text-center">
+          <p className="text-muted-foreground mb-3">Comece respondendo questões para ver seu progresso!</p>
+          <button onClick={onNavigateQuestions} className="rounded-lg bg-primary text-primary-foreground font-semibold text-sm px-5 py-2 hover:brightness-110 transition-all">
+            Ir para questões
+          </button>
+        </div>
+      )}
 
       {/* Study Trail */}
-      <StudyTrail
-        hasDiagnostic={data.hasDiagnostic}
-        diagnosticAccuracy={data.diagnosticAccuracy}
-        attempts={data.allAttempts}
-        pendingNotebookCount={data.pendingCount}
-      />
+      <StudyTrail />
 
-      {/* Daily Missions */}
-      <DailyMissions />
-
-      {/* Diagnostic Report */}
-      {data.hasDiagnostic && <DiagnosticReport diagnosticResult={data.diagnosticResult} attempts={data.allAttempts} />}
+      {/* Diagnostic Report - only if completed */}
+      {data.hasDiagnostic && <DiagnosticReport />}
 
       {/* Study Plan */}
-      <StudyPlan
-        attempts={data.allAttempts}
-        questions={data.allQuestions}
-        topics={data.allTopics as any}
-        diagnosticResult={data.diagnosticResult}
-        onStartTopic={onStartTopic}
-      />
+      <StudyPlan onStartTopic={onStartTopic} />
 
       {/* Evolution Chart */}
-      <EvolutionChart attempts={data.allAttempts} />
+      <EvolutionChart />
 
-      {/* Error notebook + weak topics */}
       {hasData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Notebook Summary */}
           <div className="bg-card rounded-xl shadow-sm p-5">
             <h3 className="text-sm font-semibold text-foreground mb-3">📓 Caderno de Erros</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -324,6 +221,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
             </div>
           </div>
 
+          {/* Weak Topics */}
           <div className="bg-card rounded-xl shadow-sm p-5">
             <h3 className="text-sm font-semibold text-foreground mb-3">Tópicos Fracos (Top 5)</h3>
             {data.weakTopics.length > 0 ? (
@@ -345,6 +243,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
             )}
           </div>
 
+          {/* Recent Errors */}
           <div className="bg-card rounded-xl shadow-sm p-5 lg:col-span-2">
             <h3 className="text-sm font-semibold text-foreground mb-3">Revisar Erros (Últimas 5)</h3>
             <div className="space-y-3">
@@ -371,7 +270,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
       )}
 
       {/* Achievements */}
-      <Achievements attempts={data.allAttempts} streak={data.meta.streak} />
+      <Achievements />
     </div>
   );
 }

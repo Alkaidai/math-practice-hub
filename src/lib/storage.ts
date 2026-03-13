@@ -502,15 +502,7 @@ export async function getAttempts(userId?: string): Promise<Attempt[]> {
   }));
 }
 
-export async function addAttempt(attempt: Partial<Attempt> & {
-  topicId?: string;
-  timeSpentSeconds?: number;
-  possibleGuess?: boolean;
-  difficultyDetected?: boolean;
-  questionAbandoned?: boolean;
-  questionSkipped?: boolean;
-  attemptNumber?: number;
-}): Promise<Attempt> {
+export async function addAttempt(attempt: Partial<Attempt> & { topicId?: string }): Promise<Attempt> {
   const row: any = {
     user_id: attempt.userId ?? '',
     question_id: attempt.questionId ?? '',
@@ -518,12 +510,6 @@ export async function addAttempt(attempt: Partial<Attempt> & {
     is_correct: attempt.isCorrect ?? false,
     answered_at: attempt.answeredAt ?? nowIso(),
     topic_id: attempt.topicId ?? null,
-    time_spent_seconds: attempt.timeSpentSeconds ?? 0,
-    possible_guess: attempt.possibleGuess ?? false,
-    difficulty_detected: attempt.difficultyDetected ?? false,
-    question_abandoned: attempt.questionAbandoned ?? false,
-    question_skipped: attempt.questionSkipped ?? false,
-    attempt_number: attempt.attemptNumber ?? 1,
   };
   const { data } = await supabase.from('attempts').insert(row).select().single();
   const d = (data ?? row) as any;
@@ -548,8 +534,6 @@ export async function getNotebook(userId?: string): Promise<NotebookItem[]> {
     grade: row.grade, subject: row.subject, difficulty: row.difficulty, topicId: row.topic_id,
     status: row.status, whatIErred: row.what_i_erred, ruleInsight: row.rule_insight,
     updatedAt: row.updated_at,
-    nextReviewAt: row.next_review_at ?? null,
-    reviewCount: row.review_count ?? 0,
   }));
 }
 
@@ -569,8 +553,6 @@ export async function upsertNotebookItem(userId: string, questionId: string, pat
     rule_insight: patch.ruleInsight ?? '',
     updated_at: nowIso(),
   };
-  if (patch.nextReviewAt !== undefined) row.next_review_at = patch.nextReviewAt;
-  if (patch.reviewCount !== undefined) row.review_count = patch.reviewCount;
 
   const { data } = await supabase
     .from('notebook_items')
@@ -584,8 +566,6 @@ export async function upsertNotebookItem(userId: string, questionId: string, pat
     grade: d.grade, subject: d.subject, difficulty: d.difficulty, topicId: d.topic_id,
     status: d.status, whatIErred: d.what_i_erred, ruleInsight: d.rule_insight,
     updatedAt: d.updated_at,
-    nextReviewAt: d.next_review_at ?? null,
-    reviewCount: d.review_count ?? 0,
   };
 }
 
@@ -927,42 +907,6 @@ export async function getAllDiagnosticResults(): Promise<any[]> {
 
 export async function initStorageFromSeeds(): Promise<void> {
   // Data is already in the database, no seeding needed
-}
-
-export async function getDailyStudyStats(userId: string, date?: string): Promise<{ totalSeconds: number; questionsAnswered: number } | null> {
-  const d = date ?? new Date().toISOString().split('T')[0];
-  const { data } = await supabase
-    .from('daily_study_stats')
-    .select('total_seconds, questions_answered')
-    .eq('user_id', userId)
-    .eq('date', d)
-    .single();
-  if (!data) return null;
-  return { totalSeconds: (data as any).total_seconds ?? 0, questionsAnswered: (data as any).questions_answered ?? 0 };
-}
-
-export async function getAverageTimePerQuestion(userId: string): Promise<number> {
-  // Use count + sum approach to avoid fetching all rows
-  const { count } = await supabase
-    .from('attempts')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .gt('time_spent_seconds', 0);
-
-  if (!count || count === 0) return 0;
-
-  // Fetch only the aggregation we need (limited to recent 200 for performance)
-  const { data } = await supabase
-    .from('attempts')
-    .select('time_spent_seconds')
-    .eq('user_id', userId)
-    .gt('time_spent_seconds', 0)
-    .order('answered_at', { ascending: false })
-    .limit(200);
-
-  if (!data || data.length === 0) return 0;
-  const total = data.reduce((sum: number, r: any) => sum + (r.time_spent_seconds ?? 0), 0);
-  return Math.round(total / data.length);
 }
 
 export async function resetToSeed(): Promise<void> {

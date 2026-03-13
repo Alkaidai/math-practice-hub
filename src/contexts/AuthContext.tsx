@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(profile);
           setError(null);
         } else {
+          // Session exists but no profile — don't block the app
           console.warn('Auth session found but no matching profile for', authUserId);
           setUser(null);
           setError('Perfil não encontrado. Contate o administrador.');
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // 1. Check initial session FIRST
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (cancelled) return;
       if (session?.user) {
@@ -67,15 +69,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // 2. Listen for auth changes AFTER initial load
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!initialized && !cancelled) return;
-
+      if (!initialized && !cancelled) return; // Skip during initial load to avoid race
+      
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setError(null);
         return;
       }
-
+      
       if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY')) {
         await loadProfile(session.user.id);
       }
@@ -86,6 +89,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [initialized]);
+
+  // Revalidate session when tab regains focus after inactivity
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+    const MIN_HIDDEN_MS = 60_000; // 1 minute
+
+    async function handleVisibility() {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (document.visibilityState === 'visible' && hiddenAt) {
+        const elapsed = Date.now() - hiddenAt;
+        hiddenAt = null;
+        if (elapsed >= MIN_HIDDEN_MS) {
+          try {
+            const { data, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !data.session) {
+              // Session truly expired — force logout
+              logoutStorage();
+              setUser(null);
+              setError('Sua sessão expirou. Faça login novamente.');
+            }
+          } catch {
+            // Network error — don't force logout, let components handle
+          }
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser | null> => {
     setError(null);
@@ -102,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
 
+    // Check blocked
     const { data: profileRow } = await supabase.from('profiles').select('status, login_count').eq('auth_user_id', data.user.id).single();
     if ((profileRow as any)?.status === 'blocked') {
       await supabase.auth.signOut();
@@ -109,10 +146,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
 
+    // Update login count
     const newCount = ((profileRow as any)?.login_count ?? 0) + 1;
     await supabase.from('profiles').update({
       last_login_at: new Date().toISOString(),
-      login_count: newCount,
+      login_count: newCount
     } as any).eq('auth_user_id', data.user.id);
 
     setCurrentUser(profile);
