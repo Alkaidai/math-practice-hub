@@ -38,14 +38,20 @@ export function TimedTraining({ onQuestionAnswered }: { onQuestionAnswered?: () 
   const statsRef = useRef({ correct: 0, total: 0, startTime: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [loadingQuestions, setLoadingQuestions] = useState(true);
+
   const loadQuestions = useCallback(async () => {
-    const [allQ, topics, slugs] = await Promise.all([
-      loadQuestionBank(),
-      getTopics({ activeOnly: true }),
-      userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
-    ]);
-    const filtered = allQ.filter(q => q.status !== 'draft' && slugs.includes(q.subject));
-    setQuestions(shuffleArray(filtered).slice(0, 50));
+    setLoadingQuestions(true);
+    try {
+      const [allQ, topics, slugs] = await Promise.all([
+        loadQuestionBank(),
+        getTopics({ activeOnly: true }),
+        userId ? getAllowedSubjectSlugs(userId) : Promise.resolve([]),
+      ]);
+      const filtered = allQ.filter(q => q.status !== 'draft' && slugs.includes(q.subject));
+      setQuestions(shuffleArray(filtered).slice(0, 50));
+    } catch { /* handled by empty state */ }
+    setLoadingQuestions(false);
   }, [userId]);
 
   useEffect(() => { loadQuestions(); }, [loadQuestions]);
