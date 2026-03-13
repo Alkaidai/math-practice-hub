@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { loadQuestionBank, getTopics, getNotebook, addAttempt, upsertNotebookItem, addComment, addReport, getAttempts, saveStudentDashboardMeta, getLessons, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, optionLetter, formatDate, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState, EmptyState } from './ScreenStates';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useQuestionTimer } from '../../hooks/useQuestionTimer';
@@ -209,8 +209,8 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   const totalPages = Math.max(1, Math.ceil(questions.length / perPage));
   const pagedQuestions = questions.slice(page * perPage, (page + 1) * perPage);
 
-  if (loading) return <p className="text-muted-foreground">Carregando questões...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (loading) return <LoadingState message="Carregando questões..." />;
+  if (loadError) return <ScreenErrorState error={loadError} onRetry={loadData} />;
 
   return (
     <div className="space-y-5">

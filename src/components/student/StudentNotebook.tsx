@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getNotebook, loadQuestionBank, getTopics, upsertNotebookItem, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel, difficultyLabel, subjectCode, difficultyCode, statusLabel } from '../../lib/ui-utils';
 import { GRADES, SUBJECTS_MAP, DIFFICULTIES_MAP } from '../../lib/constants';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState } from './ScreenStates';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { CheckCircle2, Search, CalendarClock, BookOpen, AlertCircle, RotateCw } from 'lucide-react';
@@ -103,8 +103,8 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
     });
   }, [notebookItems, filters, search, questionsMap, allTopics]);
 
-  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando caderno de erros...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (loading) return <LoadingState message="Carregando caderno de erros..." />;
+  if (loadError) return <ScreenErrorState error={loadError} onRetry={loadData} />;
 
   const pending = items.filter(i => i.status === 'pending');
   const mastered = items.filter(i => i.status === 'mastered');

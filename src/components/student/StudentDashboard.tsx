@@ -8,7 +8,7 @@ import { EvolutionChart } from './EvolutionChart';
 import { Achievements } from './Achievements';
 import { DailyMissions } from './DailyMissions';
 import { StudyTrail } from './StudyTrail';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState } from './ScreenStates';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -174,8 +174,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load);
 
-  if (error) return <LoadingTimeout error={error} onRetry={load} />;
-  if (loading || !data) return <p className="text-body text-muted-foreground animate-fade-in">Carregando painel...</p>;
+  if (error) return <ScreenErrorState error={error} onRetry={load} />;
+  if (loading || !data) return <LoadingState message="Carregando painel..." />;
 
   if (showDiagnosticNow) {
     return (

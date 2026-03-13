@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAttempts, getTopics, getSubjects, loadQuestionBank, getAllowedSubjectSlugs } from '../../lib/storage';
 import { Progress } from '../ui/progress';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState, EmptyState } from './ScreenStates';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { AlertTriangle, CheckCircle2, BookOpen, Clock, ArrowRight } from 'lucide-react';
@@ -112,8 +112,8 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   useEffect(() => { load(); }, [load]);
   useVisibilityRefresh(load);
 
-  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando mapa de tópicos...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={load} />;
+  if (loading) return <LoadingState message="Carregando mapa de tópicos..." />;
+  if (loadError) return <ScreenErrorState error={loadError} onRetry={load} />;
   if (groups.length === 0) return (
     <div className="bg-card rounded-xl shadow-sm p-8 text-center border border-border">
       <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />

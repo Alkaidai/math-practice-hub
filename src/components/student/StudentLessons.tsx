@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getLessons, getTopics, getAllowedSubjectSlugs } from '../../lib/storage';
 import { subjectLabel } from '../../lib/ui-utils';
-import { LoadingTimeout } from './LoadingTimeout';
+import { LoadingState, ScreenErrorState, EmptyState } from './ScreenStates';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { Search, PlayCircle, Clock, ExternalLink } from 'lucide-react';
@@ -79,8 +79,8 @@ export function StudentLessons() {
   const visibleLessons = filtered.filter(l => l.visibility === 'visible');
   const comingSoonLessons = filtered.filter(l => l.visibility === 'coming_soon');
 
-  if (loading) return <p className="text-body text-muted-foreground animate-fade-in">Carregando aulas...</p>;
-  if (loadError) return <LoadingTimeout error={loadError} onRetry={loadData} />;
+  if (loading) return <LoadingState message="Carregando aulas..." />;
+  if (loadError) return <ScreenErrorState error={loadError} onRetry={loadData} />;
 
   return (
     <div className="space-y-5 animate-fade-in">
