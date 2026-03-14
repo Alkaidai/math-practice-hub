@@ -173,7 +173,7 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
   }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  // MVP: useVisibilityRefresh DISABLED — no auto-reload on tab focus
 
   if (error) return <ScreenErrorState error={error} onRetry={load} />;
   if (loading || !data) return <LoadingState message="Carregando painel..." />;
