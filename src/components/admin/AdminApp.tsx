@@ -61,17 +61,18 @@ const ADMIN_NAV = [
   { id: 'subjects' as Panel, label: 'Disciplinas', icon: BookOpen, group: 'Conteúdo' },
   { id: 'lessons' as Panel, label: 'Aulas', icon: GraduationCap, group: 'Conteúdo' },
   { id: 'cadastros' as Panel, label: 'Tópicos', icon: Folder, group: 'Conteúdo' },
-  { id: 'prerequisites' as Panel, label: 'Pré-requisitos', icon: Link2, group: 'Conteúdo' },
   { id: 'import' as Panel, label: 'Importar', icon: Upload, group: 'Conteúdo' },
   { id: 'export' as Panel, label: 'Exportar', icon: Download, group: 'Conteúdo' },
-  { id: 'ranking' as Panel, label: 'Ranking', icon: Trophy, group: 'Análise' },
-  { id: 'topic-stats' as Panel, label: 'Estatísticas', icon: BarChart3, group: 'Análise' },
-  { id: 'analytics' as Panel, label: 'Engajamento', icon: Activity, group: 'Análise' },
   { id: 'users' as Panel, label: 'Usuários', icon: Users, group: 'Pessoas' },
-  { id: 'comments' as Panel, label: 'Comentários', icon: MessageSquare, group: 'Pessoas' },
-  { id: 'notebook' as Panel, label: 'Caderno', icon: Notebook, group: 'Pessoas' },
-  { id: 'reports' as Panel, label: 'Erros', icon: AlertTriangle, group: 'Sistema' },
+  { id: 'topic-stats' as Panel, label: 'Estatísticas', icon: BarChart3, group: 'Análise' },
   { id: 'settings' as Panel, label: 'Configurações', icon: Settings, group: 'Sistema' },
+  // MVP: hidden panels (kept in code for future reactivation)
+  // { id: 'prerequisites' as Panel, label: 'Pré-requisitos', icon: Link2, group: 'Conteúdo' },
+  // { id: 'ranking' as Panel, label: 'Ranking', icon: Trophy, group: 'Análise' },
+  // { id: 'analytics' as Panel, label: 'Engajamento', icon: Activity, group: 'Análise' },
+  // { id: 'comments' as Panel, label: 'Comentários', icon: MessageSquare, group: 'Pessoas' },
+  // { id: 'notebook' as Panel, label: 'Caderno', icon: Notebook, group: 'Pessoas' },
+  // { id: 'reports' as Panel, label: 'Erros', icon: AlertTriangle, group: 'Sistema' },
 ];
 
 function AdminSidebar({ panel, onNavigate, user, onLogout }: {
