@@ -110,7 +110,7 @@ export function KnowledgeMap({ userId: externalUserId, onStartTopic }: { userId?
   }, [userId, execute, externalUserId]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  // MVP: useVisibilityRefresh DISABLED — no auto-reload on tab focus
 
   if (loading) return <LoadingState message="Carregando mapa de tópicos..." />;
   if (loadError) return <ScreenErrorState error={loadError} onRetry={load} />;

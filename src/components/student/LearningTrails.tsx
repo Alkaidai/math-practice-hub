@@ -258,7 +258,7 @@ export function LearningTrails({ onStartTopic }: { onStartTopic?: (topicId: stri
   }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  // MVP: useVisibilityRefresh DISABLED — no auto-reload on tab focus
 
   if (loading) return <LoadingState message="Carregando trilhas..." />;
   if (error) return <ScreenErrorState error={error} onRetry={load} />;

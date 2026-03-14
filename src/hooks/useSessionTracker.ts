@@ -143,27 +143,10 @@ export function useSessionTracker(userId: string | null) {
       } catch { /* best effort */ }
     }, HEARTBEAT_INTERVAL_MS);
 
-    // Visibility change: end session when hidden, start new when visible
-    const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        endSession();
-        if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
-        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      } else {
-        startSession();
-        inactivityTimerRef.current = setTimeout(() => endSession(), INACTIVITY_TIMEOUT_MS);
-        heartbeatTimerRef.current = setInterval(async () => {
-          const sid = sessionIdRef.current;
-          if (!sid) return;
-          try {
-            await supabase.from('user_sessions')
-              .update({ last_activity: new Date(lastActivityRef.current).toISOString() } as any)
-              .eq('id', sid);
-          } catch { /* best effort */ }
-        }, HEARTBEAT_INTERVAL_MS);
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
+    // MVP: Visibility-based session end/start DISABLED.
+    // Sessions only end on inactivity timeout or page unload.
+    // This prevents side-effects that could trigger UI reloads.
+    const handleVisibility = () => {}; // no-op
 
     // End session on page unload
     const handleUnload = () => {

@@ -79,7 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY')) {
+      // Only reload profile on explicit sign-in or password recovery.
+      // TOKEN_REFRESHED is silently handled — no UI reload to avoid infinite loading.
+      if (session?.user && (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY')) {
         await loadProfile(session.user.id);
       }
     });
@@ -90,38 +92,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [initialized]);
 
-  // Revalidate session when tab regains focus after inactivity
-  useEffect(() => {
-    let hiddenAt: number | null = null;
-    const MIN_HIDDEN_MS = 300_000; // 5 minutes
-
-    async function handleVisibility() {
-      if (document.visibilityState === 'hidden') {
-        hiddenAt = Date.now();
-        return;
-      }
-      if (document.visibilityState === 'visible' && hiddenAt) {
-        const elapsed = Date.now() - hiddenAt;
-        hiddenAt = null;
-        if (elapsed >= MIN_HIDDEN_MS) {
-          try {
-            const { data, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError || !data.session) {
-              // Session truly expired — force logout
-              logoutStorage();
-              setUser(null);
-              setError('Sua sessão expirou. Faça login novamente.');
-            }
-          } catch {
-            // Network error — don't force logout, let components handle
-          }
-        }
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, []);
+  // MVP: Visibility-based session revalidation DISABLED.
+  // Token refresh happens automatically via Supabase SDK.
+  // No visibility listener here — avoids infinite loading on tab return.
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser | null> => {
     setError(null);

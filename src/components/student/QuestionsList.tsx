@@ -94,7 +94,7 @@ export function QuestionsList({ initialQuestionId, initialTopicId, initialDiffic
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData);
+  // MVP: useVisibilityRefresh DISABLED — no auto-reload on tab focus
 
   const topicMap = useMemo(() => new Map(allTopics.map(t => [t.id, t.name])), [allTopics]);
 
