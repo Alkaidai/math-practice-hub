@@ -5,9 +5,10 @@ import { subjectLabel, difficultyLabel, formatDate } from '../../lib/ui-utils';
 import { DiagnosticReport } from './DiagnosticReport';
 import { StudyPlan } from './StudyPlan';
 import { EvolutionChart } from './EvolutionChart';
-import { Achievements } from './Achievements';
-import { DailyMissions } from './DailyMissions';
-import { StudyTrail } from './StudyTrail';
+// MVP: Achievements, DailyMissions, StudyTrail hidden (not deleted)
+// import { Achievements } from './Achievements';
+// import { DailyMissions } from './DailyMissions';
+// import { StudyTrail } from './StudyTrail';
 import { LoadingState, ScreenErrorState } from './ScreenStates';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { useLoadWithTimeout } from '../../hooks/useLoadWithTimeout';
@@ -250,16 +251,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       )}
 
-      {/* Study Trail */}
-      <StudyTrail
-        hasDiagnostic={data.hasDiagnostic}
-        diagnosticAccuracy={data.diagnosticAccuracy}
-        attempts={data.allAttempts}
-        pendingNotebookCount={data.pendingCount}
-      />
-
-      {/* Daily Missions */}
-      <DailyMissions />
+      {/* MVP: StudyTrail and DailyMissions hidden */}
+      {/* <StudyTrail ... /> */}
+      {/* <DailyMissions /> */}
 
       {/* Diagnostic Report */}
       {data.hasDiagnostic && <DiagnosticReport diagnosticResult={data.diagnosticResult} attempts={data.allAttempts} />}
@@ -357,8 +351,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       )}
 
-      {/* Achievements */}
-      <Achievements attempts={data.allAttempts} streak={data.meta.streak} />
+      {/* MVP: Achievements hidden */}
+      {/* <Achievements attempts={data.allAttempts} streak={data.meta.streak} /> */}
     </div>
   );
 }

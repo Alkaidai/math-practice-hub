@@ -3,12 +3,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from './LoginForm';
 import { StudentDashboard } from './StudentDashboard';
 import { QuestionsList } from './QuestionsList';
-import { TimedTraining } from './TimedTraining';
 import { StudentNotebook } from './StudentNotebook';
-import { StudentRanking } from './StudentRanking';
-import { KnowledgeMap } from './KnowledgeMap';
-import { LearningTrails } from './LearningTrails';
 import { StudentLessons } from './StudentLessons';
+import { StudentHistory } from './StudentHistory';
 import { DiagnosticAssessment } from './DiagnosticAssessment';
 import { LoadingState } from './ScreenStates';
 import { ScrollToTop } from './ScrollToTop';
@@ -19,19 +16,16 @@ import {
   SidebarGroup, SidebarGroupContent, SidebarMenu,
   SidebarMenuItem, SidebarMenuButton, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, PenLine, Map, BookOpen, Trophy, LogOut, Shield, GraduationCap, Timer, Route } from 'lucide-react';
+import { LayoutDashboard, PenLine, BookOpen, LogOut, Shield, GraduationCap, History } from 'lucide-react';
 
-type Tab = 'dashboard' | 'questions' | 'timed' | 'knowledgeMap' | 'trails' | 'notebook' | 'ranking' | 'lessons';
+type Tab = 'dashboard' | 'questions' | 'notebook' | 'lessons' | 'history';
 
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { key: 'questions', label: 'Treinar', icon: PenLine },
-  { key: 'timed', label: 'Cronômetro', icon: Timer },
-  { key: 'trails', label: 'Trilhas', icon: Route },
-  { key: 'lessons', label: 'Aulas', icon: GraduationCap },
-  { key: 'knowledgeMap', label: 'Mapa de tópicos', icon: Map },
   { key: 'notebook', label: 'Caderno de erros', icon: BookOpen },
-  { key: 'ranking', label: 'Ranking', icon: Trophy },
+  { key: 'lessons', label: 'Aulas', icon: GraduationCap },
+  { key: 'history', label: 'Histórico', icon: History },
 ];
 
 function StudentSidebar({ tab, setTab, user, onLogout }: {
@@ -197,12 +191,9 @@ export function StudentApp() {
           <main className="flex-1 p-4 md:p-6 overflow-auto custom-scrollbar">
             {tab === 'dashboard' && <StudentDashboard key={tabKey} onNavigateQuestions={() => handleTabChange('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
             {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} initialDifficulty={difficultyFilter} onQuestionAnswered={recordQuestionAnswered} />}
-            {tab === 'timed' && <TimedTraining key={tabKey} onQuestionAnswered={recordQuestionAnswered} />}
-            {tab === 'trails' && <LearningTrails key={tabKey} onStartTopic={handleStartTopic} />}
-            {tab === 'knowledgeMap' && <KnowledgeMap key={tabKey} onStartTopic={handleStartTopic} />}
             {tab === 'lessons' && <StudentLessons key={tabKey} />}
             {tab === 'notebook' && <StudentNotebook key={tabKey} onRefazer={handleRefazer} />}
-            {tab === 'ranking' && <StudentRanking key={tabKey} />}
+            {tab === 'history' && <StudentHistory key={tabKey} />}
           </main>
           <ScrollToTop />
         </div>
