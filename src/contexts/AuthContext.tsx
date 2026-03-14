@@ -79,7 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY')) {
+      // Only reload profile on explicit sign-in or password recovery.
+      // TOKEN_REFRESHED is silently handled — no UI reload to avoid infinite loading.
+      if (session?.user && (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY')) {
         await loadProfile(session.user.id);
       }
     });
