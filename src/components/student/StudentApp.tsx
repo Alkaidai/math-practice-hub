@@ -191,12 +191,9 @@ export function StudentApp() {
           <main className="flex-1 p-4 md:p-6 overflow-auto custom-scrollbar">
             {tab === 'dashboard' && <StudentDashboard key={tabKey} onNavigateQuestions={() => handleTabChange('questions')} onRefazer={handleRefazer} onStartTopic={handleStartTopic} />}
             {tab === 'questions' && <QuestionsList key={tabKey} initialQuestionId={targetQuestion} initialTopicId={topicFilter} initialDifficulty={difficultyFilter} onQuestionAnswered={recordQuestionAnswered} />}
-            {tab === 'timed' && <TimedTraining key={tabKey} onQuestionAnswered={recordQuestionAnswered} />}
-            {tab === 'trails' && <LearningTrails key={tabKey} onStartTopic={handleStartTopic} />}
-            {tab === 'knowledgeMap' && <KnowledgeMap key={tabKey} onStartTopic={handleStartTopic} />}
             {tab === 'lessons' && <StudentLessons key={tabKey} />}
             {tab === 'notebook' && <StudentNotebook key={tabKey} onRefazer={handleRefazer} />}
-            {tab === 'ranking' && <StudentRanking key={tabKey} />}
+            {tab === 'history' && <StudentHistory key={tabKey} />}
           </main>
           <ScrollToTop />
         </div>

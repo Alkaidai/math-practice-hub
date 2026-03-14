@@ -351,8 +351,8 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       )}
 
-      {/* Achievements */}
-      <Achievements attempts={data.allAttempts} streak={data.meta.streak} />
+      {/* MVP: Achievements hidden */}
+      {/* <Achievements attempts={data.allAttempts} streak={data.meta.streak} /> */}
     </div>
   );
 }
