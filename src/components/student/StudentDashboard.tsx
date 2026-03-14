@@ -251,16 +251,9 @@ export function StudentDashboard({ onNavigateQuestions, onRefazer, onStartTopic 
         </div>
       )}
 
-      {/* Study Trail */}
-      <StudyTrail
-        hasDiagnostic={data.hasDiagnostic}
-        diagnosticAccuracy={data.diagnosticAccuracy}
-        attempts={data.allAttempts}
-        pendingNotebookCount={data.pendingCount}
-      />
-
-      {/* Daily Missions */}
-      <DailyMissions />
+      {/* MVP: StudyTrail and DailyMissions hidden */}
+      {/* <StudyTrail ... /> */}
+      {/* <DailyMissions /> */}
 
       {/* Diagnostic Report */}
       {data.hasDiagnostic && <DiagnosticReport diagnosticResult={data.diagnosticResult} attempts={data.allAttempts} />}
