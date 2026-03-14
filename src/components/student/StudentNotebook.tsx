@@ -63,7 +63,7 @@ export function StudentNotebook({ onRefazer }: { onRefazer: (questionId: string)
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData);
+  // MVP: useVisibilityRefresh DISABLED — no auto-reload on tab focus
 
   const questionsMap = useMemo(() => new Map(allQuestions.map(q => [q.id, q])), [allQuestions]);
 

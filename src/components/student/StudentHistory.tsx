@@ -36,7 +36,7 @@ export function StudentHistory() {
   }, [userId, execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  // MVP: useVisibilityRefresh DISABLED — no auto-reload on tab focus
 
   if (loading) return <LoadingState message="Carregando histórico..." />;
   if (error) return <ScreenErrorState error={error} onRetry={load} />;

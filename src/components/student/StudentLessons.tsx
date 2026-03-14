@@ -51,7 +51,7 @@ export function StudentLessons() {
   }, [userId, execute]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useVisibilityRefresh(loadData);
+  // MVP: useVisibilityRefresh DISABLED — no auto-reload on tab focus
 
   const topicsMap = useMemo(() => new Map(topics.map(t => [t.id, t])), [topics]);
 

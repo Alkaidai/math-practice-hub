@@ -32,7 +32,7 @@ export function StudentRanking() {
   }, [execute]);
 
   useEffect(() => { load(); }, [load]);
-  useVisibilityRefresh(load);
+  // MVP: useVisibilityRefresh DISABLED — no auto-reload on tab focus
 
   if (loading) return <LoadingState message="Carregando ranking..." />;
   if (loadError) return <ScreenErrorState error={loadError} onRetry={load} />;
